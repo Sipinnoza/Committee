@@ -1,0 +1,6 @@
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.committee.investing.data.remote.** { *; }
+-keep class com.committee.investing.domain.model.** { *; }
+-dontwarn okhttp3.**
+-dontwarn retrofit2.**
