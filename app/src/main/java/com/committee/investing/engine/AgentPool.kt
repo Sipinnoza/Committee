@@ -107,9 +107,9 @@ class AgentPool @Inject constructor(
      * 原代码调用非流式接口拿到全量文本后 chunked(4) 模拟流式，
      * 用户实际需等 API 全量返回才看到第一个字。
      */
-    fun callAgentStreaming(role: AgentRole, context: MicContext): Flow<String> = channelFlow {
+    fun callAgentStreaming(role: AgentRole, context: MicContext, systemPromptOverride: String? = null): Flow<String> = channelFlow {
         val config = apiKeyProvider.getAgentConfig(role.id)
-        val systemPrompt = buildSystemPrompt(role, context)
+        val systemPrompt = systemPromptOverride ?: buildSystemPrompt(role, context)
         val userMessage  = buildUserMessage(context)
 
         Log.e(TAG, "══════════════════════════════════════════════════")

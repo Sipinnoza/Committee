@@ -74,7 +74,7 @@ fun HistoryScreen(
                 items(uiState.sessions, key = { it.traceId }) { session ->
                     SessionCard(
                         session = session,
-                        onRecover = { viewModel.recoverSession(it) },
+                        onRecover = { /* recovery pending new runtime */ },
                         onClick = { onSessionClick(session) },
                     )
                 }

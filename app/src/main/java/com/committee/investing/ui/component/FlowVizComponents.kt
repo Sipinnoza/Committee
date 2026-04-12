@@ -277,16 +277,25 @@ fun FlowGraph(flowState: FlowVizState, modifier: Modifier = Modifier) {
 // ── Phase 信息卡片 ─────────────────────────────────────────────
 
 @Composable
-private fun PhaseInfoCard(phase: com.committee.investing.engine.flow.PhaseDef, currentStateName: String) {
+private fun PhaseInfoCard(phase: com.committee.investing.engine.runtime.BoardPhase, currentStateName: String) {
     val stateDisplay = mapOf(
-        "VALIDATING" to "入场评估",
-        "PREPPING" to "并行准备",
-        "PHASE1_DEBATE" to "多方辩论",
-        "PHASE1_ADJUDICATING" to "仲裁",
-        "PHASE2_ASSESSMENT" to "风险评估",
-        "FINAL_RATING" to "发布评级",
-        "APPROVED" to "待确认",
+        "IDLE" to "待机",
+        "ANALYSIS" to "分析",
+        "DEBATE" to "辩论",
+        "VOTE" to "投票",
+        "RATING" to "评级",
+        "EXECUTION" to "执行",
+        "DONE" to "完成",
     )
+
+    val agentsForPhase = when (phase) {
+        com.committee.investing.engine.runtime.BoardPhase.ANALYSIS -> listOf("analyst", "intel")
+        com.committee.investing.engine.runtime.BoardPhase.DEBATE -> listOf("analyst", "risk_officer", "strategist")
+        com.committee.investing.engine.runtime.BoardPhase.VOTE -> listOf("analyst", "risk_officer", "strategist")
+        com.committee.investing.engine.runtime.BoardPhase.RATING -> listOf("supervisor")
+        com.committee.investing.engine.runtime.BoardPhase.EXECUTION -> listOf("executor")
+        else -> emptyList()
+    }
 
     Row(
         modifier = Modifier
@@ -306,14 +315,14 @@ private fun PhaseInfoCard(phase: com.committee.investing.engine.flow.PhaseDef, c
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                "策略: ${phase.strategy.name} | 任务: ${phase.task}",
+                "阶段: ${phase.name}",
                 style = MaterialTheme.typography.labelSmall,
                 color = TextSecondary,
             )
         }
         // Agent 列表
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            phase.agents.forEach { agentId ->
+            agentsForPhase.forEach { agentId ->
                 Box(
                     modifier = Modifier
                         .size(24.dp)

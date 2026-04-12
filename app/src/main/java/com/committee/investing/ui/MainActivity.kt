@@ -114,7 +114,6 @@ fun CommitteeApp() {
                 HistoryScreen(
                     viewModel = viewModel,
                     onSessionClick = { session ->
-                        viewModel.loadSessionSpeeches(session.traceId)
                         navController.navigate("session_detail/${session.traceId}")
                     },
                 )

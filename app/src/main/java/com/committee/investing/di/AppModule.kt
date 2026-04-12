@@ -15,10 +15,8 @@ import com.committee.investing.data.db.AgentChatDao
 import com.committee.investing.data.remote.AnthropicApiService
 import com.committee.investing.data.remote.OpenAiApiService
 import com.committee.investing.engine.ApiKeyProvider
-import com.committee.investing.engine.StateEngine
-import com.committee.investing.engine.Scheduler
-import com.committee.investing.engine.flow.FlowLoader
-import com.committee.investing.engine.flow.StateMachine
+import com.committee.investing.engine.AgentPool
+import com.committee.investing.engine.runtime.*
 import com.google.gson.Gson
 import dagger.Binds
 import dagger.Module
@@ -81,19 +79,28 @@ object AppModule {
     @Provides fun provideAgentChatDao(db: CommitteeDatabase): AgentChatDao = db.agentChatDao()
     @Provides @Singleton fun provideGson(): Gson = Gson()
 
-    // ── Flow DSL / State Machine ─────────────────────────────────────
+    // ── Agent Runtime（新架构） ─────────────────────────────────────
 
     @Provides @Singleton
-    fun provideStateMachine(@ApplicationContext ctx: Context): StateMachine {
-        val flow = FlowLoader.load(ctx, "default_flow")
-        return StateMachine(flow, "IDLE")
+    fun provideAgentRuntime(
+        agentPool: AgentPool,
+        apiKeyProvider: DataStoreApiKeyProvider,
+    ): AgentRuntime {
+        val supervisor = SupervisorAgent()
+        val agents = listOf(
+            AnalystAgent(),
+            RiskAgent(),
+            StrategistAgent(),
+            IntelAgent(),
+            ExecutorAgent(),
+        )
+        return AgentRuntime(
+            agentPool = agentPool,
+            supervisor = supervisor,
+            agents = agents,
+            configProvider = { apiKeyProvider.getConfig() },
+        )
     }
-
-    @Provides @Singleton
-    fun provideStateEngine(sm: StateMachine): StateEngine = StateEngine(sm)
-
-    @Provides @Singleton
-    fun provideScheduler(sm: StateMachine): Scheduler = Scheduler(sm)
 
     @Provides @Singleton
     fun provideOkHttp(): OkHttpClient = OkHttpClient.Builder()

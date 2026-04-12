@@ -3,11 +3,12 @@ package com.committee.investing.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.committee.investing.data.db.MeetingSessionEntity
-import com.committee.investing.data.repository.EventRepository
 import com.committee.investing.di.DataStoreApiKeyProvider
-import com.committee.investing.domain.model.*
-import com.committee.investing.engine.CommitteeLooper
+import com.committee.investing.domain.model.MeetingState
+import com.committee.investing.domain.model.SpeechRecord
 import com.committee.investing.engine.LlmConfig
+import com.committee.investing.engine.runtime.AgentRuntime
+import com.committee.investing.engine.runtime.BoardPhase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -23,12 +24,16 @@ data class MeetingUiState(
     val hasApiKey: Boolean = false,
     val llmConfig: LlmConfig = LlmConfig(),
     val error: String? = null,
+    val boardPhase: BoardPhase = BoardPhase.IDLE,
+    val boardRound: Int = 1,
+    val boardConsensus: Boolean = false,
+    val boardFinished: Boolean = false,
+    val boardRating: String? = null,
 )
 
 @HiltViewModel
 class MeetingViewModel @Inject constructor(
-    private val looper: CommitteeLooper,
-    private val eventRepository: EventRepository,
+    private val runtime: AgentRuntime,
     private val apiKeyProvider: DataStoreApiKeyProvider,
 ) : ViewModel() {
 
@@ -36,38 +41,45 @@ class MeetingViewModel @Inject constructor(
     val uiState: StateFlow<MeetingUiState> = _uiState.asStateFlow()
 
     init {
-        // Merge all observable flows into uiState
+        // 监听 runtime 状态
         viewModelScope.launch {
             combine(
-                looper.currentState,
-                looper.speeches,
-                looper.isRunning,
-                eventRepository.observeAllSessions(),
-            ) { state, speeches, running, sessions ->
+                runtime.speeches,
+                runtime.isRunning,
+                runtime.board,
+                runtime.runtimeLog,
+            ) { speeches, running, board, logs ->
                 _uiState.value.copy(
-                    currentState = state,
                     speeches = speeches,
                     isRunning = running,
-                    sessions = sessions,
-                    hasApiKey = apiKeyProvider.hasKey(),
-                    llmConfig = apiKeyProvider.getConfig(),
+                    looperLogs = logs.takeLast(100),
+                    subject = board.subject,
+                    boardPhase = board.phase,
+                    boardRound = board.round,
+                    boardConsensus = board.consensus,
+                    boardFinished = board.finished,
+                    boardRating = board.finalRating,
+                    currentState = when {
+                        board.finished -> MeetingState.COMPLETED
+                        board.phase == BoardPhase.IDLE -> MeetingState.IDLE
+                        board.phase == BoardPhase.ANALYSIS -> MeetingState.PREPPING
+                        board.phase == BoardPhase.DEBATE -> MeetingState.PHASE1_DEBATE
+                        board.phase == BoardPhase.RATING -> MeetingState.FINAL_RATING
+                        board.phase == BoardPhase.EXECUTION -> MeetingState.APPROVED
+                        board.phase == BoardPhase.DONE -> MeetingState.COMPLETED
+                        else -> MeetingState.IDLE
+                    },
                 )
             }.collect { _uiState.value = it }
         }
 
+        // 初始化 API key 状态
         viewModelScope.launch {
-            looper.looperLog.collect { msg ->
-                _uiState.value = _uiState.value.copy(
-                    looperLogs = (_uiState.value.looperLogs + msg).takeLast(200)
-                )
-            }
+            _uiState.value = _uiState.value.copy(
+                hasApiKey = apiKeyProvider.hasKey(),
+                llmConfig = apiKeyProvider.getConfig(),
+            )
         }
-
-        startLooper()
-    }
-
-    private fun startLooper() {
-        looper.start()
     }
 
     fun requestMeeting(subject: String) {
@@ -79,18 +91,15 @@ class MeetingViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(error = "请先在设置中配置 API Key")
             return
         }
-        viewModelScope.launch {
-            runCatching { looper.requestMeeting(subject) }
-                .onFailure { _uiState.value = _uiState.value.copy(error = it.message) }
-        }
+        runtime.startMeeting(subject)
     }
 
     fun confirmExecution() {
-        viewModelScope.launch { looper.confirmExecution() }
+        runtime.confirmExecution()
     }
 
     fun cancelMeeting() {
-        viewModelScope.launch { looper.cancelMeeting() }
+        runtime.cancelMeeting()
     }
 
     fun saveApiKey(key: String) {
@@ -115,22 +124,12 @@ class MeetingViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(error = null)
     }
 
-    fun recoverSession(traceId: String) {
-        viewModelScope.launch { looper.recover(traceId) }
-    }
-
-    private val _sessionSpeeches = MutableStateFlow<Map<String, List<com.committee.investing.domain.model.SpeechRecord>>>(emptyMap())
-    val sessionSpeeches: StateFlow<Map<String, List<com.committee.investing.domain.model.SpeechRecord>>> = _sessionSpeeches.asStateFlow()
-
-    fun loadSessionSpeeches(traceId: String) {
-        viewModelScope.launch {
-            val speeches = eventRepository.getSpeechesByTrace(traceId)
-            _sessionSpeeches.value = _sessionSpeeches.value + (traceId to speeches)
-        }
-    }
+    // Session history (保留用于历史页面)
+    private val _sessionSpeeches = MutableStateFlow<Map<String, List<SpeechRecord>>>(emptyMap())
+    val sessionSpeeches: StateFlow<Map<String, List<SpeechRecord>>> = _sessionSpeeches.asStateFlow()
 
     override fun onCleared() {
         super.onCleared()
-        looper.stop()
+        runtime.destroy()
     }
 }
