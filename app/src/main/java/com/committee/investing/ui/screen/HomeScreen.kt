@@ -25,8 +25,10 @@ import androidx.compose.ui.unit.sp
 import com.committee.investing.domain.model.*
 import com.committee.investing.ui.component.*
 import com.committee.investing.ui.theme.*
+import com.committee.investing.ui.viewmodel.FlowVizViewModel
 import com.committee.investing.ui.viewmodel.MeetingUiState
 import com.committee.investing.ui.viewmodel.MeetingViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 
 /**
@@ -38,6 +40,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeScreen(viewModel: MeetingViewModel) {
     val uiState by viewModel.uiState.collectAsState()
+    val vizViewModel: FlowVizViewModel = hiltViewModel()
+    val vizState by vizViewModel.state.collectAsState()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
@@ -103,9 +107,12 @@ fun HomeScreen(viewModel: MeetingViewModel) {
                         titleContentColor = TextPrimary,
                     ),
                 )
-                // Progress bar when meeting active
+                // Flow visualization when meeting active
                 if (isMeetingActive) {
-                    MeetingProgressBar(uiState.currentState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                    FlowVisualizationCard(
+                        vizState = vizState,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
                 }
             }
         },

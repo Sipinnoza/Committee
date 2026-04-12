@@ -32,7 +32,7 @@ data class TransitionResult(
 )
 
 class StateMachine(
-    private val flow: FlowDefinition,
+    internal val flow: FlowDefinition,
     initialState: String = "IDLE",
 ) {
     private val _currentState = MutableStateFlow(initialState)
