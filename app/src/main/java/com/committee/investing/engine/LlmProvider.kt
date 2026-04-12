@@ -49,7 +49,7 @@ enum class LlmProvider(
             "moonshot-v1-8k",
             "moonshot-v1-32k",
             "moonshot-v1-128k",
-            "kimi-2.5",
+            "kimi-k2.5",
         ),
     );
 

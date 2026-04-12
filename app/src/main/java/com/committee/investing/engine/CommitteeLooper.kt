@@ -14,22 +14,35 @@ import javax.inject.Singleton
 
 /**
  * 投委会核心 Looper
- * 规格文档 §3 — 借鉴 Android Looper/Handler 模式
  *
- * - EventQueue  = Channel<CommitteeEvent>  (类比 MessageQueue)
- * - Looper.loop = processLoop()           (类比 Looper.loop())
- * - Handler     = Scheduler               (确定性调度)
- * - Runnable    = AgentPool.callAgent()   (Agent 任务)
+ * 修复：
+ * 1. emit 改为 private suspend fun + eventQueue.send()，保证事件严格入队顺序。
+ *    原代码用 _looperScope.launch { send() }，多次 emit 时各协程调度顺序不确定，
+ *    可能导致 speech_complete 先于 agent_ready 到达，破坏屏障逻辑。
+ *
+ * 2. _speeches 读-改-写改为 StateFlow.update()（CAS 原子操作）。
+ *    原代码 `_speeches.value = _speeches.value.map{...}` 在 PREPPING 并行阶段
+ *    多个 agent 协程并发修改时存在竞态，一个协程的写入会覆盖另一个。
+ *
+ * 3. validate_entry 改为检测 【PASS】/【REJECT】 结构化标记。
+ *    原代码 contains("拒绝") 会在策略师反驳空头理由时误判为 rejected。
+ *
+ * 4. 发言完成后立即增量持久化到 Room，不再等待 COMPLETED 才一次性存库。
+ *    原代码在 App 崩溃或用户取消时发言全部丢失。
+ *
+ * 5. recover() 从 speechDao 加载完整发言内容，原代码从事件 payload 重建，
+ *    内容只有第一行摘要（payload["summary"]），不是完整发言。
+ *
+ * 6. cancelMeeting 取消后 _speeches 清空，requestMeeting 重置前也清空。
  */
 @Singleton
 class CommitteeLooper @Inject constructor(
     private val eventRepository: EventRepository,
     private val agentPool: AgentPool,
+    private val stateEngine: StateEngine,
+    private val scheduler: Scheduler,
 ) {
-    // ── 组件 ───────────────────────────────────────────────────────────────
-    private val stateEngine = StateEngine()
-    private val scheduler = Scheduler()
-    private val idempotency = IdempotencyGuard()
+    private val idempotency  = IdempotencyGuard()
 
     private val _looperScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var timerRegistry: TimerRegistry
@@ -37,15 +50,16 @@ class CommitteeLooper @Inject constructor(
     private val eventQueue = Channel<CommitteeEvent>(capacity = Channel.UNLIMITED)
 
     // ── 对外可观察流 ────────────────────────────────────────────────────────
+
     val currentState: StateFlow<MeetingState> = stateEngine.currentState
 
-    private val _speeches = MutableStateFlow<List<SpeechRecord>>(emptyList())
+    private val _speeches    = MutableStateFlow<List<SpeechRecord>>(emptyList())
     val speeches: StateFlow<List<SpeechRecord>> = _speeches.asStateFlow()
 
-    private val _looperLog = MutableSharedFlow<String>(replay = 50)
+    private val _looperLog   = MutableSharedFlow<String>(replay = 50)
     val looperLog: SharedFlow<String> = _looperLog.asSharedFlow()
 
-    private val _isRunning = MutableStateFlow(false)
+    private val _isRunning   = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
     private var currentTraceId: String = ""
@@ -67,10 +81,9 @@ class CommitteeLooper @Inject constructor(
         log("CommitteeLooper 已停止")
     }
 
-    // ── 发起会议 ────────────────────────────────────────────────────────────
+    // ── 公开接口 ────────────────────────────────────────────────────────────
 
     suspend fun requestMeeting(subject: String, configOverride: Map<String, Any> = emptyMap()) {
-        // 重置所有状态，确保干净开局
         scheduler.reset()
         stateEngine.reset()
         _speeches.value = emptyList()
@@ -79,20 +92,19 @@ class CommitteeLooper @Inject constructor(
         currentSubject = subject
         log("[发起] 新会议: $subject | ID: $currentTraceId")
 
-        // 持久化 Session
         eventRepository.upsertSession(
             MeetingSessionEntity(
-                traceId = currentTraceId,
-                subject = subject,
-                startTime = Instant.now().toEpochMilli(),
+                traceId      = currentTraceId,
+                subject      = subject,
+                startTime    = Instant.now().toEpochMilli(),
                 currentState = MeetingState.IDLE.name,
             )
         )
 
         emit(
             eventType = "meeting_requested",
-            agent = "system",
-            payload = mapOf("subject" to subject) + configOverride,
+            agent     = "system",
+            payload   = mapOf("subject" to subject) + configOverride,
         )
     }
 
@@ -106,22 +118,27 @@ class CommitteeLooper @Inject constructor(
         _speeches.value = emptyList()
     }
 
-    // ── 事件发射 ─────────────────────────────────────────────────────────────
+    // ── 事件发射（修复：private suspend，直接 send 保证顺序）──────────────────
 
-    fun emit(
+    /**
+     * 修复：原代码 `_looperScope.launch { eventQueue.send(event) }` 为每次 emit 创建独立协程，
+     * 多次调用时协程调度顺序不确定，可能导致事件乱序。
+     * 改为 suspend fun + 直接 send()。eventQueue 容量 UNLIMITED，send 不会真正挂起。
+     */
+    private suspend fun emit(
         eventType: String,
         agent: String,
         causedBy: String? = null,
         payload: Map<String, Any> = emptyMap(),
     ) {
         val event = CommitteeEvent(
-            event = eventType,
-            agent = agent,
-            traceId = currentTraceId,
+            event    = eventType,
+            agent    = agent,
+            traceId  = currentTraceId,
             causedBy = causedBy,
-            payload = payload,
+            payload  = payload,
         )
-        _looperScope.launch { eventQueue.send(event) }
+        eventQueue.send(event)
     }
 
     // ── 主循环 ───────────────────────────────────────────────────────────────
@@ -133,21 +150,16 @@ class CommitteeLooper @Inject constructor(
     }
 
     private suspend fun processEvent(event: CommitteeEvent) {
-        Log.e("Looper", "━━━ processEvent: ${event.event} | agent=${event.agent} | state=${stateEngine.state.name} | id=${event.eventId}")
+        Log.e("Looper", "━━━ processEvent: ${event.event} | agent=${event.agent} | state=${stateEngine.state.name}")
 
-        // 幂等性检查
         if (!idempotency.tryProcess(event.eventId)) {
-            Log.e("Looper", "  ⤳ 幂等跳过 ${event.eventId}")
             log("[幂等跳过] ${event.event} (${event.eventId})")
             return
         }
 
-        // 持久化事件（唯一真相源）
         eventRepository.appendEvent(event)
-
         log("[事件] ${event.event} | Agent: ${event.agent} | 状态: ${stateEngine.state.displayName}")
 
-        // 路径 A：尝试状态转换
         val transition = stateEngine.apply(event)
         if (transition != null) {
             log("[状态转换] ${transition.from.displayName} → ${transition.to.displayName}")
@@ -155,10 +167,8 @@ class CommitteeLooper @Inject constructor(
             return
         }
 
-        // 路径 B：非转换事件，推进调度器
         val state = stateEngine.state
         if (event.event in NON_TRANSITION_EVENTS) {
-            Log.e("Looper", "  ⤳ 非转换事件，进入调度器")
             val actions = scheduler.next(state, event)
             executeActions(actions, event)
         } else {
@@ -169,33 +179,24 @@ class CommitteeLooper @Inject constructor(
     // ── 状态转换后处理 ───────────────────────────────────────────────────────
 
     private suspend fun onStateTransition(result: TransitionResult, triggerEvent: CommitteeEvent) {
-        Log.e("Looper", "  ⤳ onStateTransition: ${result.from.name} → ${result.to.name}")
-
-        // 取消旧定时器
         timerRegistry.cancel("${result.from.name}_timeout")
         timerRegistry.cancel("${result.from.name}_barrier_timeout")
         timerRegistry.cancel("${result.from.name}_speech_timeout")
 
-        // emit state_changed
-        emit(eventType = "state_changed", agent = "runtime",
-            causedBy = triggerEvent.eventId,
-            payload = mapOf("from" to result.from.name, "to" to result.to.name))
+        emit(
+            eventType = "state_changed",
+            agent     = "runtime",
+            causedBy  = triggerEvent.eventId,
+            payload   = mapOf("from" to result.from.name, "to" to result.to.name),
+        )
 
-        // 保存快照
         eventRepository.updateSessionState(currentTraceId, result.to, buildSnapshot(result.to))
 
-        // Save speeches to DB when meeting completes
-        if (result.to == MeetingState.COMPLETED || result.to == MeetingState.IDLE) {
-            runCatching {
-                eventRepository.saveSpeeches(currentTraceId, _speeches.value)
-            }.onFailure { e ->
-                Log.e("Looper", "[saveSpeeches] failed: ${e.message}")
-            }
-        }
+        // 修复：移除在 COMPLETED/IDLE 的批量 saveSpeeches。
+        // 各发言完成后已在 callAgent 末尾增量保存，此处无需再存。
+        // （原代码在 IDLE 时存，App 崩溃/取消时发言丢失）
 
-        // 向调度器请求下一批 Action
         val actions = scheduler.next(result.to, triggerEvent)
-        Log.e("Looper", "  ⤳ onStateTransition scheduler 返回 ${actions.size} 个 Action")
         executeActions(actions, triggerEvent)
     }
 
@@ -203,7 +204,6 @@ class CommitteeLooper @Inject constructor(
 
     private suspend fun executeActions(actions: List<SchedulerAction>, triggerEvent: CommitteeEvent) {
         if (actions.isEmpty()) {
-            Log.e("Looper", "[executeActions] 空 Action 列表")
             log("[调度] 无待执行 Action，等待下一事件")
         }
         for (action in actions) {
@@ -215,16 +215,16 @@ class CommitteeLooper @Inject constructor(
                         emit("agent_timeout", action.agent.id, action.causedBy,
                             mapOf("phase" to action.phase.name))
                     }
-                    // 在后台调用 LLM Agent
                     _looperScope.launch {
                         runCatching {
                             callAgent(action, triggerEvent)
                         }.onFailure { e ->
-                            Log.e("Looper", "[Agent 错误] ${action.agent.displayName}: ${e.javaClass.simpleName} - ${e.message}")
+                            Log.e("Looper", "[Agent 错误] ${action.agent.displayName}: ${e.message}")
                             log("[Agent 错误] ${action.agent.displayName}: ${e.message}")
-                            // 移除可能的 streaming 占位
-                            _speeches.value = _speeches.value.filter { !(it.isStreaming && it.agent == action.agent) }
-                            // 发 speech_complete 让流程继续，不要卡死
+                            // 修复：移除流式占位（用 update 原子操作，避免并发覆盖）
+                            _speeches.update { list ->
+                                list.filter { !(it.isStreaming && it.agent == action.agent) }
+                            }
                             emit("speech_complete", action.agent.id, action.causedBy,
                                 mapOf("error" to (e.message ?: "unknown")))
                         }
@@ -249,102 +249,105 @@ class CommitteeLooper @Inject constructor(
         }
     }
 
+    // ── Agent 调用 ───────────────────────────────────────────────────────────
+
     private suspend fun callAgent(action: SchedulerAction.SendMic, triggerEvent: CommitteeEvent) {
         log("[思考中] ${action.agent.displayName} 正在思考... (任务: ${action.task})")
 
-        val opponentSummary = _speeches.value
-            .filter { it.agent != action.agent }
-            .lastOrNull()?.summary ?: ""
-
-        // 从 task 字段解析 round，如 "debate_round_3"
         val roundFromTask = Regex("round_(\\d+)").find(action.task)?.groupValues?.get(1)?.toIntOrNull() ?: 1
 
         val ctx = MicContext(
-            traceId = action.traceId,
-            causedBy = action.causedBy,
-            round = roundFromTask,
-            phase = action.phase,
-            subject = currentSubject,
-            opponentSummary = "",
+            traceId          = action.traceId,
+            causedBy         = action.causedBy,
+            round            = roundFromTask,
+            phase            = action.phase,
+            subject          = currentSubject,
+            opponentSummary  = "",
             previousSpeeches = _speeches.value,
-            agentRole = action.agent,
-            task = action.task,
+            agentRole        = action.agent,
+            task             = action.task,
         )
 
-        // 创建一个 streaming 占位 SpeechRecord
-        val speechId = "sp_${java.util.UUID.randomUUID().toString().replace("-", "").take(10)}"
+        val speechId    = "sp_${UUID.randomUUID().toString().replace("-", "").take(10)}"
         val placeholder = SpeechRecord(
-            id = speechId,
-            agent = action.agent,
-            round = 1,
-            summary = "",
-            content = "",
+            id         = speechId,
+            agent      = action.agent,
+            round      = roundFromTask,
+            summary    = "",
+            content    = "",
             isStreaming = true,
         )
-        _speeches.value = _speeches.value + placeholder
 
-        val startTime = System.currentTimeMillis()
+        // 修复：用 update() 原子追加，避免并行 agent 相互覆盖
+        _speeches.update { it + placeholder }
+
+        val startTime   = System.currentTimeMillis()
         var fullContent = ""
 
         try {
             agentPool.callAgentStreaming(action.agent, ctx).collect { delta ->
                 fullContent += delta
-                // 实时更新最后一条发言
-                _speeches.value = _speeches.value.map {
-                    if (it.id == speechId) it.copy(content = fullContent) else it
+                // 修复：用 update() 原子更新，避免 read-modify-write 竞态
+                _speeches.update { list ->
+                    list.map { if (it.id == speechId) it.copy(content = fullContent) else it }
                 }
             }
-            Log.e("Looper", "[callAgent] ${action.agent.id} collect 完成，共 ${fullContent.length} 字符")
         } catch (e: Exception) {
             Log.e("Looper", "[callAgent] ${action.agent.id} 异常: ${e.javaClass.simpleName} - ${e.message}")
             log("[API 错误] ${action.agent.displayName}: ${e.javaClass.simpleName} - ${e.message}")
-            // 移除失败的占位
-            _speeches.value = _speeches.value.filter { it.id != speechId }
+            _speeches.update { list -> list.filter { it.id != speechId } }
             throw e
         }
 
-        val elapsed = System.currentTimeMillis() - startTime
-        val summary = fullContent.lines().firstOrNull { it.isNotBlank() }?.take(100) ?: fullContent.take(100)
+        val elapsed      = System.currentTimeMillis() - startTime
+        val summary      = fullContent.lines().firstOrNull { it.isNotBlank() }?.take(100) ?: fullContent.take(100)
         val hasConsensus = fullContent.contains("【CONSENSUS REACHED】")
-        val rating = Regex("【最终评级】(Buy|Overweight|Hold\\+|Hold|Underweight|Sell)")
+        val rating       = Regex("【最终评级】(Buy|Overweight|Hold\\+|Hold|Underweight|Sell)")
             .find(fullContent)?.groupValues?.get(1)
 
-        // 标记完成
-        _speeches.value = _speeches.value.map {
-            if (it.id == speechId) it.copy(
-                summary = summary,
-                isStreaming = false,
-            ) else it
+        // 标记流式结束
+        _speeches.update { list ->
+            list.map { if (it.id == speechId) it.copy(summary = summary, isStreaming = false) else it }
         }
 
         log("[响应] ${action.agent.displayName} 回复完成 (${elapsed}ms, ${fullContent.length}字)")
 
-        // 取消超时定时器
-        timerRegistry.cancel("${action.phase.name}_speech_timeout")
-
-        // 发出完成事件 — 根据 task 类型决定事件名
-        val eventType = when (action.task) {
-            "prepare" -> if (action.agent == AgentRole.INTEL) "intel_baseline_ready" else "agent_ready"
-            "validate_entry" -> {
-                val passed = !fullContent.contains("拒绝") && !fullContent.contains("不通过")
-                if (passed) "validation_passed" else "validation_rejected"
-            }
-            "adjudicate" -> "adjudication_complete"
-            "publish_rating" -> "rating_approved"
-            "write_minutes" -> "minutes_published"
-            "plan_finalized" -> "plan_finalized"
-            else -> {
-                // debate / assessment 轮次：检查共识
-                if (hasConsensus) "consensus_reached" else "speech_complete"
+        // 修复：发言完成后立即增量持久化，不再等 COMPLETED 才批量存
+        // 原代码仅在状态转入 COMPLETED/IDLE 时保存，崩溃或取消时数据丢失
+        val completedSpeech = _speeches.value.find { it.id == speechId }
+        if (completedSpeech != null) {
+            runCatching {
+                eventRepository.saveSpeeches(currentTraceId, listOf(completedSpeech))
+            }.onFailure { e ->
+                Log.e("Looper", "[saveSpeeches] 增量保存失败: ${e.message}")
             }
         }
+
+        timerRegistry.cancel("${action.phase.name}_speech_timeout")
+
+        // ── 事件类型路由 ──────────────────────────────────────────────────────
+        val eventType = when {
+            // validate_entry：修复 — 使用结构化标记，原 contains("拒绝") 在反驳空头时误判
+            action.task == "validate_entry" -> {
+                if (fullContent.contains("【PASS】")) "validation_passed" else "validation_rejected"
+            }
+            action.task == "prepare" ->
+                if (action.agent == AgentRole.INTEL) "intel_baseline_ready" else "agent_ready"
+            action.task == "adjudicate"     -> "adjudication_complete"
+            action.task == "publish_rating" -> "rating_approved"
+            action.task == "write_minutes"  -> "minutes_published"
+            action.task == "plan_finalized" -> "plan_finalized"
+            // debate / assess 等轮次任务：共识达成则推进，否则继续轮转
+            else -> if (hasConsensus) "consensus_reached" else "speech_complete"
+        }
+
         Log.e("Looper", "[callAgent] ${action.agent.id} 完成，发射事件: $eventType | consensus=$hasConsensus rating=$rating")
 
         emit(
             eventType = eventType,
-            agent = action.agent.id,
-            causedBy = action.causedBy,
-            payload = buildMap {
+            agent     = action.agent.id,
+            causedBy  = action.causedBy,
+            payload   = buildMap {
                 put("summary", summary)
                 rating?.let { put("rating", it) }
                 if (hasConsensus) put("consensus", true)
@@ -354,33 +357,29 @@ class CommitteeLooper @Inject constructor(
 
     // ── Recovery（规格文档 §8.3）────────────────────────────────────────────
 
+    /**
+     * 修复：直接从 speechDao 加载完整发言内容。
+     * 原代码从事件 payload 重建发言：payload["summary"] 只是第一行摘要，
+     * 恢复后历史记录的 content 字段为空或极短。
+     */
     suspend fun recover(traceId: String) {
         log("[恢复] 从事件流重放状态 traceId=$traceId")
         currentTraceId = traceId
 
-        // 重建幂等集
         val ids = eventRepository.getProcessedEventIds(traceId)
         idempotency.restore(ids)
 
-        // 从事件流重放 FSM
         val replayedState = eventRepository.replayState(traceId)
         stateEngine.restore(replayedState)
         log("[恢复] 重放状态: ${replayedState.displayName}")
 
-        // 重建发言记录
-        val events = eventRepository.getEventsByTrace(traceId)
-        val speeches = events.filter { it.event == "speech_complete" || it.event == "consensus_reached" }
-            .mapNotNull { evt ->
-                val role = AgentRole.fromId(evt.agent) ?: return@mapNotNull null
-                SpeechRecord(
-                    agent = role,
-                    round = (evt.payload["round"] as? Double)?.toInt() ?: 0,
-                    summary = evt.payload["summary"] as? String ?: "",
-                    content = evt.payload["summary"] as? String ?: "",
-                    timestamp = evt.ts,
-                )
-            }
-        _speeches.value = speeches
+        // 修复：从 DB 读取完整发言，原代码从 events payload 读 summary 截断字段
+        val dbSpeeches = runCatching {
+            eventRepository.getSpeechesByTrace(traceId)
+        }.getOrDefault(emptyList())
+        _speeches.value = dbSpeeches
+
+        log("[恢复] 加载 ${dbSpeeches.size} 条发言记录")
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -390,8 +389,8 @@ class CommitteeLooper @Inject constructor(
     }
 
     private fun buildSnapshot(state: MeetingState): Map<String, Any> = mapOf(
-        "state" to state.name,
-        "traceId" to currentTraceId,
+        "state"     to state.name,
+        "traceId"   to currentTraceId,
         "lastSaved" to Instant.now().toString(),
     )
 

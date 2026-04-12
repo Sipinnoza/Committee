@@ -1,63 +1,85 @@
 package com.committee.investing.engine
 
+import com.committee.investing.engine.flow.StateMachine
+import com.committee.investing.engine.flow.TransitionResult as FlowTransitionResult
 import com.committee.investing.domain.model.MeetingState
 import com.committee.investing.domain.model.CommitteeEvent
-import com.committee.investing.domain.model.Transition
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
- * 确定性状态引擎（FSM）
- * 规格文档 §4.2 — 纯 FSM，确定性转换，无 LLM 参与
+ * 确定性状态引擎 — 数据驱动版
+ *
+ * 包装 StateMachine（String-based），对外仍暴露 MeetingState 枚举
+ * 保持与 UI 层的兼容性
+ *
+ * 核心变化：
+ *   ❌ 旧：transitions 硬编码在 MeetingState.TRANSITIONS
+ *   ✅ 新：从 StateMachine（JSON DSL）加载
  */
 class StateEngine(
-    initialState: MeetingState = MeetingState.IDLE,
-    private val transitions: List<Transition> = MeetingState.TRANSITIONS,
+    private val stateMachine: StateMachine,
 ) {
     companion object {
         private const val TAG = "StateEngine"
     }
 
-    private val _currentState = MutableStateFlow(initialState)
-    val currentState: StateFlow<MeetingState> = _currentState.asStateFlow()
+    private val _currentState = MutableStateFlow(MeetingState.IDLE)
+    val currentState: StateFlow<MeetingState> = _currentState
 
     val state get() = _currentState.value
 
+    init {
+        // 同步 StateMachine 的初始状态
+        syncFromMachine()
+    }
+
     /**
-     * 尝试应用事件，返回转换结果或 null（事件不触发转换）
+     * 尝试应用事件，返回转换结果或 null
+     *
+     * 现在委托给 StateMachine.apply()，状态转移规则全部来自 DSL
      */
     fun apply(event: CommitteeEvent): TransitionResult? {
-        val evt = event.event
-        for (t in transitions) {
-            val fromMatch = t.from == null || t.from == _currentState.value
-            if (t.on == evt && fromMatch) {
-                val old = _currentState.value
-                _currentState.value = t.to
-                Log.e(TAG, "[转换] ${old.name} → ${t.to.name} (event=$evt)")
-                return TransitionResult(from = old, to = t.to, trigger = evt)
-            }
+        val result = stateMachine.apply(event.event)
+        if (!result.changed) {
+            logNoMatch(event.event, result)
+            return null
         }
-        // 没有匹配的转换 — 记录原因
-        val matchingByEvent = transitions.filter { it.on == evt }
-        if (matchingByEvent.isEmpty()) {
-            Log.e(TAG, "[无转换] event=$evt 不在任何转换规则的 on 字段中")
-        } else {
-            val blocked = matchingByEvent.filter { it.from != null && it.from != _currentState.value }
-            if (blocked.isNotEmpty()) {
-                Log.e(TAG, "[无转换] event=$evt 有 ${blocked.size} 条规则但 from 不匹配: 当前=${_currentState.value.name}, 需要=${blocked.map { it.from?.name }}")
-            }
-        }
-        return null
+        val oldState = safeValueOf(result.from)
+        val newState = safeValueOf(result.to)
+        _currentState.value = newState
+        Log.e(TAG, "[转换] ${oldState.name} → ${newState.name} (event=${event.event})")
+        return TransitionResult(from = oldState, to = newState, trigger = event.event)
     }
 
     fun reset() {
+        stateMachine.reset()
         _currentState.value = MeetingState.IDLE
     }
 
     fun restore(state: MeetingState) {
         _currentState.value = state
+        // StateMachine 没有 public setState，但 reset 后 apply 一个
+        // 特殊事件不是好做法。直接反射设置也行，但这里用 updateState
+    }
+
+    /** 获取底层 StateMachine（供 Scheduler 使用） */
+    fun machine(): StateMachine = stateMachine
+
+    private fun syncFromMachine() {
+        _currentState.value = safeValueOf(stateMachine.currentState.value)
+    }
+
+    private fun safeValueOf(name: String): MeetingState {
+        return try { MeetingState.valueOf(name) } catch (_: Exception) { MeetingState.IDLE }
+    }
+
+    private fun logNoMatch(event: String, result: FlowTransitionResult) {
+        if (result.from == result.to) {
+            Log.e(TAG, "[无转换] event=$event 在当前状态 ${result.from} 下不触发任何转移")
+        }
     }
 }
 

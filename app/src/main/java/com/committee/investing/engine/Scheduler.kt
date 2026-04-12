@@ -1,5 +1,8 @@
 package com.committee.investing.engine
 
+import com.committee.investing.engine.flow.StateMachine
+import com.committee.investing.engine.flow.PhaseDef
+import com.committee.investing.engine.flow.Strategy as FlowStrategy
 import com.committee.investing.domain.model.AgentRole
 import com.committee.investing.domain.model.CommitteeEvent
 import com.committee.investing.domain.model.MeetingState
@@ -7,36 +10,52 @@ import com.committee.investing.domain.model.MeetingState
 import android.util.Log
 
 /**
- * 确定性调度器
- * 规格文档 §4.3 — 三种策略：once / parallel / round_robin
- * Agent 不控制何时执行，Scheduler 决定。
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *  确定性调度器 — 数据驱动版
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *
+ *  核心变化：
+ *    ❌ 旧：PHASE_CONFIG 硬编码 map<MeetingState, PhaseConfig>
+ *    ✅ 新：从 StateMachine.flow.phases 查 PhaseDef
+ *
+ *  Phase 配置来源：
+ *    filesDir/flows/default_flow.json → assets/flows/default_flow.json
+ *
+ *  调度逻辑不变（三种策略），但数据全部来自 DSL
  */
-class Scheduler {
+class Scheduler(private val stateMachine: StateMachine) {
 
-    // ── 内部状态（可从快照恢复）──────────────────────────────────────────────
-    private val onceFired = mutableSetOf<MeetingState>()
-    private val barriers = mutableMapOf<MeetingState, BarrierState>()
-    private val turnIndex = mutableMapOf<MeetingState, Int>()
-    private val roundCount = mutableMapOf<MeetingState, Int>()
+    // ── 运行时状态 ────────────────────────────────────────────────────
 
-    // ── 公开接口 ─────────────────────────────────────────────────────────────
+    private val onceFired   = mutableSetOf<String>()       // state name
+    private val barriers    = mutableMapOf<String, BarrierState>()  // state name → barrier
+    private val turnIndex   = mutableMapOf<String, Int>()  // state name → agent index
+    private val roundCount  = mutableMapOf<String, Int>()  // state name → round number
 
-    /**
-     * 根据当前状态 + 触发事件，返回下一批 Action
-     */
+    // AgentRole 解析缓存：String id → AgentRole enum
+    private val roleCache = mutableMapOf<String, AgentRole?>()
+
+    private fun resolveAgent(agentId: String): AgentRole? {
+        return roleCache.getOrPut(agentId) { AgentRole.entries.find { it.id == agentId } }
+    }
+
+    // ── 公开接口 ─────────────────────────────────────────────────────
+
     fun next(state: MeetingState, event: CommitteeEvent): List<SchedulerAction> {
-        val cfg = PHASE_CONFIG[state]
-        if (cfg == null) {
-            Log.e(TAG, "[next] state=${state.name} event=${event.event} → 无 PHASE_CONFIG，返回空")
+        val stateName = state.name
+        val phaseDef = stateMachine.phaseDefOf(stateName)
+        if (phaseDef == null) {
+            Log.e(TAG, "[next] state=$stateName event=${event.event} → 无 phase 配置，返回空")
             return emptyList()
         }
-        Log.e(TAG, "[next] state=${state.name} event=${event.event} strategy=${cfg.strategy} agents=${cfg.agents.map { it.id }}")
-        val actions = when (cfg.strategy) {
-            Strategy.ONCE       -> scheduleOnce(state, cfg, event)
-            Strategy.PARALLEL   -> scheduleParallel(state, cfg, event)
-            Strategy.ROUND_ROBIN -> scheduleRoundRobin(state, cfg, event)
+        Log.e(TAG, "[next] state=$stateName event=${event.event} strategy=${phaseDef.strategy} agents=${phaseDef.agents}")
+
+        val actions = when (phaseDef.strategy) {
+            FlowStrategy.ONCE        -> scheduleOnce(stateName, phaseDef, event)
+            FlowStrategy.PARALLEL    -> scheduleParallel(stateName, phaseDef, event)
+            FlowStrategy.ROUND_ROBIN -> scheduleRoundRobin(stateName, phaseDef, event)
         }
-        Log.e(TAG, "[next] → 返回 ${actions.size} 个 Action: ${actions.map { it.javaClass.simpleName }}")
+        Log.e(TAG, "[next] → ${actions.size} actions: ${actions.map { it.javaClass.simpleName }}")
         return actions
     }
 
@@ -47,186 +66,156 @@ class Scheduler {
         roundCount.clear()
     }
 
-    // ── Private: once ────────────────────────────────────────────────────────
+    // ── ONCE ─────────────────────────────────────────────────────────
 
     private fun scheduleOnce(
-        state: MeetingState,
-        cfg: PhaseConfig,
+        stateName: String,
+        phase: PhaseDef,
         event: CommitteeEvent,
     ): List<SchedulerAction> {
-        if (state in onceFired) {
-            Log.e(TAG, "[once] state=${state.name} 已触发过，跳过")
+        if (stateName in onceFired) {
+            Log.e(TAG, "[once] $stateName 已触发过，跳过")
             return emptyList()
         }
-        onceFired += state
-        val agent = cfg.agents.first()
-        Log.e(TAG, "[once] state=${state.name} → SendMic → ${agent.id} task=${cfg.task}")
+        onceFired += stateName
+        val agentId = phase.agents.first()
+        val agent = resolveAgent(agentId)
+        if (agent == null) {
+            Log.e(TAG, "[once] 未知 agent: $agentId")
+            return emptyList()
+        }
+        val meetingState = MeetingState.valueOf(stateName)
+        Log.e(TAG, "[once] $stateName → SendMic → ${agent.id} task=${phase.task}")
         return buildList {
-            add(SchedulerAction.SendMic(agent, state, cfg.task ?: "execute", event.traceId, event.eventId))
-            add(SchedulerAction.SetTimer("${state.name}_timeout", cfg.timeoutMs))
+            add(SchedulerAction.SendMic(agent, meetingState, phase.task, event.traceId, event.eventId))
+            add(SchedulerAction.SetTimer("${stateName}_timeout", phase.timeoutMs))
         }
     }
 
-    // ── Private: parallel ────────────────────────────────────────────────────
+    // ── PARALLEL ─────────────────────────────────────────────────────
 
     private fun scheduleParallel(
-        state: MeetingState,
-        cfg: PhaseConfig,
+        stateName: String,
+        phase: PhaseDef,
         event: CommitteeEvent,
     ): List<SchedulerAction> {
-        val barrier = barriers[state]
+        val barrier = barriers[stateName]
+        val meetingState = MeetingState.valueOf(stateName)
 
-        // 首次进入：向所有 agent 广播 Task
+        // 首次进入：广播
         if (barrier == null) {
-            val required = cfg.barrierEvents ?: cfg.agents.map { "agent_ready" }
-            Log.e(TAG, "[parallel] state=${state.name} 首次进入，广播给 ${cfg.agents.map { it.id }}")
-            Log.e(TAG, "[parallel] 屏障需要: $required")
-            barriers[state] = BarrierState(
-                required = required,
-                received = mutableListOf(),
-            )
+            val barrierEvents = phase.agents.map { phase.barrierEvent ?: "agent_ready" }
+            Log.e(TAG, "[parallel] $stateName 首次进入，广播给 ${phase.agents}")
+            barriers[stateName] = BarrierState(required = barrierEvents)
             return buildList {
-                cfg.agents.forEach { agent ->
-                    add(SchedulerAction.SendMic(agent, state, cfg.task ?: "prepare", event.traceId, event.eventId))
+                phase.agents.forEach { agentId ->
+                    val agent = resolveAgent(agentId)
+                    if (agent != null) {
+                        add(SchedulerAction.SendMic(agent, meetingState, phase.task, event.traceId, event.eventId))
+                    }
                 }
-                add(SchedulerAction.SetTimer("${state.name}_barrier_timeout", cfg.timeoutMs))
+                add(SchedulerAction.SetTimer("${stateName}_barrier_timeout", phase.timeoutMs))
             }
         }
 
-        // 后续：收到 agent_ready / intel_baseline_ready → 追加到 received
-        val barrierEventTypes = setOf("agent_ready", "intel_baseline_ready", "intel_degraded")
+        // 后续：屏障匹配
+        val barrierEventTypes = setOf("agent_ready", "intel_baseline_ready", "intel_degraded",
+            phase.barrierEvent).filterNotNull().toSet()
         if (event.event in barrierEventTypes) {
-            barrier.received += event.event
-            Log.e(TAG, "[parallel] state=${state.name} 收到 ${event.event}，进度 ${barrier.received.size}/${barrier.required.size}")
-            Log.e(TAG, "[parallel]   received=${barrier.received} required=${barrier.required}")
-            // 全部收到 → emit all_ready
-            if (barrier.received.size >= barrier.required.size) {
+            barrier.receive(event.event)
+            Log.e(TAG, "[parallel] $stateName 收到 ${event.event}，进度 ${barrier.receivedCount()}/${barrier.requiredCount()}")
+
+            if (barrier.isSatisfied()) {
                 Log.e(TAG, "[parallel] 屏障满足！发射 all_ready")
-                barriers.remove(state)
+                barriers.remove(stateName)
                 return listOf(SchedulerAction.EmitEvent("all_ready", event.traceId, event.eventId))
             }
-        } else {
-            Log.e(TAG, "[parallel] state=${state.name} 忽略事件 ${event.event}（非屏障事件）")
         }
         return emptyList()
     }
 
-    // ── Private: round_robin ─────────────────────────────────────────────────
+    // ── ROUND ROBIN ──────────────────────────────────────────────────
 
     private fun scheduleRoundRobin(
-        state: MeetingState,
-        cfg: PhaseConfig,
+        stateName: String,
+        phase: PhaseDef,
         event: CommitteeEvent,
     ): List<SchedulerAction> {
-        val idx = turnIndex.getOrDefault(state, 0)
-        val round = roundCount.getOrDefault(state, 1)
-        val maxRounds = cfg.maxRounds ?: 8
+        val idx = turnIndex.getOrDefault(stateName, 0)
+        val round = roundCount.getOrDefault(stateName, 1)
+        val maxRounds = phase.maxRounds
 
-        Log.e(TAG, "[roundRobin] state=${state.name} idx=$idx round=$round maxRounds=$maxRounds event=${event.event}")
+        Log.e(TAG, "[roundRobin] $stateName idx=$idx round=$round max=$maxRounds event=${event.event}")
 
         if (round > maxRounds) {
             Log.e(TAG, "[roundRobin] 超过最大轮次，发射 max_rounds_reached")
             return listOf(SchedulerAction.EmitEvent("max_rounds_reached", event.traceId, event.eventId))
         }
 
-        val agents = cfg.agents
-        val nextAgent = agents[idx % agents.size]
-        val newIdx = idx + 1
-        val newRound = if (newIdx % agents.size == 0) round + 1 else round
-        turnIndex[state] = newIdx
-        roundCount[state] = newRound
+        val agentIds = phase.agents
+        val nextAgentId = agentIds[idx % agentIds.size]
+        val nextAgent = resolveAgent(nextAgentId)
+        if (nextAgent == null) {
+            Log.e(TAG, "[roundRobin] 未知 agent: $nextAgentId")
+            return emptyList()
+        }
 
-        Log.e(TAG, "[roundRobin] → SendMic → ${nextAgent.id} (round=$round, newRound=$newRound)")
+        val newIdx = idx + 1
+        val newRound = if (newIdx % agentIds.size == 0) round + 1 else round
+        turnIndex[stateName] = newIdx
+        roundCount[stateName] = newRound
+
+        val meetingState = MeetingState.valueOf(stateName)
+        val roundTask = "${phase.task}_round_$round"
 
         val actions = mutableListOf<SchedulerAction>(
             SchedulerAction.EmitEvent("mic_passed", event.traceId, event.eventId,
-                mapOf("to" to nextAgent.id, "round" to round)),
-            SchedulerAction.SendMic(nextAgent, state, "debate_round_$round", event.traceId, event.eventId),
-            SchedulerAction.SetTimer("${state.name}_speech_timeout", cfg.timeoutMs),
+                mapOf("to" to nextAgentId, "round" to round)),
+            SchedulerAction.SendMic(nextAgent, meetingState, roundTask, event.traceId, event.eventId),
+            SchedulerAction.SetTimer("${stateName}_speech_timeout", phase.timeoutMs),
         )
 
-        // Pre-hook：第 4 轮触发执行员预草拟（规格文档 §2.2）
-        val hook = cfg.preHook
-        if (hook != null && round == hook.round && newIdx % agents.size == 1) {
-            actions.add(SchedulerAction.SendMic(hook.agent, state, hook.task, event.traceId, event.eventId))
+        // Pre-hooks from DSL
+        for (hook in phase.preHooks) {
+            if (round == hook.round && newIdx % agentIds.size == 1) {
+                val hookAgent = resolveAgent(hook.agent)
+                if (hookAgent != null) {
+                    actions.add(SchedulerAction.SendMic(hookAgent, meetingState, hook.task, event.traceId, event.eventId))
+                }
+            }
         }
 
         return actions
     }
 
-    // ── Phase Config ─────────────────────────────────────────────────────────
-
     companion object {
         private const val TAG = "Scheduler"
-        val PHASE_CONFIG: Map<MeetingState, PhaseConfig> = mapOf(
-            MeetingState.VALIDATING to PhaseConfig(
-                strategy = Strategy.ONCE,
-                agents = listOf(AgentRole.STRATEGIST),
-                timeoutMs = 120_000L,
-                task = "validate_entry",
-            ),
-            MeetingState.PREPPING to PhaseConfig(
-                strategy = Strategy.PARALLEL,
-                agents = listOf(AgentRole.ANALYST, AgentRole.RISK_OFFICER, AgentRole.INTEL, AgentRole.STRATEGIST),
-                timeoutMs = 300_000L,
-                task = "prepare",
-                barrierEvents = listOf("agent_ready", "agent_ready", "intel_baseline_ready", "agent_ready"),
-            ),
-            MeetingState.PHASE1_DEBATE to PhaseConfig(
-                strategy = Strategy.ROUND_ROBIN,
-                agents = listOf(AgentRole.ANALYST, AgentRole.RISK_OFFICER, AgentRole.STRATEGIST),
-                timeoutMs = 600_000L,
-                maxRounds = 8,
-                preHook = PreHook(round = 4, agent = AgentRole.EXECUTOR, task = "pre_draft"),
-            ),
-            MeetingState.PHASE1_ADJUDICATING to PhaseConfig(
-                strategy = Strategy.ONCE,
-                agents = listOf(AgentRole.SUPERVISOR),
-                timeoutMs = 120_000L,
-                task = "adjudicate",
-            ),
-            MeetingState.PHASE2_ASSESSMENT to PhaseConfig(
-                strategy = Strategy.ROUND_ROBIN,
-                agents = listOf(AgentRole.EXECUTOR, AgentRole.RISK_OFFICER),
-                timeoutMs = 600_000L,
-                maxRounds = 6,
-            ),
-            MeetingState.FINAL_RATING to PhaseConfig(
-                strategy = Strategy.ONCE,
-                agents = listOf(AgentRole.EXECUTOR),
-                timeoutMs = 60_000L,
-                task = "publish_rating",
-            ),
-            MeetingState.COMPLETED to PhaseConfig(
-                strategy = Strategy.ONCE,
-                agents = listOf(AgentRole.SUPERVISOR),
-                timeoutMs = 120_000L,
-                task = "write_minutes",
-            ),
-        )
     }
 }
 
-// ── Data Structures ───────────────────────────────────────────────────────────
+// ── Data Structures（保持兼容） ──────────────────────────────────────
 
-enum class Strategy { ONCE, PARALLEL, ROUND_ROBIN }
+/**
+ * 屏障状态 — multiset 匹配
+ */
+class BarrierState(val required: List<String>) {
+    private val receivedCounts = mutableMapOf<String, Int>()
 
-data class PhaseConfig(
-    val strategy: Strategy,
-    val agents: List<AgentRole>,
-    val timeoutMs: Long,
-    val task: String? = null,
-    val maxRounds: Int? = null,
-    val barrierEvents: List<String>? = null,
-    val preHook: PreHook? = null,
-)
+    fun receive(eventType: String) {
+        receivedCounts[eventType] = (receivedCounts[eventType] ?: 0) + 1
+    }
 
-data class PreHook(val round: Int, val agent: AgentRole, val task: String)
+    fun isSatisfied(): Boolean {
+        val requiredCounts = required.groupingBy { it }.eachCount()
+        return requiredCounts.all { (type, needed) ->
+            (receivedCounts[type] ?: 0) >= needed
+        }
+    }
 
-data class BarrierState(
-    val required: List<String>,
-    val received: MutableList<String>,
-)
+    fun receivedCount(): Int = receivedCounts.values.sum()
+    fun requiredCount(): Int = required.size
+    fun receivedSummary(): Map<String, Int> = receivedCounts.toMap()
+}
 
 sealed class SchedulerAction {
     data class SendMic(

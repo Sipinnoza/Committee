@@ -6,8 +6,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.*
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.committee.investing.ui.theme.TextPrimary
@@ -15,7 +17,10 @@ import com.committee.investing.ui.theme.TextPrimary
 /**
  * 轻量内联 Markdown 渲染器
  * 支持: # 标题, **粗体**, *斜体*, `行内代码`, ```代码块```, - 列表, > 引用, ---分隔线
- * 不依赖第三方库
+ *
+ * 修复：groupValues 对未命中的组返回 "" 而非 null，
+ *        原代码 when 条件 `!= null` 永远为 true，导致粗体逻辑吞噬斜体/代码/链接。
+ *        改为 isNotEmpty() 判断。
  */
 @Composable
 fun MarkdownText(
@@ -46,16 +51,14 @@ private fun buildAnnotatedString(raw: String): AnnotatedString {
             // 代码块开始/结束
             if (line.trimStart().startsWith("```")) {
                 if (inCodeBlock) {
-                    // 结束代码块
                     append(codeBlockContent.toString().trimEnd())
                     pop()
                     codeBlockContent = StringBuilder()
                     inCodeBlock = false
                 } else {
-                    // 开始代码块
                     if (lineIndex > 0) append('\n')
                     pushStyle(SpanStyle(
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,
                         background = androidx.compose.ui.graphics.Color(0x1A000000),
                     ))
@@ -146,48 +149,55 @@ private fun buildAnnotatedString(raw: String): AnnotatedString {
 
 /**
  * 处理行内格式：**粗体**、*斜体*、`代码`、[链接](url)
+ *
+ * 修复：原代码 when 条件用 `!= null` 判断 groupValues（永远非 null），
+ *        改为 isNotEmpty()，确保各分支互斥正确命中。
  */
-private fun AnnotatedString.Builder.appendInlineContent(text: String, linkColor: androidx.compose.ui.graphics.Color) {
-    // 简单状态机解析行内格式
+private fun AnnotatedString.Builder.appendInlineContent(
+    text: String,
+    linkColor: androidx.compose.ui.graphics.Color,
+) {
     val pattern = Regex("""(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))""")
     var lastEnd = 0
 
     for (match in pattern.findAll(text)) {
-        // 匹配前的普通文本
         if (match.range.first > lastEnd) {
             append(text.substring(lastEnd, match.range.first))
         }
 
-        val boldGroup = match.groupValues[2]
-        val italicGroup = match.groupValues[3]
-        val codeGroup = match.groupValues[4]
-        val linkText = match.groupValues[5]
-        val linkUrl = match.groupValues[6]
+        val boldGroup   = match.groupValues[2]  // **bold**
+        val italicGroup = match.groupValues[3]  // *italic*
+        val codeGroup   = match.groupValues[4]  // `code`
+        val linkText    = match.groupValues[5]  // [text](url)
+        val linkUrl     = match.groupValues[6]
 
+        // 修复：使用 isNotEmpty() 而非 != null
+        // groupValues 对未命中的捕获组返回 ""，原来的 != null 检查永远为 true，
+        // 导致粗体分支优先吞噬所有匹配，斜体/代码/链接从未被渲染。
         when {
-            boldGroup != null -> {
+            boldGroup.isNotEmpty() -> {
                 pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
                 append(boldGroup)
                 pop()
             }
-            italicGroup != null -> {
+            italicGroup.isNotEmpty() -> {
                 pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
                 append(italicGroup)
                 pop()
             }
-            codeGroup != null -> {
+            codeGroup.isNotEmpty() -> {
                 pushStyle(SpanStyle(
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontFamily = FontFamily.Monospace,
                     fontSize = 13.sp,
                     background = androidx.compose.ui.graphics.Color(0x1A000000),
                 ))
                 append(codeGroup)
                 pop()
             }
-            linkText != null -> {
+            linkText.isNotEmpty() -> {
                 pushStyle(SpanStyle(
                     color = linkColor,
-                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                    textDecoration = TextDecoration.Underline,
                 ))
                 append(linkText)
                 pop()
@@ -196,7 +206,6 @@ private fun AnnotatedString.Builder.appendInlineContent(text: String, linkColor:
         lastEnd = match.range.last + 1
     }
 
-    // 剩余文本
     if (lastEnd < text.length) {
         append(text.substring(lastEnd))
     }

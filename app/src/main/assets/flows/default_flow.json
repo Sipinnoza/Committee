@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "name": "投资委员会标准流程",
+  "roles": [
+    {
+      "id": "analyst",
+      "displayName": "分析师",
+      "stance": "bull",
+      "systemPromptKey": "role_analyst"
+    },
+    {
+      "id": "risk_officer",
+      "displayName": "风险官",
+      "stance": "bear",
+      "systemPromptKey": "role_risk_officer"
+    },
+    {
+      "id": "strategist",
+      "displayName": "策略师",
+      "stance": "neutral",
+      "systemPromptKey": "role_strategist"
+    },
+    {
+      "id": "executor",
+      "displayName": "执行官",
+      "stance": "plan",
+      "systemPromptKey": "role_executor"
+    },
+    {
+      "id": "intel",
+      "displayName": "情报官",
+      "stance": "facts",
+      "systemPromptKey": "role_intel"
+    },
+    {
+      "id": "supervisor",
+      "displayName": "主席",
+      "stance": "judge",
+      "systemPromptKey": "role_supervisor"
+    }
+  ],
+
+  "states": [
+    "IDLE",
+    "VALIDATING",
+    "REJECTED",
+    "PREPPING",
+    "PHASE1_DEBATE",
+    "PHASE1_ADJUDICATING",
+    "PHASE2_ASSESSMENT",
+    "FINAL_RATING",
+    "APPROVED",
+    "COMPLETED"
+  ],
+
+  "transitions": [
+    { "from": "IDLE",                 "on": "meeting_requested",    "to": "VALIDATING" },
+    { "from": "VALIDATING",           "on": "validation_passed",    "to": "PREPPING" },
+    { "from": "VALIDATING",           "on": "validation_failed",    "to": "REJECTED" },
+    { "from": "REJECTED",             "on": "meeting_requested",    "to": "VALIDATING" },
+    { "from": "PREPPING",             "on": "prep_complete",        "to": "PHASE1_DEBATE" },
+    { "from": "PHASE1_DEBATE",        "on": "debate_complete",      "to": "PHASE1_ADJUDICATING" },
+    { "from": "PHASE1_DEBATE",        "on": "early_consensus",      "to": "FINAL_RATING" },
+    { "from": "PHASE1_ADJUDICATING",  "on": "adjudication_complete","to": "PHASE2_ASSESSMENT" },
+    { "from": "PHASE2_ASSESSMENT",    "on": "assessment_complete",  "to": "FINAL_RATING" },
+    { "from": "FINAL_RATING",         "on": "rating_done",          "to": "APPROVED" },
+    { "from": "FINAL_RATING",         "on": "rating_rejected",      "to": "PHASE1_DEBATE" },
+    { "from": "APPROVED",             "on": "execution_confirmed",  "to": "COMPLETED" },
+    { "from": "APPROVED",             "on": "meeting_cancelled",    "to": "IDLE" },
+    { "from": null,                   "on": "meeting_cancelled",    "to": "IDLE" },
+    { "from": null,                   "on": "timeout_expired",      "to": "IDLE" }
+  ],
+
+  "phases": {
+    "VALIDATING": {
+      "strategy": "ONCE",
+      "agents": ["analyst"],
+      "timeoutMs": 120000,
+      "task": "validate",
+      "onComplete": "validation_passed",
+      "onError": "validation_failed"
+    },
+    "PREPPING": {
+      "strategy": "PARALLEL",
+      "agents": ["analyst", "intel", "risk_officer"],
+      "timeoutMs": 120000,
+      "task": "prep",
+      "barrierEvent": "agent_speech_complete",
+      "onComplete": "prep_complete"
+    },
+    "PHASE1_DEBATE": {
+      "strategy": "ROUND_ROBIN",
+      "agents": ["analyst", "risk_officer", "strategist"],
+      "timeoutMs": 300000,
+      "task": "debate",
+      "maxRounds": 6,
+      "onComplete": "debate_complete",
+      "earlyExit": {
+        "marker": "CONSENSUS_REACHED",
+        "targetEvent": "early_consensus"
+      },
+      "preHooks": [
+        { "round": 4, "agent": "executor", "task": "pre_draft" }
+      ]
+    },
+    "PHASE1_ADJUDICATING": {
+      "strategy": "ONCE",
+      "agents": ["supervisor"],
+      "timeoutMs": 120000,
+      "task": "adjudicate",
+      "onComplete": "adjudication_complete"
+    },
+    "PHASE2_ASSESSMENT": {
+      "strategy": "PARALLEL",
+      "agents": ["analyst", "risk_officer", "strategist"],
+      "timeoutMs": 180000,
+      "task": "assess",
+      "barrierEvent": "agent_speech_complete",
+      "onComplete": "assessment_complete"
+    },
+    "FINAL_RATING": {
+      "strategy": "ONCE",
+      "agents": ["supervisor"],
+      "timeoutMs": 120000,
+      "task": "rate",
+      "onComplete": "rating_done",
+      "onReject": "rating_rejected"
+    },
+    "APPROVED": {
+      "strategy": "ONCE",
+      "agents": ["executor"],
+      "timeoutMs": 600000,
+      "task": "execute",
+      "onComplete": "execution_confirmed",
+      "requiresConfirmation": true
+    }
+  },
+
+  "termination": {
+    "maxRounds": 8,
+    "strategy": "supervisor_override",
+    "fallbackState": "FINAL_RATING"
+  }
+}

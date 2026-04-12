@@ -16,7 +16,11 @@ enum class MeetingState(val displayName: String, val description: String) {
     COMPLETED("会议完成", "监督员写纪要，准备回到待机");
 
     companion object {
-        /** 所有合法的 FSM 转换规则，与 config.yaml 对应 */
+        /**
+         * ⚠️ 已弃用：状态转移规则现在从 flow DSL JSON 加载（assets/flows/default_flow.json）
+         * 保留此列表仅作为文档参考，StateEngine 不再使用它
+         */
+        @Deprecated("状态转移规则已迁移到 flow DSL，见 assets/flows/default_flow.json")
         val TRANSITIONS: List<Transition> = listOf(
             Transition(IDLE,                "meeting_requested",    VALIDATING),
             Transition(VALIDATING,          "validation_passed",    PREPPING),
