@@ -169,6 +169,20 @@ fun HomeScreen(viewModel: MeetingViewModel) {
                 )
             }
 
+            // ── Meeting Summary Card (when finished) ────────────────────
+            if (uiState.boardFinished) {
+                item {
+                    MeetingSummaryCard(
+                        rating = uiState.boardRating,
+                        summary = uiState.boardSummary,
+                        subject = uiState.subject,
+                        onNewMeeting = {
+                            viewModel.resetToIdle()
+                        },
+                    )
+                }
+            }
+
             // ── Live system logs (thinking / waiting) ─────────────────────
             if (uiState.looperLogs.isNotEmpty()) {
                 item { Spacer(Modifier.height(4.dp)) }
@@ -493,18 +507,81 @@ private fun MeetingStatusBar(
                         color = TextSecondary,
                     )
                     Spacer(Modifier.height(4.dp))
-
-                    // 最近转场记录
-                    if (vizState.transitionHistory.isNotEmpty()) {
-                        vizState.transitionHistory.takeLast(3).forEach { record ->
-                            Text(
-                                "→ ${record.to}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextMuted,
-                            )
-                        }
-                    }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 会议摘要卡片 — 会议结束后显示
+ */
+@Composable
+private fun MeetingSummaryCard(
+    rating: String?,
+    summary: String,
+    subject: String,
+    onNewMeeting: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+        border = BorderStroke(1.dp, CommitteeGold.copy(alpha = 0.3f)),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // 标题行
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Assignment, null, tint = CommitteeGold, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("会议纪要", style = MaterialTheme.typography.titleMedium,
+                    color = CommitteeGold, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(12.dp))
+
+            // 标的
+            if (subject.isNotBlank()) {
+                Text("标的：$subject", style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // 评级
+            if (rating != null) {
+                val ratingColor = when (rating) {
+                    "Buy", "Overweight" -> BuyColor
+                    "Sell", "Underweight" -> SellColor
+                    else -> CommitteeGold
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("最终评级：", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                    Text(rating, style = MaterialTheme.typography.titleLarge,
+                        color = ratingColor, fontWeight = FontWeight.ExtraBold)
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // 摘要
+            if (summary.isNotBlank()) {
+                HorizontalDivider(color = BorderColor, modifier = Modifier.padding(vertical = 4.dp))
+                Spacer(Modifier.height(8.dp))
+                Text("讨论摘要", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                Spacer(Modifier.height(4.dp))
+                Text(summary, style = MaterialTheme.typography.bodySmall, color = TextPrimary,
+                    lineHeight = 20.sp)
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // 开始新会议按钮
+            OutlinedButton(
+                onClick = onNewMeeting,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = CommitteeGold),
+                border = BorderStroke(1.dp, CommitteeGold.copy(alpha = 0.4f)),
+            ) {
+                Icon(Icons.Default.Add, null, Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("开始新会议")
             }
         }
     }

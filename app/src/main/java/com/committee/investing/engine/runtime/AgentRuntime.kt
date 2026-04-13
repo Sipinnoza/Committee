@@ -56,6 +56,7 @@ class AgentRuntime(
     // ── 公开接口 ─────────────────────────────────────────────────
 
     fun startMeeting(subject: String) {
+        Log.e("AgentRuntime", "startMeeting called: isRunning=${_isRunning.value} subject=$subject")
         if (_isRunning.value) return
         currentTraceId = "mtg_${System.currentTimeMillis()}"
         _board.value = Blackboard(subject = subject)
@@ -95,11 +96,40 @@ class AgentRuntime(
         _isRunning.value = false
     }
 
+    /** 恢复历史 speeches 到 UI（用于 recoverSession） */
+    fun restoreSpeeches(speeches: List<SpeechRecord>) {
+        _speeches.value = speeches.map { it.copy(isStreaming = false) }
+    }
+
+    /** 从历史记录恢复完整会议状态（只展示，不重新运行） */
+    fun recoverFromHistory(session: MeetingSessionEntity, speeches: List<SpeechRecord>) {
+        currentTraceId = session.traceId
+        _speeches.value = speeches.map { it.copy(isStreaming = false) }
+        _isRunning.value = false
+        _board.value = Blackboard(
+            subject = session.subject,
+            round = session.currentRound,
+            finished = session.isCompleted,
+            finalRating = session.rating,
+            phase = if (session.isCompleted) BoardPhase.DONE else BoardPhase.IDLE,
+        )
+        log("[恢复] traceId=${session.traceId} speeches=${speeches.size}")
+    }
+
     fun confirmExecution() {
         val b = _board.value
         if (b.phase == BoardPhase.EXECUTION) {
             _board.value = b.copy(finished = true, phase = BoardPhase.DONE)
         }
+    }
+
+    /** 重置到 IDLE（允许开始新会议） */
+    fun resetToIdle() {
+        _board.value = Blackboard()
+        _speeches.value = emptyList()
+        _isRunning.value = false
+        _runtimeLog.value = emptyList()
+        currentTraceId = ""
     }
 
     fun destroy() {

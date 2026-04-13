@@ -2,6 +2,7 @@ package com.committee.investing.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.committee.investing.data.db.MeetingSessionEntity
 import com.committee.investing.data.repository.EventRepository
 import com.committee.investing.di.DataStoreApiKeyProvider
@@ -30,6 +31,7 @@ data class MeetingUiState(
     val boardConsensus: Boolean = false,
     val boardFinished: Boolean = false,
     val boardRating: String? = null,
+    val boardSummary: String = "",
 )
 
 @HiltViewModel
@@ -61,6 +63,7 @@ class MeetingViewModel @Inject constructor(
                     boardConsensus = board.consensus,
                     boardFinished = board.finished,
                     boardRating = board.finalRating,
+                    boardSummary = board.summary,
                     currentState = when {
                         board.finished -> MeetingState.COMPLETED
                         board.phase == BoardPhase.IDLE -> MeetingState.IDLE
@@ -92,6 +95,7 @@ class MeetingViewModel @Inject constructor(
     }
 
     fun requestMeeting(subject: String) {
+        Log.e("MeetingVM", "requestMeeting: subject=$subject hasKey=${apiKeyProvider.hasKey()}")
         if (subject.isBlank()) {
             _uiState.value = _uiState.value.copy(error = "请输入标的名称")
             return
@@ -133,6 +137,11 @@ class MeetingViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(error = null)
     }
 
+    /** 重置到 IDLE 状态，允许开始新会议 */
+    fun resetToIdle() {
+        runtime.resetToIdle()
+    }
+
     // Session history
     private val _sessionSpeeches = MutableStateFlow<Map<String, List<SpeechRecord>>>(emptyMap())
     val sessionSpeeches: StateFlow<Map<String, List<SpeechRecord>>> = _sessionSpeeches.asStateFlow()
@@ -145,7 +154,15 @@ class MeetingViewModel @Inject constructor(
     }
 
     fun recoverSession(traceId: String) {
-        // TODO: implement session recovery with new runtime
+        viewModelScope.launch {
+            val sessions = repository.observeAllSessions().first()
+            val session = sessions.find { it.traceId == traceId } ?: return@launch
+            val speeches = repository.getSpeechesByTrace(traceId)
+            Log.e("MeetingVM", "recoverSession: traceId=$traceId subject=${session.subject} speeches=${speeches.size}")
+
+            // 恢复到 runtime（只展示，不重新开会）
+            runtime.recoverFromHistory(session, speeches)
+        }
     }
 
     override fun onCleared() {
