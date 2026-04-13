@@ -24,12 +24,20 @@ class AnalystAgent : Agent {
 
     override fun buildUnifiedPrompt(board: Blackboard): String {
         val context = board.contextForAgent(this)
+        val mustSpeak = board.messages.isEmpty()
+        val instruction = if (mustSpeak) {
+            "这是第一轮，你必须发言。直接给出你的看多分析。"
+        } else if (context.isNotBlank() && context.lines().any { it.isNotBlank() }) {
+            "已有讨论进展，请根据最新信息判断是否需要补充看多观点。如果有人提出看空理由，你应当反驳。"
+        } else {
+            "请判断是否需要发言。"
+        }
         return """你是投委会的看多分析师。标的：${board.subject}
 轮次：${board.round}/${board.maxRounds}
 
 $context
 
-请判断你是否需要发言，如果需要则直接给出分析。
+$instruction
 
 输出格式（严格遵守）：
 SPEAK: YES 或 NO
@@ -52,12 +60,20 @@ class RiskAgent : Agent {
 
     override fun buildUnifiedPrompt(board: Blackboard): String {
         val context = board.contextForAgent(this)
+        val mustSpeak = board.messages.isEmpty()
+        val instruction = if (mustSpeak) {
+            "这是第一轮，你必须发言。直接给出你的风险分析。"
+        } else if (context.isNotBlank() && context.lines().any { it.isNotBlank() }) {
+            "已有讨论进展，请根据最新信息判断是否需要补充风险观点。如果有人提出看多理由，你应当指出风险。"
+        } else {
+            "请判断是否需要发言。"
+        }
         return """你是投委会的风险官（看空方）。标的：${board.subject}
 轮次：${board.round}/${board.maxRounds}
 
 $context
 
-请判断你是否需要发言，如果需要则直接给出风险分析。
+$instruction
 
 输出格式（严格遵守）：
 SPEAK: YES 或 NO
@@ -80,12 +96,20 @@ class StrategistAgent : Agent {
 
     override fun buildUnifiedPrompt(board: Blackboard): String {
         val context = board.contextForAgent(this)
+        val hasDebate = board.messages.count { it.role != "supervisor" } >= 2
+        val instruction = if (!hasDebate) {
+            "多空双方尚未充分发言，你暂时不需要发言。"
+        } else if (context.isNotBlank() && context.lines().any { it.isNotBlank() }) {
+            "已有充分讨论，请基于多空观点给出策略建议。"
+        } else {
+            "请判断是否需要发言。"
+        }
         return """你是投委会的策略师（中立）。标的：${board.subject}
 轮次：${board.round}/${board.maxRounds}
 
 $context
 
-请判断你是否需要发言（通常在多空双方都有发言后你才需要），如果需要则给出策略建议。
+$instruction
 
 输出格式（严格遵守）：
 SPEAK: YES 或 NO
@@ -108,12 +132,20 @@ class IntelAgent : Agent {
 
     override fun buildUnifiedPrompt(board: Blackboard): String {
         val context = board.contextForAgent(this)
+        val hasIntel = board.messages.any { it.role == role }
+        val instruction = if (!hasIntel) {
+            "这是首次讨论，你必须发言。提供该标的的市场情报。"
+        } else if (context.isNotBlank() && context.lines().any { it.isNotBlank() }) {
+            "请判断是否有重大新信息需要补充。"
+        } else {
+            "请判断是否需要补充市场情报。"
+        }
         return """你是投委会的情报官。标的：${board.subject}
 轮次：${board.round}
 
 $context
 
-请判断是否需要补充市场情报。只在缺少基础情报或有重大新信息时发言。
+$instruction
 
 输出格式（严格遵守）：
 SPEAK: YES 或 NO

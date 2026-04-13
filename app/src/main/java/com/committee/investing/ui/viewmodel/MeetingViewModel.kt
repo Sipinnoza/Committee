@@ -142,6 +142,9 @@ class MeetingViewModel @Inject constructor(
         runtime.resetToIdle()
     }
 
+    /** 获取 runtime 的 prompt 优化建议 Flow */
+    fun promptSuggestionsFlow() = runtime.promptSuggestions
+
     // Session history
     private val _sessionSpeeches = MutableStateFlow<Map<String, List<SpeechRecord>>>(emptyMap())
     val sessionSpeeches: StateFlow<Map<String, List<SpeechRecord>>> = _sessionSpeeches.asStateFlow()

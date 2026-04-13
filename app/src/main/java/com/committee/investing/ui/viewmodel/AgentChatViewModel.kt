@@ -37,6 +37,7 @@ data class AgentChatUiState(
     val isUsingCustomConfig: Boolean = false,
     val isEditingPrompt: Boolean = false,
     val promptSource: String = "",   // "内置" / "assets" / "本地文件"
+    val promptSuggestion: String = "",  // 自优化建议内容
 )
 
 @HiltViewModel
@@ -44,6 +45,7 @@ class AgentChatViewModel @Inject constructor(
     private val agentPool: AgentPool,
     private val apiKeyProvider: DataStoreApiKeyProvider,
     private val chatDao: AgentChatDao,
+    private val runtime: com.committee.investing.engine.runtime.AgentRuntime,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -80,6 +82,14 @@ class AgentChatViewModel @Inject constructor(
                         AgentChatMessage(id = it.id, role = it.role, content = it.content)
                     }
                 )
+            }
+        }
+
+        // 监听该 agent 的 prompt 优化建议
+        viewModelScope.launch {
+            runtime.promptSuggestions.collect { suggestions ->
+                val mySuggestion = suggestions[role.id] ?: ""
+                _uiState.value = _uiState.value.copy(promptSuggestion = mySuggestion)
             }
         }
     }
@@ -209,6 +219,48 @@ class AgentChatViewModel @Inject constructor(
             isEditingPrompt = false,
             promptSource = "assets",
         )
+    }
+
+    /**
+     * 从 LLM 生成的优化建议中提取 SUGGESTION 内容，
+     * 追加到当前 prompt 末尾作为「自我优化备注」，保存到本地文件。
+     */
+    fun applyPromptSuggestion() {
+        val suggestion = _uiState.value.promptSuggestion
+        if (suggestion.isBlank()) return
+
+        val role = _uiState.value.agentRole
+        val currentPrompt = _uiState.value.systemPrompt
+
+        // 提取 SUGGESTION 行
+        val suggestionLine = suggestion.lines()
+            .firstOrNull { it.trim().startsWith("SUGGESTION:", ignoreCase = true) }
+            ?.substringAfter(":")?.trim()
+            ?: return
+
+        if (suggestionLine.contains("无需修改") || suggestionLine.isBlank()) {
+            dismissSuggestion()
+            return
+        }
+
+        // 追加优化备注到当前 prompt
+        val optimizedPrompt = buildString {
+            append(currentPrompt.trimEnd())
+            appendLine()
+            appendLine()
+            appendLine("## 自我优化记录（${java.time.LocalDate.now()}）")
+            append(suggestionLine)
+        }
+
+        savePrompt(optimizedPrompt)
+        dismissSuggestion()
+    }
+
+    /** 忽略建议 */
+    fun dismissSuggestion() {
+        val role = _uiState.value.agentRole
+        runtime.clearSuggestion(role.id)
+        _uiState.value = _uiState.value.copy(promptSuggestion = "")
     }
 
     fun saveAgentConfig(config: LlmConfig) {

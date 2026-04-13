@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
@@ -272,6 +273,18 @@ fun AgentConfigChatScreen(
                 .padding(padding),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
+            // ── Prompt 优化建议卡片 ────────────────────────────────
+            if (uiState.promptSuggestion.isNotBlank()) {
+                item {
+                    PromptSuggestionCard(
+                        suggestion = uiState.promptSuggestion,
+                        agentColor = agentColor,
+                        onApply = { viewModel.applyPromptSuggestion() },
+                        onDismiss = { viewModel.dismissSuggestion() },
+                    )
+                }
+            }
+
             // System prompt card (editable)
             item {
                 var expanded by remember { mutableStateOf(false) }
@@ -697,6 +710,136 @@ private fun ModelConfigEditor(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = StateErrorColor),
                 ) {
                     Text("重置为全局", fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Prompt 自优化建议卡片
+ */
+@Composable
+private fun PromptSuggestionCard(
+    suggestion: String,
+    agentColor: Color,
+    onApply: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // 解析建议
+    var reflection by remember { mutableStateOf("") }
+    var suggestionText by remember { mutableStateOf("") }
+    var priority by remember { mutableStateOf("MEDIUM") }
+
+    LaunchedEffect(suggestion) {
+        suggestion.lines().forEach { line ->
+            val trimmed = line.trim()
+            when {
+                trimmed.startsWith("REFLECTION:", ignoreCase = true) ->
+                    reflection = trimmed.substringAfter(":").trim()
+                trimmed.startsWith("SUGGESTION:", ignoreCase = true) ->
+                    suggestionText = trimmed.substringAfter(":").trim()
+                trimmed.startsWith("PRIORITY:", ignoreCase = true) ->
+                    priority = trimmed.substringAfter(":").trim().uppercase()
+            }
+        }
+    }
+
+    val priorityColor = when (priority) {
+        "HIGH" -> SellColor
+        "LOW" -> TextMuted
+        else -> CommitteeGold
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+        border = BorderStroke(1.dp, agentColor.copy(alpha = 0.4f)),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            // 标题
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = agentColor,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "自我优化建议",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = agentColor,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    priority,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = priorityColor,
+                    modifier = Modifier
+                        .background(priorityColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+
+            // 反思
+            if (reflection.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    reflection,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    lineHeight = 18.sp,
+                )
+            }
+
+            // 建议
+            if (suggestionText.isNotBlank() && !suggestionText.contains("无需修改")) {
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(color = BorderColor)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "建议改进：",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = CommitteeGold,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    suggestionText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextPrimary,
+                    lineHeight = 18.sp,
+                )
+            }
+
+            // 操作按钮
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (suggestionText.isNotBlank() && !suggestionText.contains("无需修改")) {
+                    Button(
+                        onClick = onApply,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = agentColor),
+                        shape = RoundedCornerShape(8.dp),
+                    ) {
+                        Icon(Icons.Default.Check, null, Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("采纳建议", color = SurfaceDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, TextMuted),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextMuted),
+                ) {
+                    Text(if (suggestionText.contains("无需修改")) "知道了" else "忽略", fontSize = 12.sp)
                 }
             }
         }

@@ -49,6 +49,10 @@ class AgentRuntime(
     private val _runtimeLog = MutableStateFlow<List<String>>(emptyList())
     val runtimeLog: StateFlow<List<String>> = _runtimeLog.asStateFlow()
 
+    /** Agent 自优化建议：roleId → 建议内容 */
+    private val _promptSuggestions = MutableStateFlow<Map<String, String>>(emptyMap())
+    val promptSuggestions: StateFlow<Map<String, String>> = _promptSuggestions.asStateFlow()
+
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var runJob: Job? = null
     private var currentTraceId: String = ""
@@ -87,6 +91,11 @@ class AgentRuntime(
             } finally {
                 _isRunning.value = false
             }
+        }
+
+        // ── 会后自我反思（异步，不阻塞） ──────────────────────────
+        scope.launch {
+            reflectOnMeeting()
         }
     }
 
@@ -342,7 +351,7 @@ class AgentRuntime(
             traceId = "q_${System.currentTimeMillis()}",
             causedBy = "system",
             round = _board.value.round,
-            phase = MeetingState.IDLE,
+            phase = MeetingState.PHASE1_DEBATE,
             subject = _board.value.subject,
             agentRole = role,
             task = "decision",
@@ -437,5 +446,105 @@ class AgentRuntime(
         scope.launch {
             repository.saveSpeeches(currentTraceId, listOf(speech))
         }
+    }
+
+    // ── 会后自我反思 ──────────────────────────────────────────────
+
+    /**
+     * 会议结束后，让每个参与过的 Agent 反思自己的 prompt 效果，
+     * 生成优化建议。异步执行，不阻塞 UI。
+     */
+    private suspend fun reflectOnMeeting() {
+        val board = _board.value
+        if (board.messages.isEmpty()) return
+
+        val participatedRoles = board.messages.map { it.role }.distinct()
+        log("[反思] 参与者: $participatedRoles")
+
+        val suggestions = mutableMapOf<String, String>()
+
+        for (roleId in participatedRoles) {
+            try {
+                val agent = agents.find { it.role == roleId } ?: continue
+                val myMessages = board.messages.filter { it.role == roleId }
+                val reflection = generateReflection(agent, board, myMessages)
+                if (reflection.isNotBlank()) {
+                    suggestions[roleId] = reflection
+                    log("[反思] ${agent.displayName}: 优化建议已生成")
+                }
+            } catch (e: Exception) {
+                log("[反思] $roleId 失败: ${e.message}")
+            }
+        }
+
+        if (suggestions.isNotEmpty()) {
+            _promptSuggestions.value = suggestions
+            log("[反思] ${suggestions.size} 条优化建议已就绪")
+        }
+    }
+
+    /**
+     * 让 Agent 通过 LLM 反思自己的 prompt 效果。
+     * 不直接修改 prompt，只生成建议供用户审批。
+     */
+    private suspend fun generateReflection(
+        agent: Agent,
+        board: Blackboard,
+        myMessages: List<BoardMessage>,
+    ): String {
+        val currentPrompt = agentPool.getSystemPromptText(
+            com.committee.investing.domain.model.AgentRole.fromId(agent.role)
+                ?: return ""
+        )
+
+        val mySpeeches = myMessages.joinToString("\n") { msg ->
+            "[第${msg.round}轮] ${msg.content.take(300)}"
+        }
+
+        val outcome = buildString {
+            append("最终评级: ${board.finalRating ?: "无"}\n")
+            append("共识: ${if (board.consensus) "是" else "否"}\n")
+            append("总轮次: ${board.round}\n")
+            append("总发言: ${board.messages.size}条\n")
+        }
+
+        val reflectPrompt = """你是一个AI Agent的自我反思系统。
+
+## 当前 System Prompt
+$currentPrompt
+
+## 标的
+${board.subject}
+
+## 我在会议中的发言（${agent.displayName}）
+$mySpeeches
+
+## 会议结果
+$outcome
+
+## 任务
+请反思你在这个会议中的表现，分析你的 system prompt 是否需要改进。
+
+输出格式（严格遵守）：
+REFLECTION: （2-3句话总结你在会议中的表现优劣）
+SUGGESTION: （具体的 prompt 改进建议，直接给出改进后的完整 prompt 关键段落，150字以内）
+PRIORITY: HIGH / MEDIUM / LOW
+
+注意：
+- 只建议真正能改善决策质量的修改
+- 不要建议增加角色定位，只改进分析框架和输出质量
+- 如果当前 prompt 已经很好，SUGGESTION 写 "无需修改" """
+
+        return quickLlm(reflectPrompt)
+    }
+
+    /** 清除指定 agent 的优化建议（用户已处理） */
+    fun clearSuggestion(roleId: String) {
+        _promptSuggestions.value = _promptSuggestions.value - roleId
+    }
+
+    /** 清除所有建议 */
+    fun clearAllSuggestions() {
+        _promptSuggestions.value = emptyMap()
     }
 }
