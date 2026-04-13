@@ -14,18 +14,13 @@ import kotlinx.coroutines.flow.*
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *  AgentRuntime — 优化版
+ *  AgentRuntime（v4 — 系统稳定性层）
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- *  三刀优化：
- *    1. 稀疏激活：每轮只问 k=2 个 Agent（而不是全部）
- *    2. 合并调用：shouldAct + act + vote → 单次 LLM → UnifiedResponse
- *    3. Supervisor 降频：结束判断每 2 轮或共识后才问，点评只在有分歧时
- *
- *  LLM 调用量估算（10 轮会议）：
- *    旧：~50 次（每轮 N+3）
- *    新：~20 次（每轮 1 supervisor + 1 agent unified）
- *    ↓ 60%
+ *  v4 新增：
+ *    1. Summary Memory —— 每 2 轮自动摘要，防止信息丢失
+ *    2. 加权选择 —— scoring() + topK + weighted random
+ *    3. 标签标准化 —— BoardMessage 自动 normalize
  */
 class AgentRuntime(
     private val agentPool: AgentPool,
@@ -37,7 +32,8 @@ class AgentRuntime(
     companion object {
         private const val TAG = "AgentRuntime"
         private const val ABSOLUTE_MAX_ROUNDS = 20
-        private const val ACTIVATION_K = 2       // 🔥 每轮最多激活 2 个 Agent
+        private const val ACTIVATION_K = 2
+        private const val SUMMARY_INTERVAL = 2   // 🔥 每 2 轮更新一次摘要
     }
 
     private val _board = MutableStateFlow(Blackboard())
@@ -59,10 +55,7 @@ class AgentRuntime(
     // ── 公开接口 ─────────────────────────────────────────────────
 
     fun startMeeting(subject: String) {
-        if (_isRunning.value) {
-            log("[startMeeting] 已有会议在运行")
-            return
-        }
+        if (_isRunning.value) return
         currentTraceId = "mtg_${System.currentTimeMillis()}"
         _board.value = Blackboard(subject = subject)
         _speeches.value = emptyList()
@@ -127,7 +120,12 @@ class AgentRuntime(
 
             log("[Round ${board.round}] ────────────────────────────")
 
-            // ── 步骤 1：Supervisor 结束判断（🔥 降频：每 2 轮 或 共识后） ──
+            // ── ① Summary Memory（每 N 轮更新摘要） ──────────────
+            if (board.round > 1 && board.round - board.lastSummaryRound >= SUMMARY_INTERVAL) {
+                updateSummary()
+            }
+
+            // ── ② Supervisor 结束判断（降频） ──────────────────────
             if (board.round % 2 == 0 || board.consensus || board.round >= 4) {
                 val shouldFinish = askSupervisorFinish(board)
                 log("[Supervisor] shouldFinish=$shouldFinish")
@@ -138,7 +136,7 @@ class AgentRuntime(
                 }
             }
 
-            // ── 步骤 2：Supervisor 点评（🔥 降频：只在有分歧或无发言时） ──
+            // ── ③ Supervisor 点评（降频） ──────────────────────────
             if (shouldSupervisorComment(board)) {
                 val comment = quickLlm(supervisor.buildSupervisionPrompt(board))
                 if (comment.isNotBlank() && comment.length > 10) {
@@ -146,86 +144,128 @@ class AgentRuntime(
                 }
             }
 
-            // ── 步骤 3：🔥 稀疏激活 — 只选 k 个 Agent ──────────────
+            // ── ④ 🔥 加权选择 Agent ──────────────────────────────
             val eligible = agents.filter { it.eligible(_board.value) }
             log("[eligible] ${eligible.map { it.role }}")
 
             if (eligible.isEmpty()) {
-                log("[eligible] 无人有资格，本轮跳过")
+                log("[eligible] 无人有资格")
                 advanceRound()
                 continue
             }
 
-            // 🔥 从 eligible 里随机选 k 个（稀疏激活）
-            val picked = eligible.shuffled().take(ACTIVATION_K)
-            log("[picked] ${picked.map { it.role }}")
+            // 🔥 加权评分 + topK + 加权随机
+            val scored = eligible.map { it to it.scoring(_board.value) }
+                .sortedByDescending { it.second }
+            scored.forEach { (agent, score) ->
+                log("[score] ${agent.role} = ${"%.1f".format(score)}")
+            }
 
-            // ── 步骤 4：🔥 统一 LLM 调用（respond = shouldAct + act + vote） ──
-            for (agent in picked) {
-                if (_board.value.finished) break
+            // 取 topK，然后按分数加权随机选
+            val topK = scored.take(ACTIVATION_K)
+            val picked = weightedRandom(topK)
+            log("[picked] ${picked.role} (weighted random from top-$ACTIVATION_K)")
 
-                try {
-                    val response = agent.respond(_board.value, ::quickLlm)
-                    log("[${agent.role}] speak=${response.wantsToSpeak} vote=${response.voteBull} tags=${response.tags}")
+            // ── ⑤ 统一 LLM 调用 ──────────────────────────────────
+            try {
+                val response = picked.respond(_board.value, ::quickLlm)
+                log("[${picked.role}] speak=${response.wantsToSpeak} vote=${response.voteBull} tags=${response.normalizedTags}")
 
-                    if (response.wantsToSpeak && response.content.isNotBlank()) {
-                        // 流式输出（用户看到打字效果）
-                        val streamContent = callLlmStreaming(agent, agent.buildUnifiedPrompt(_board.value))
-                        if (streamContent.isNotBlank()) {
-                            writeToBoard(agent.role, streamContent, response.tags)
-                        } else {
-                            // 流式失败时用 unified response 的 content
-                            writeToBoard(agent.role, response.content, response.tags)
-                        }
+                if (response.wantsToSpeak && response.content.isNotBlank()) {
+                    // 流式输出
+                    val streamContent = callLlmStreaming(picked, picked.buildUnifiedPrompt(_board.value))
+                    val finalContent = streamContent.ifBlank { response.content }
 
-                        // 🔥 投票（从 unified response 直接取，不需要额外 LLM）
-                        if (response.voteBull != null) {
-                            _board.value = _board.value.apply {
-                                votes.add(BoardVote(
-                                    role = agent.role,
-                                    agree = response.voteBull,
-                                    round = _board.value.round,
-                                ))
-                            }.copy()
-                            log("[Vote] ${agent.role} = ${if (response.voteBull) "看多" else "看空"}")
-                        }
+                    // 🔥 标准化标签
+                    val tags = response.normalizedTags.map { it.name }
+                    writeToBoard(picked.role, finalContent, tags)
 
-                        // 检查共识
-                        val b = _board.value
-                        if (b.hasConsensus() && !b.consensus) {
-                            _board.value = b.copy(consensus = true)
-                            log("[共识] 看多${(b.bullRatio() * 100).toInt()}% / 看空${(b.bearRatio() * 100).toInt()}%")
-                        }
-
-                        updatePhase()
-                    } else {
-                        log("[${agent.role}] SPEAK=NO，跳过")
+                    // 投票
+                    if (response.voteBull != null) {
+                        _board.value = _board.value.apply {
+                            votes.add(BoardVote(
+                                role = picked.role,
+                                agree = response.voteBull,
+                                round = _board.value.round,
+                            ))
+                        }.copy()
+                        log("[Vote] ${picked.role} = ${if (response.voteBull) "看多" else "看空"}")
                     }
-                } catch (e: Exception) {
-                    log("[${agent.role}] 错误: ${e.message}")
+
+                    // 共识
+                    val b = _board.value
+                    if (b.hasConsensus() && !b.consensus) {
+                        _board.value = b.copy(consensus = true)
+                        log("[共识] 看多${(b.bullRatio() * 100).toInt()}% / 看空${(b.bearRatio() * 100).toInt()}%")
+                    }
+
+                    updatePhase()
+                } else {
+                    log("[${picked.role}] SPEAK=NO")
                 }
+            } catch (e: Exception) {
+                log("[${picked.role}] 错误: ${e.message}")
             }
 
             advanceRound()
         }
     }
 
-    // ── Supervisor 降频逻辑 ────────────────────────────────────
+    // ── 加权随机 ─────────────────────────────────────────────
 
-    /** 是否需要 Supervisor 点评（降频） */
-    private fun shouldSupervisorComment(board: Blackboard): Boolean {
-        // 第 1 轮：不需要（还没东西可评）
-        if (board.round <= 1) return false
-        // 本轮已有 supervisor 发言
-        if (board.messages.any { it.role == "supervisor" && it.round == board.round }) return false
-        // 有共识了：不需要点评
-        if (board.consensus) return false
-        // 至少有 3 条非 supervisor 消息才值得点评
-        val nonSupervisorMsgs = board.messages.count { it.role != "supervisor" }
-        return nonSupervisorMsgs >= 3
+    /**
+     * 🔥 按分数加权随机选一个（不是全随机，也不是最高分）
+     * 分数越高被选中概率越大，但低分也有机会
+     */
+    private fun weightedRandom(scored: List<Pair<Agent, Double>>): Agent {
+        if (scored.size == 1) return scored[0].first
+
+        // 把负分拉平到 0，加 0.1 保证每个人都有机会
+        val minScore = scored.minOf { it.second }
+        val adjusted = scored.map { it.first to (it.second - minScore + 0.1) }
+        val total = adjusted.sumOf { it.second }
+
+        // 加权随机
+        var rand = kotlin.random.Random.nextDouble() * total
+        for ((agent, weight) in adjusted) {
+            rand -= weight
+            if (rand <= 0) return agent
+        }
+        return adjusted.last().first
     }
 
-    /** 问 Supervisor 能不能结束（降频后仍然问） */
+    // ── Summary Memory ───────────────────────────────────────
+
+    /**
+     * 🔥 每 N 轮调用一次 LLM 生成讨论摘要
+     * 替代全量 messages，防止长讨论信息丢失
+     */
+    private suspend fun updateSummary() {
+        val board = _board.value
+        if (board.messages.size < 3) return  // 消息太少不值得摘要
+
+        log("[Summary] 生成讨论摘要（${board.messages.size}条消息）...")
+        val prompt = supervisor.buildSummaryPrompt(board)
+        val newSummary = quickLlm(prompt)
+
+        if (newSummary.isNotBlank()) {
+            _board.value = board.copy(
+                summary = newSummary,
+                lastSummaryRound = board.round,
+            )
+            log("[Summary] 已更新（${newSummary.length}字）")
+        }
+    }
+
+    // ── Supervisor 降频 ──────────────────────────────────────
+
+    private fun shouldSupervisorComment(board: Blackboard): Boolean {
+        if (board.round <= 1) return false
+        if (board.messages.any { it.role == "supervisor" && it.round == board.round }) return false
+        if (board.consensus) return false
+        return board.messages.count { it.role != "supervisor" } >= 3
+    }
+
     private suspend fun askSupervisorFinish(board: Blackboard): Boolean {
         val prompt = supervisor.buildFinishPrompt(board)
         val response = quickLlm(prompt)
@@ -235,7 +275,6 @@ class AgentRuntime(
 
     // ── LLM 调用 ─────────────────────────────────────────────
 
-    /** 轻量 LLM（YES/NO 类短回答） */
     private suspend fun quickLlm(prompt: String): String {
         val sb = StringBuilder()
         val role = AgentRole.SUPERVISOR
@@ -257,10 +296,10 @@ class AgentRuntime(
         return sb.toString()
     }
 
-    /** Agent 正式发言（流式，UI 实时显示） */
     private suspend fun callLlmStreaming(agent: Agent, prompt: String): String {
         val role = AgentRole.fromId(agent.role)
-            ?: return "[错误: 未知角色 ${agent.role}]"
+            ?: return ""
+        val config = configProvider()
 
         _speeches.value = _speeches.value + SpeechRecord(
             agent = role, content = "", summary = "",
@@ -305,14 +344,14 @@ class AgentRuntime(
 
     // ── Board 操作 ────────────────────────────────────────────
 
-    private fun writeToBoard(role: String, content: String, tags: List<String>) {
+    private fun writeToBoard(role: String, content: String, rawTags: List<String>) {
         val b = _board.value
         b.messages.add(BoardMessage(
             role = role, content = content,
-            round = b.round, tags = tags,
+            round = b.round, rawTags = rawTags,
         ))
         _board.value = b.copy()
-        log("[Board] +$role tags=$tags: ${content.take(60)}...")
+        log("[Board] +$role tags=$rawTags: ${content.take(60)}...")
     }
 
     private fun updatePhase() {
@@ -345,12 +384,9 @@ class AgentRuntime(
             phase = BoardPhase.RATING,
         )
         log("[评级] 最终评级: $rating")
-
-        // 给 Executor 机会
         if (agents.any { it.role == "executor" }) {
             _board.value = _board.value.copy(phase = BoardPhase.EXECUTION)
         }
-
         updateSessionFinished()
     }
 

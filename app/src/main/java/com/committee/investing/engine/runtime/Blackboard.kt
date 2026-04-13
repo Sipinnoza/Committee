@@ -2,11 +2,45 @@ package com.committee.investing.engine.runtime
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *  Blackboard — Agent 共享环境（唯一状态源）
+ *  Blackboard — Agent 共享环境（v4）
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- *  优化：消息带标签 → Agent 只关注相关消息 → context ↓ token ↓
+ *  v4 新增：
+ *    1. Summary Memory —— 每 N 轮自动摘要，防止长讨论信息丢失
+ *    2. 标签标准化 —— normalizeTags() 统一 LLM 输出的标签
  */
+
+// ── 标签标准化 ──────────────────────────────────────────────
+
+enum class MsgTag(val keys: List<String>) {
+    BULL(listOf("BULL", "看多", "利好", "买入机会", "多头", "BULLISH")),
+    BEAR(listOf("BEAR", "看空", "利空", "回避", "空头", "BEARISH")),
+    RISK(listOf("RISK", "风险", "下跌", "止损", "亏损", "危机", "DE")),
+    VALUATION(listOf("VALUATION", "估值", "PE", "EPS", "PB", "DCF", "市盈率", "市净率")),
+    GROWTH(listOf("GROWTH", "增长", "营收", "利润", "增速", "成长", "CAGR")),
+    NEWS(listOf("NEWS", "新闻", "公告", "事件", "政策", "行业动态", "EVENT")),
+    STRATEGY(listOf("STRATEGY", "策略", "仓位", "入场", "出场", "配置", "HEDGE")),
+    EXECUTION(listOf("EXECUTION", "执行", "操作", "买入", "卖出", "下单", "TRADE")),
+    TECHNICAL(listOf("TECHNICAL", "技术面", "均线", "支撑", "阻力", "MACD", "RSI", "K线")),
+    GENERAL(listOf("GENERAL", "一般", "综合"));
+
+    companion object {
+        /** 🔥 标准化：将 LLM 输出的任意标签映射到 MsgTag */
+        fun normalize(raw: String): MsgTag {
+            val upper = raw.trim().uppercase()
+            return entries.firstOrNull { tag ->
+                tag.keys.any { key -> upper.contains(key) }
+            } ?: GENERAL
+        }
+
+        fun normalizeAll(rawTags: List<String>): List<MsgTag> {
+            if (rawTags.isEmpty()) return listOf(GENERAL)
+            return rawTags.map { normalize(it) }.distinct()
+        }
+    }
+}
+
+// ── Blackboard ─────────────────────────────────────────────
 
 data class Blackboard(
     val subject: String = "",
@@ -19,6 +53,10 @@ data class Blackboard(
     var finished: Boolean = false,
     var finalRating: String? = null,
     var executionPlan: String? = null,
+
+    // 🔥 Summary Memory
+    var summary: String = "",
+    var lastSummaryRound: Int = 0,
 ) {
     fun bullRatio(): Float {
         if (votes.isEmpty()) return 0f
@@ -44,15 +82,28 @@ data class Blackboard(
         else -> BoardPhase.ANALYSIS
     }
 
-    /** 🔥 Attention：返回只含指定标签的消息 */
-    fun messagesByTags(vararg tags: String): List<BoardMessage> {
+    /** 🔥 Attention：按标准化标签过滤 */
+    fun messagesByTags(vararg tags: MsgTag): List<BoardMessage> {
         if (tags.isEmpty()) return messages
-        return messages.filter { msg -> tags.any { tag -> tag in msg.tags } }
+        return messages.filter { msg -> msg.normalizedTags.any { it in tags } }
     }
 
-    /** 🔥 Attention：返回排除指定标签的消息 */
-    fun messagesExcludingTags(vararg tags: String): List<BoardMessage> {
-        return messages.filter { msg -> tags.none { tag -> tag in msg.tags } }
+    /** 🔥 获取 Agent 可见的上下文 = summary + recent relevant messages */
+    fun contextForAgent(agent: Agent): String {
+        val sb = StringBuilder()
+        if (summary.isNotBlank()) {
+            sb.appendLine("【讨论摘要】")
+            sb.appendLine(summary)
+            sb.appendLine()
+        }
+        val relevant = agent.relevantMessages(this)
+        if (relevant.isNotEmpty()) {
+            sb.appendLine("【近期相关发言】")
+            relevant.forEach { msg ->
+                sb.appendLine("[${msg.role}] ${msg.content.take(150)}")
+            }
+        }
+        return sb.toString()
     }
 }
 
@@ -61,8 +112,9 @@ data class BoardMessage(
     val content: String,
     val round: Int,
     val timestamp: Long = System.currentTimeMillis(),
-    /** 消息标签，如 [BULL], [BEAR], [RISK], [VALUATION], [NEWS], [STRATEGY], [EXECUTION] */
-    val tags: List<String> = emptyList(),
+    val rawTags: List<String> = emptyList(),
+    /** 🔥 标准化后的标签 */
+    val normalizedTags: List<MsgTag> = MsgTag.normalizeAll(rawTags),
 )
 
 data class BoardVote(
@@ -76,7 +128,6 @@ enum class BoardPhase {
     IDLE, ANALYSIS, DEBATE, VOTE, RATING, EXECUTION, DONE,
 }
 
-/** Agent 行为输出 */
 sealed class AgentAction {
     data class Speak(val content: String, val tags: List<String> = emptyList()) : AgentAction()
     data class Vote(val agree: Boolean, val reason: String = "") : AgentAction()
@@ -84,7 +135,6 @@ sealed class AgentAction {
     data class Finish(val rating: String? = null) : AgentAction()
 }
 
-/** Agent 决策结果 */
 data class AgentDecision(
     val action: AgentAction,
     val needsLlm: Boolean = false,
@@ -93,70 +143,78 @@ data class AgentDecision(
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *  UnifiedResponse — 合并 shouldAct + act + vote 的统一输出
+ *  UnifiedResponse — 单次 LLM 输出（v2：标签标准化）
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *
- *  一次 LLM 调用，返回三个字段：
- *    SPEAK: YES/NO
- *    CONTENT: （如果 YES）发言内容
- *    VOTE: BULL/BEAR （投票）
  */
 data class UnifiedResponse(
     val wantsToSpeak: Boolean,
     val content: String,
-    val voteBull: Boolean?,   // null = 不投票（supervisor/executor）
-    val tags: List<String>,
+    val voteBull: Boolean?,
+    val rawTags: List<String>,
+    val normalizedTags: List<MsgTag>,
 ) {
     companion object {
         fun parse(raw: String, canVote: Boolean): UnifiedResponse {
             val lines = raw.trim().lines()
             var speak = false
-            var content = ""
             var voteBull: Boolean? = null
-            val tags = mutableListOf<String>()
-            var inContent = false
+            val rawTags = mutableListOf<String>()
             val contentLines = mutableListOf<String>()
+            var inContent = false
 
             for (line in lines) {
                 val trimmed = line.trim()
-                if (trimmed.startsWith("SPEAK:", ignoreCase = true)) {
-                    val value = trimmed.substringAfter(":").trim().uppercase()
-                    speak = value.startsWith("YES") || value.startsWith("Y")
-                    inContent = false
-                } else if (trimmed.startsWith("CONTENT:", ignoreCase = true)) {
-                    inContent = true
-                    val firstLine = trimmed.substringAfter(":").trim()
-                    if (firstLine.isNotBlank()) contentLines.add(firstLine)
-                } else if (trimmed.startsWith("VOTE:", ignoreCase = true)) {
-                    inContent = false
-                    if (canVote) {
+                when {
+                    trimmed.startsWith("SPEAK:", ignoreCase = true) -> {
+                        inContent = false
                         val value = trimmed.substringAfter(":").trim().uppercase()
-                        voteBull = value.contains("BULL") || value.startsWith("A") || value.contains("看多")
+                        speak = value.startsWith("YES") || value.startsWith("Y")
                     }
-                } else if (trimmed.startsWith("TAGS:", ignoreCase = true)) {
-                    inContent = false
-                    val value = trimmed.substringAfter(":").trim()
-                    tags.addAll(value.split(",", " ", "|").map { it.trim().uppercase() }
-                        .filter { it.isNotBlank() })
-                } else if (inContent && trimmed.isNotBlank()) {
-                    contentLines.add(trimmed)
+                    trimmed.startsWith("CONTENT:", ignoreCase = true) -> {
+                        inContent = true
+                        val firstLine = trimmed.substringAfter(":").trim()
+                        if (firstLine.isNotBlank()) contentLines.add(firstLine)
+                    }
+                    trimmed.startsWith("VOTE:", ignoreCase = true) -> {
+                        inContent = false
+                        if (canVote) {
+                            val value = trimmed.substringAfter(":").trim().uppercase()
+                            voteBull = value.contains("BULL") || value.startsWith("A")
+                                    || value.contains("看多")
+                        }
+                    }
+                    trimmed.startsWith("TAGS:", ignoreCase = true) -> {
+                        inContent = false
+                        val value = trimmed.substringAfter(":").trim()
+                        rawTags.addAll(value.split(",", " ", "|")
+                            .map { it.trim() }.filter { it.isNotBlank() })
+                    }
+                    inContent && trimmed.isNotBlank() -> {
+                        contentLines.add(trimmed)
+                    }
                 }
             }
 
-            content = contentLines.joinToString("\n")
-            if (tags.isEmpty() && content.isNotBlank()) {
-                tags.addAll(inferTags(content))
+            val content = contentLines.joinToString("\n")
+            // 🔥 标签标准化
+            val normalized = if (rawTags.isNotEmpty()) {
+                MsgTag.normalizeAll(rawTags)
+            } else if (content.isNotBlank()) {
+                MsgTag.normalizeAll(inferRawTags(content))
+            } else {
+                listOf(MsgTag.GENERAL)
             }
 
             return UnifiedResponse(
                 wantsToSpeak = speak,
                 content = content,
                 voteBull = voteBull,
-                tags = tags,
+                rawTags = rawTags,
+                normalizedTags = normalized,
             )
         }
 
-        private fun inferTags(content: String): List<String> {
+        private fun inferRawTags(content: String): List<String> {
             val result = mutableListOf<String>()
             val c = content.uppercase()
             if (c.contains("估值") || c.contains("PE") || c.contains("EPS")) result.add("VALUATION")
@@ -164,9 +222,10 @@ data class UnifiedResponse(
             if (c.contains("增长") || c.contains("营收") || c.contains("利润")) result.add("GROWTH")
             if (c.contains("新闻") || c.contains("公告") || c.contains("事件")) result.add("NEWS")
             if (c.contains("策略") || c.contains("仓位") || c.contains("入场")) result.add("STRATEGY")
-            if (c.contains("执行") || c.contains("操作") || c.contains("买入") || c.contains("卖出")) result.add("EXECUTION")
+            if (c.contains("执行") || c.contains("操作") || c.contains("买入")) result.add("EXECUTION")
             if (c.contains("看多") || c.contains("利好") || c.contains("买入机会")) result.add("BULL")
             if (c.contains("看空") || c.contains("利空") || c.contains("回避")) result.add("BEAR")
+            if (c.contains("技术") || c.contains("均线") || c.contains("MACD")) result.add("TECHNICAL")
             return result.ifEmpty { listOf("GENERAL") }
         }
     }
