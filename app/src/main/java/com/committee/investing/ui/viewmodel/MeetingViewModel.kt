@@ -3,6 +3,7 @@ package com.committee.investing.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.committee.investing.data.db.MeetingSessionEntity
+import com.committee.investing.data.repository.EventRepository
 import com.committee.investing.di.DataStoreApiKeyProvider
 import com.committee.investing.domain.model.MeetingState
 import com.committee.investing.domain.model.SpeechRecord
@@ -35,6 +36,7 @@ data class MeetingUiState(
 class MeetingViewModel @Inject constructor(
     private val runtime: AgentRuntime,
     private val apiKeyProvider: DataStoreApiKeyProvider,
+    private val repository: EventRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MeetingUiState())
@@ -71,6 +73,13 @@ class MeetingViewModel @Inject constructor(
                     },
                 )
             }.collect { _uiState.value = it }
+        }
+
+        // 监听历史 sessions
+        viewModelScope.launch {
+            repository.observeAllSessions().collect { sessions ->
+                _uiState.value = _uiState.value.copy(sessions = sessions)
+            }
         }
 
         // 初始化 API key 状态
@@ -124,9 +133,20 @@ class MeetingViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(error = null)
     }
 
-    // Session history (保留用于历史页面)
+    // Session history
     private val _sessionSpeeches = MutableStateFlow<Map<String, List<SpeechRecord>>>(emptyMap())
     val sessionSpeeches: StateFlow<Map<String, List<SpeechRecord>>> = _sessionSpeeches.asStateFlow()
+
+    fun loadSessionSpeeches(traceId: String) {
+        viewModelScope.launch {
+            val speeches = repository.getSpeechesByTrace(traceId)
+            _sessionSpeeches.value = _sessionSpeeches.value + (traceId to speeches)
+        }
+    }
+
+    fun recoverSession(traceId: String) {
+        // TODO: implement session recovery with new runtime
+    }
 
     override fun onCleared() {
         super.onCleared()

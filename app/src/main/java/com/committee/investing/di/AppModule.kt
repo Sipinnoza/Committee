@@ -14,6 +14,7 @@ import com.committee.investing.data.db.SpeechDao
 import com.committee.investing.data.db.AgentChatDao
 import com.committee.investing.data.remote.AnthropicApiService
 import com.committee.investing.data.remote.OpenAiApiService
+import com.committee.investing.data.repository.EventRepository
 import com.committee.investing.engine.ApiKeyProvider
 import com.committee.investing.engine.AgentPool
 import com.committee.investing.engine.runtime.*
@@ -85,6 +86,7 @@ object AppModule {
     fun provideAgentRuntime(
         agentPool: AgentPool,
         apiKeyProvider: DataStoreApiKeyProvider,
+        repository: EventRepository,
     ): AgentRuntime {
         val supervisor = SupervisorAgent()
         val agents = listOf(
@@ -99,6 +101,7 @@ object AppModule {
             supervisor = supervisor,
             agents = agents,
             configProvider = { apiKeyProvider.getConfig() },
+            repository = repository,
         )
     }
 

@@ -2,6 +2,7 @@ package com.committee.investing.ui.screen
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.committee.investing.domain.model.*
+import com.committee.investing.engine.runtime.BoardPhase
 import com.committee.investing.ui.component.*
 import com.committee.investing.ui.theme.*
 import com.committee.investing.ui.viewmodel.FlowVizViewModel
@@ -72,64 +74,65 @@ fun HomeScreen(viewModel: MeetingViewModel) {
         containerColor = SurfaceDark,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            Column {
-                TopAppBar(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("投委会", style = MaterialTheme.typography.titleLarge,
-                                color = CommitteeGold, fontWeight = FontWeight.ExtraBold)
-                            if (isMeetingActive) {
-                                Text("·", color = TextMuted, fontSize = 18.sp)
-                                Text(uiState.currentState.displayName,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = CommitteeGold.copy(alpha = 0.8f))
-                            }
-                        }
-                    },
-                    actions = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("投委会", style = MaterialTheme.typography.titleLarge,
+                            color = CommitteeGold, fontWeight = FontWeight.ExtraBold)
                         if (isMeetingActive) {
-                            IconButton(onClick = { viewModel.cancelMeeting() }) {
-                                Icon(Icons.Default.Close, "取消会议", tint = StateErrorColor, modifier = Modifier.size(20.dp))
-                            }
+                            Text("·", color = TextMuted, fontSize = 18.sp)
+                            Text(uiState.currentState.displayName,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = CommitteeGold.copy(alpha = 0.8f))
                         }
-                        if (uiState.hasApiKey && !isMeetingActive) {
-                            Text(
-                                text = uiState.llmConfig.displayTag,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextMuted,
-                                modifier = Modifier.padding(end = 12.dp),
-                            )
+                    }
+                },
+                actions = {
+                    if (isMeetingActive) {
+                        IconButton(onClick = { viewModel.cancelMeeting() }) {
+                            Icon(Icons.Default.Close, "取消会议", tint = StateErrorColor, modifier = Modifier.size(20.dp))
                         }
-                        StateBadge(uiState.currentState, Modifier.padding(end = 12.dp))
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = SurfaceCard,
-                        titleContentColor = TextPrimary,
-                    ),
-                )
-                // Flow visualization when meeting active
-                if (isMeetingActive) {
-                    FlowVisualizationCard(
-                        vizState = vizState,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                }
-            }
+                    }
+                    if (uiState.hasApiKey && !isMeetingActive) {
+                        Text(
+                            text = uiState.llmConfig.displayTag,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted,
+                            modifier = Modifier.padding(end = 12.dp),
+                        )
+                    }
+                    StateBadge(uiState.currentState, Modifier.padding(end = 12.dp))
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = SurfaceCard,
+                    titleContentColor = TextPrimary,
+                ),
+            )
         },
         bottomBar = {
             if (uiState.currentState == MeetingState.APPROVED) {
                 ExecutionConfirmBar(viewModel = viewModel)
             }
         }
-    ) { paddingValues ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(vertical = 8.dp),
-        ) {
-            // ── IDLE: Show meeting init card ──────────────────────────────
+        ) { paddingValues ->
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(vertical = 8.dp),
+            ) {
+                // ── Meeting active: compact status bar (expandable) ──────────
+                if (isMeetingActive) {
+                    item {
+                        MeetingStatusBar(
+                            uiState = uiState,
+                            vizState = vizState,
+                        )
+                    }
+                }
+
+                // ── IDLE: Show meeting init card ──────────────────────────────
             if (!isMeetingActive) {
                 item {
                     MeetingInitCard(
@@ -369,3 +372,140 @@ private fun ExecutionConfirmBar(viewModel: MeetingViewModel) {
 // Keep for backward compat — other screens may reference
 @Composable
 private fun LiveLogCard(logs: List<String>, onClickViewAll: () -> Unit) {}
+
+/**
+ * 会议中的紧凑状态条 — 可折叠
+ * 默认只显示一行（当前阶段 + 轮次 + 共识），点击展开看详情
+ */
+@Composable
+private fun MeetingStatusBar(
+    uiState: MeetingUiState,
+    vizState: com.committee.investing.ui.viewmodel.FlowVizState,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+        border = BorderStroke(1.dp, CommitteeGold.copy(alpha = 0.2f)),
+    ) {
+        Column {
+            // ── 第一行：始终可见 ──
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                // 左侧：阶段进度条
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    // 阶段指示点
+                    val phases = listOf("分析", "辩论", "评级", "执行")
+                    val currentIdx = when {
+                        uiState.boardFinished -> 4
+                        uiState.boardPhase == BoardPhase.ANALYSIS -> 0
+                        uiState.boardPhase == BoardPhase.DEBATE -> 1
+                        uiState.boardPhase == BoardPhase.VOTE -> 1
+                        uiState.boardPhase == BoardPhase.RATING -> 2
+                        uiState.boardPhase == BoardPhase.EXECUTION -> 3
+                        else -> -1
+                    }
+                    phases.forEachIndexed { idx, label ->
+                        if (idx > 0) {
+                            Box(
+                                Modifier
+                                    .width(12.dp)
+                                    .height(2.dp)
+                                    .background(
+                                        if (idx <= currentIdx) CommitteeGold.copy(alpha = 0.5f)
+                                        else BorderColor,
+                                        RoundedCornerShape(1.dp)
+                                    )
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(if (idx == currentIdx) 8.dp else 6.dp)
+                                .background(
+                                    when {
+                                        idx == currentIdx -> CommitteeGold
+                                        idx < currentIdx -> CommitteeGold.copy(alpha = 0.4f)
+                                        else -> BorderColor
+                                    },
+                                    CircleShape
+                                ),
+                        )
+                    }
+                }
+
+                // 右侧：轮次 + 共识标记
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        "R${uiState.boardRound}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted,
+                    )
+                    if (uiState.boardConsensus) {
+                        Text("共识", style = MaterialTheme.typography.labelSmall,
+                            color = BuyColor, fontWeight = FontWeight.Bold)
+                    }
+                    if (uiState.boardRating != null) {
+                        Text(uiState.boardRating!!, style = MaterialTheme.typography.labelSmall,
+                            color = CommitteeGold, fontWeight = FontWeight.Bold)
+                    }
+                    Icon(
+                        Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "收起" else "展开",
+                        modifier = Modifier.size(16.dp),
+                        tint = TextMuted,
+                    )
+                }
+            }
+
+            // ── 展开区域 ──
+            AnimatedVisibility(visible = expanded) {
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                    // 当前阶段详情
+                    val phaseLabel = when (uiState.boardPhase) {
+                        BoardPhase.ANALYSIS -> "分析阶段 — analyst + intel 并行"
+                        BoardPhase.DEBATE -> "辩论阶段 — 多轮轮替"
+                        BoardPhase.VOTE -> "投票阶段"
+                        BoardPhase.RATING -> "评级阶段 — supervisor 裁决"
+                        BoardPhase.EXECUTION -> "执行阶段 — executor"
+                        BoardPhase.DONE -> "已结束"
+                        else -> uiState.boardPhase.name
+                    }
+                    Text(
+                        phaseLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary,
+                    )
+                    Spacer(Modifier.height(4.dp))
+
+                    // 最近转场记录
+                    if (vizState.transitionHistory.isNotEmpty()) {
+                        vizState.transitionHistory.takeLast(3).forEach { record ->
+                            Text(
+                                "→ ${record.to}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

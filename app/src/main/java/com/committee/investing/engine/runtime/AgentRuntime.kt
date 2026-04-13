@@ -1,6 +1,8 @@
 package com.committee.investing.engine.runtime
 
 import android.util.Log
+import com.committee.investing.data.db.MeetingSessionEntity
+import com.committee.investing.data.repository.EventRepository
 import com.committee.investing.engine.AgentPool
 import com.committee.investing.engine.LlmConfig
 import com.committee.investing.domain.model.MicContext
@@ -28,6 +30,7 @@ class AgentRuntime(
     private val supervisor: SupervisorAgent,
     private val agents: List<Agent>,
     private val configProvider: () -> LlmConfig,
+    private val repository: EventRepository,
 ) {
     companion object {
         private const val TAG = "AgentRuntime"
@@ -49,6 +52,7 @@ class AgentRuntime(
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var runJob: Job? = null
+    private var currentTraceId: String = ""
 
     // ── 公开接口 ─────────────────────────────────────────────────
 
@@ -57,10 +61,22 @@ class AgentRuntime(
             log("[startMeeting] 已有会议在运行")
             return
         }
+        currentTraceId = "mtg_${System.currentTimeMillis()}"
         _board.value = Blackboard(subject = subject, phase = BoardPhase.ANALYSIS)
         _speeches.value = emptyList()
         _runtimeLog.value = emptyList()
-        log("[启动] 标的=$subject agents=${agents.map { it.role }} + supervisor")
+        log("[启动] traceId=$currentTraceId 标的=$subject agents=${agents.map { it.role }} + supervisor")
+
+        // 持久化 session
+        scope.launch {
+            repository.upsertSession(MeetingSessionEntity(
+                traceId = currentTraceId,
+                subject = subject,
+                startTime = System.currentTimeMillis(),
+                currentState = "PREPPING",
+                currentRound = 1,
+            ))
+        }
 
         runJob = scope.launch {
             _isRunning.value = true
@@ -68,8 +84,10 @@ class AgentRuntime(
                 runLoop()
             } catch (e: CancellationException) {
                 log("[中断] 会议被取消")
+                updateSessionFinished()
             } catch (e: Exception) {
                 log("[错误] ${e.javaClass.simpleName}: ${e.message}")
+                updateSessionFinished()
             } finally {
                 _isRunning.value = false
             }
@@ -179,6 +197,7 @@ class AgentRuntime(
 
         _board.value = _board.value.copy(finished = true, phase = BoardPhase.DONE)
         log("[结束] 会议完成，共 ${_board.value.round} 轮，${_board.value.messages.size} 条发言")
+        updateSessionFinished()
     }
 
     // ── Agent 执行 ───────────────────────────────────────────────
@@ -250,6 +269,8 @@ class AgentRuntime(
                 round = _board.value.round,
                 isStreaming = false,
             )
+            // 增量保存到 DB
+            persistSpeech(_speeches.value.last())
             result
         } catch (e: Exception) {
             val errMsg = "${e.javaClass.simpleName}: ${e.message}"
@@ -305,5 +326,32 @@ class AgentRuntime(
     private fun log(msg: String) {
         Log.e(TAG, msg)
         _runtimeLog.value = (_runtimeLog.value + msg).takeLast(200)
+    }
+
+    /** 会议结束时更新 DB session */
+    private fun updateSessionFinished() {
+        if (currentTraceId.isBlank()) return
+        val b = _board.value
+        scope.launch {
+            repository.upsertSession(MeetingSessionEntity(
+                traceId = currentTraceId,
+                subject = b.subject,
+                startTime = System.currentTimeMillis(),
+                currentState = b.phase.name,
+                currentRound = b.round,
+                rating = b.finalRating,
+                isCompleted = b.finished,
+            ))
+            // 保存所有已完成的 speech
+            repository.saveSpeeches(currentTraceId, _speeches.value)
+        }
+    }
+
+    /** 每次 speech 完成时增量保存 */
+    private fun persistSpeech(speech: SpeechRecord) {
+        if (currentTraceId.isBlank() || speech.isStreaming) return
+        scope.launch {
+            repository.saveSpeeches(currentTraceId, listOf(speech))
+        }
     }
 }

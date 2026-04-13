@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -65,6 +66,7 @@ fun CommitteeApp() {
 
     Scaffold(
         containerColor = SurfaceDark,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar(containerColor = SurfaceCard, tonalElevation = 0.dp) {
@@ -114,6 +116,7 @@ fun CommitteeApp() {
                 HistoryScreen(
                     viewModel = viewModel,
                     onSessionClick = { session ->
+                        viewModel.loadSessionSpeeches(session.traceId)
                         navController.navigate("session_detail/${session.traceId}")
                     },
                 )
