@@ -2,12 +2,12 @@ package com.committee.investing.engine.runtime
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *  Blackboard — Agent 共享环境（v4）
+ *  Blackboard — Agent 共享环境（v5：不可变）
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- *  v4 新增：
- *    1. Summary Memory —— 每 N 轮自动摘要，防止长讨论信息丢失
- *    2. 标签标准化 —— normalizeTags() 统一 LLM 输出的标签
+ *  v5 关键修复：
+ *    messages 和 votes 改为不可变 List
+ *    每次更新都创建新 List → StateFlow 能正确检测变化 → UI 更新
  */
 
 // ── 标签标准化 ──────────────────────────────────────────────
@@ -25,7 +25,6 @@ enum class MsgTag(val keys: List<String>) {
     GENERAL(listOf("GENERAL", "一般", "综合"));
 
     companion object {
-        /** 🔥 标准化：将 LLM 输出的任意标签映射到 MsgTag */
         fun normalize(raw: String): MsgTag {
             val upper = raw.trim().uppercase()
             return entries.firstOrNull { tag ->
@@ -40,55 +39,47 @@ enum class MsgTag(val keys: List<String>) {
     }
 }
 
-// ── Blackboard ─────────────────────────────────────────────
+// ── Blackboard（不可变）───────────────────────────────────────
 
 data class Blackboard(
     val subject: String = "",
-    var round: Int = 1,
-    var maxRounds: Int = 20,
-    val messages: MutableList<BoardMessage> = mutableListOf(),
-    val votes: MutableList<BoardVote> = mutableListOf(),
-    var phase: BoardPhase = BoardPhase.IDLE,
-    var consensus: Boolean = false,
-    var finished: Boolean = false,
-    var finalRating: String? = null,
-    var executionPlan: String? = null,
-
-    // 🔥 Summary Memory
-    var summary: String = "",
-    var lastSummaryRound: Int = 0,
+    val round: Int = 1,
+    val maxRounds: Int = 20,
+    val messages: List<BoardMessage> = emptyList(),        // 🔥 不可变
+    val votes: List<BoardVote> = emptyList(),              // 🔥 不可变
+    val phase: BoardPhase = BoardPhase.IDLE,
+    val consensus: Boolean = false,
+    val finished: Boolean = false,
+    val finalRating: String? = null,
+    val executionPlan: String? = null,
+    val summary: String = "",
+    val lastSummaryRound: Int = 0,
 ) {
     fun bullRatio(): Float {
         if (votes.isEmpty()) return 0f
         return votes.count { it.agree }.toFloat() / votes.size
     }
 
-    fun bearRatio(): Float {
-        if (votes.isEmpty()) return 0f
-        return 1f - bullRatio()
-    }
+    fun bearRatio(): Float = if (votes.isEmpty()) 0f else 1f - bullRatio()
 
-    fun hasConsensus(): Boolean {
-        return votes.size >= 2 && (bullRatio() > 0.7f || bearRatio() > 0.7f)
-    }
+    fun hasConsensus(): Boolean =
+        votes.size >= 2 && (bullRatio() > 0.7f || bearRatio() > 0.7f)
 
     fun inferPhase(): BoardPhase = when {
         finished && executionPlan != null -> BoardPhase.DONE
         finished && finalRating != null -> BoardPhase.EXECUTION
         finalRating != null -> BoardPhase.RATING
-        votes.isNotEmpty() && votes.size >= 2 -> BoardPhase.VOTE
+        votes.size >= 2 -> BoardPhase.VOTE
         round > 1 || messages.size > 3 -> BoardPhase.DEBATE
         messages.isEmpty() -> BoardPhase.IDLE
         else -> BoardPhase.ANALYSIS
     }
 
-    /** 🔥 Attention：按标准化标签过滤 */
     fun messagesByTags(vararg tags: MsgTag): List<BoardMessage> {
         if (tags.isEmpty()) return messages
         return messages.filter { msg -> msg.normalizedTags.any { it in tags } }
     }
 
-    /** 🔥 获取 Agent 可见的上下文 = summary + recent relevant messages */
     fun contextForAgent(agent: Agent): String {
         val sb = StringBuilder()
         if (summary.isNotBlank()) {
@@ -113,7 +104,6 @@ data class BoardMessage(
     val round: Int,
     val timestamp: Long = System.currentTimeMillis(),
     val rawTags: List<String> = emptyList(),
-    /** 🔥 标准化后的标签 */
     val normalizedTags: List<MsgTag> = MsgTag.normalizeAll(rawTags),
 )
 
@@ -128,24 +118,8 @@ enum class BoardPhase {
     IDLE, ANALYSIS, DEBATE, VOTE, RATING, EXECUTION, DONE,
 }
 
-sealed class AgentAction {
-    data class Speak(val content: String, val tags: List<String> = emptyList()) : AgentAction()
-    data class Vote(val agree: Boolean, val reason: String = "") : AgentAction()
-    data object Pass : AgentAction()
-    data class Finish(val rating: String? = null) : AgentAction()
-}
+// ── UnifiedResponse ────────────────────────────────────────
 
-data class AgentDecision(
-    val action: AgentAction,
-    val needsLlm: Boolean = false,
-    val prompt: String? = null,
-)
-
-/**
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *  UnifiedResponse — 单次 LLM 输出（v2：标签标准化）
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- */
 data class UnifiedResponse(
     val wantsToSpeak: Boolean,
     val content: String,
@@ -196,7 +170,6 @@ data class UnifiedResponse(
             }
 
             val content = contentLines.joinToString("\n")
-            // 🔥 标签标准化
             val normalized = if (rawTags.isNotEmpty()) {
                 MsgTag.normalizeAll(rawTags)
             } else if (content.isNotBlank()) {

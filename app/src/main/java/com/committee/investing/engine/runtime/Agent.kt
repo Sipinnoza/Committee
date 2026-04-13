@@ -44,11 +44,6 @@ interface Agent {
     /** 构建统一 prompt */
     fun buildUnifiedPrompt(board: Blackboard): String
 
-    /** 旧接口兼容 */
-    fun act(board: Blackboard): AgentDecision {
-        return AgentDecision(action = AgentAction.Speak(""), needsLlm = true, prompt = "")
-    }
-
     /** 🔥 Attention：按标准化标签过滤 */
     fun relevantMessages(board: Blackboard): List<BoardMessage> {
         return if (attentionTags.isEmpty()) board.messages.takeLast(8)

@@ -14,13 +14,14 @@ import kotlinx.coroutines.flow.*
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *  AgentRuntime（v4 — 系统稳定性层）
+ *  AgentRuntime（v5 — 修复 UI 不更新）
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- *  v4 新增：
- *    1. Summary Memory —— 每 2 轮自动摘要，防止信息丢失
- *    2. 加权选择 —— scoring() + topK + weighted random
- *    3. 标签标准化 —— BoardMessage 自动 normalize
+ *  v5 修复：
+ *    1. Blackboard 改为不可变 data class → StateFlow 正确检测变化
+ *    2. 去掉重复 LLM 调用：respond() 只做决策，content 直接从 response 取
+ *       callLlmStreaming 只用于流式显示（和 respond 共用同一次 LLM 结果）
+ *    3. speeches 用新 list 赋值确保 StateFlow 触发
  */
 class AgentRuntime(
     private val agentPool: AgentPool,
@@ -33,7 +34,7 @@ class AgentRuntime(
         private const val TAG = "AgentRuntime"
         private const val ABSOLUTE_MAX_ROUNDS = 20
         private const val ACTIVATION_K = 2
-        private const val SUMMARY_INTERVAL = 2   // 🔥 每 2 轮更新一次摘要
+        private const val SUMMARY_INTERVAL = 2
     }
 
     private val _board = MutableStateFlow(Blackboard())
@@ -120,7 +121,7 @@ class AgentRuntime(
 
             log("[Round ${board.round}] ────────────────────────────")
 
-            // ── ① Summary Memory（每 N 轮更新摘要） ──────────────
+            // ── ① Summary Memory ──────────────────────────────────────
             if (board.round > 1 && board.round - board.lastSummaryRound >= SUMMARY_INTERVAL) {
                 updateSummary()
             }
@@ -140,11 +141,11 @@ class AgentRuntime(
             if (shouldSupervisorComment(board)) {
                 val comment = quickLlm(supervisor.buildSupervisionPrompt(board))
                 if (comment.isNotBlank() && comment.length > 10) {
-                    writeToBoard(supervisor.role, comment, emptyList())
+                    addBoardMessage(supervisor.role, comment, emptyList())
                 }
             }
 
-            // ── ④ 🔥 加权选择 Agent ──────────────────────────────
+            // ── ④ 加权选择 Agent ──────────────────────────────────
             val eligible = agents.filter { it.eligible(_board.value) }
             log("[eligible] ${eligible.map { it.role }}")
 
@@ -154,41 +155,39 @@ class AgentRuntime(
                 continue
             }
 
-            // 🔥 加权评分 + topK + 加权随机
             val scored = eligible.map { it to it.scoring(_board.value) }
                 .sortedByDescending { it.second }
             scored.forEach { (agent, score) ->
                 log("[score] ${agent.role} = ${"%.1f".format(score)}")
             }
 
-            // 取 topK，然后按分数加权随机选
             val topK = scored.take(ACTIVATION_K)
             val picked = weightedRandom(topK)
-            log("[picked] ${picked.role} (weighted random from top-$ACTIVATION_K)")
+            log("[picked] ${picked.role}")
 
             // ── ⑤ 统一 LLM 调用 ──────────────────────────────────
             try {
                 val response = picked.respond(_board.value, ::quickLlm)
-                log("[${picked.role}] speak=${response.wantsToSpeak} vote=${response.voteBull} tags=${response.normalizedTags}")
+                log("[${picked.role}] speak=${response.wantsToSpeak} vote=${response.voteBull}")
 
                 if (response.wantsToSpeak && response.content.isNotBlank()) {
-                    // 流式输出
-                    val streamContent = callLlmStreaming(picked, picked.buildUnifiedPrompt(_board.value))
-                    val finalContent = streamContent.ifBlank { response.content }
+                    // 🔥 流式输出 — 用 respond 已有的 content 做流式展示
+                    val role = AgentRole.fromId(picked.role) ?: AgentRole.SUPERVISOR
+                    streamToSpeeches(role, response.content, _board.value.round)
 
-                    // 🔥 标准化标签
+                    // 写入 Board（不可变更新）
                     val tags = response.normalizedTags.map { it.name }
-                    writeToBoard(picked.role, finalContent, tags)
+                    addBoardMessage(picked.role, response.content, tags)
 
                     // 投票
                     if (response.voteBull != null) {
-                        _board.value = _board.value.apply {
-                            votes.add(BoardVote(
+                        _board.value = _board.value.copy(
+                            votes = _board.value.votes + BoardVote(
                                 role = picked.role,
                                 agree = response.voteBull,
                                 round = _board.value.round,
-                            ))
-                        }.copy()
+                            )
+                        )
                         log("[Vote] ${picked.role} = ${if (response.voteBull) "看多" else "看空"}")
                     }
 
@@ -196,7 +195,7 @@ class AgentRuntime(
                     val b = _board.value
                     if (b.hasConsensus() && !b.consensus) {
                         _board.value = b.copy(consensus = true)
-                        log("[共识] 看多${(b.bullRatio() * 100).toInt()}% / 看空${(b.bearRatio() * 100).toInt()}%")
+                        log("[共识] 看多${(b.bullRatio() * 100).toInt()}%")
                     }
 
                     updatePhase()
@@ -211,21 +210,58 @@ class AgentRuntime(
         }
     }
 
-    // ── 加权随机 ─────────────────────────────────────────────
+    // ── 流式输出到 Speeches ───────────────────────────────────
 
     /**
-     * 🔥 按分数加权随机选一个（不是全随机，也不是最高分）
-     * 分数越高被选中概率越大，但低分也有机会
+     * 🔥 将已有 content 以"流式打字"效果推送到 _speeches
+     * 模拟逐字显示（不需要额外 LLM 调用）
      */
+    private suspend fun streamToSpeeches(role: AgentRole, content: String, round: Int) {
+        // 先添加空记录
+        val recordId = "sp_${System.currentTimeMillis()}"
+        _speeches.value = _speeches.value + SpeechRecord(
+            id = recordId,
+            agent = role,
+            content = "",
+            summary = "",
+            round = round,
+            isStreaming = true,
+        )
+
+        // 逐段推送（模拟流式效果）
+        val chunkSize = 8
+        var idx = 0
+        while (idx < content.length) {
+            val end = minOf(idx + chunkSize, content.length)
+            val partial = content.substring(0, end)
+
+            _speeches.value = _speeches.value.map {
+                if (it.id == recordId) it.copy(content = partial, isStreaming = true)
+                else it
+            }
+
+            idx = end
+            delay(16) // ~60fps
+        }
+
+        // 完成流式
+        _speeches.value = _speeches.value.map {
+            if (it.id == recordId) it.copy(content = content, isStreaming = false)
+            else it
+        }
+
+        // 持久化
+        val finalRecord = _speeches.value.last { it.id == recordId }
+        persistSpeech(finalRecord)
+    }
+
+    // ── 加权随机 ─────────────────────────────────────────────
+
     private fun weightedRandom(scored: List<Pair<Agent, Double>>): Agent {
         if (scored.size == 1) return scored[0].first
-
-        // 把负分拉平到 0，加 0.1 保证每个人都有机会
         val minScore = scored.minOf { it.second }
         val adjusted = scored.map { it.first to (it.second - minScore + 0.1) }
         val total = adjusted.sumOf { it.second }
-
-        // 加权随机
         var rand = kotlin.random.Random.nextDouble() * total
         for ((agent, weight) in adjusted) {
             rand -= weight
@@ -236,18 +272,12 @@ class AgentRuntime(
 
     // ── Summary Memory ───────────────────────────────────────
 
-    /**
-     * 🔥 每 N 轮调用一次 LLM 生成讨论摘要
-     * 替代全量 messages，防止长讨论信息丢失
-     */
     private suspend fun updateSummary() {
         val board = _board.value
-        if (board.messages.size < 3) return  // 消息太少不值得摘要
-
+        if (board.messages.size < 3) return
         log("[Summary] 生成讨论摘要（${board.messages.size}条消息）...")
         val prompt = supervisor.buildSummaryPrompt(board)
         val newSummary = quickLlm(prompt)
-
         if (newSummary.isNotBlank()) {
             _board.value = board.copy(
                 summary = newSummary,
@@ -296,61 +326,18 @@ class AgentRuntime(
         return sb.toString()
     }
 
-    private suspend fun callLlmStreaming(agent: Agent, prompt: String): String {
-        val role = AgentRole.fromId(agent.role)
-            ?: return ""
-        val config = configProvider()
+    // ── Board 操作（不可变）───────────────────────────────────
 
-        _speeches.value = _speeches.value + SpeechRecord(
-            agent = role, content = "", summary = "",
-            round = _board.value.round, isStreaming = true,
-        )
-
-        return try {
-            val ctx = MicContext(
-                traceId = "r_${System.currentTimeMillis()}",
-                causedBy = "runtime",
-                round = _board.value.round,
-                phase = MeetingState.IDLE,
-                subject = _board.value.subject,
-                agentRole = role,
-                task = agent.role,
-            )
-
-            val fullContent = StringBuilder()
-            agentPool.callAgentStreaming(role, ctx, systemPromptOverride = prompt).collect { delta ->
-                fullContent.append(delta)
-                _speeches.value = _speeches.value.dropLast(1) + SpeechRecord(
-                    agent = role,
-                    content = fullContent.toString(),
-                    summary = "",
-                    round = _board.value.round,
-                    isStreaming = true,
-                )
-            }
-
-            val result = fullContent.toString()
-            _speeches.value = _speeches.value.dropLast(1) + SpeechRecord(
-                agent = role, content = result, summary = "",
-                round = _board.value.round, isStreaming = false,
-            )
-            persistSpeech(_speeches.value.last())
-            result
-        } catch (e: Exception) {
-            log("[LLM错误] ${agent.role}: ${e.message}")
-            ""
-        }
-    }
-
-    // ── Board 操作 ────────────────────────────────────────────
-
-    private fun writeToBoard(role: String, content: String, rawTags: List<String>) {
+    /**
+     * 🔥 不可变更新：创建新 list，确保 StateFlow 检测到变化
+     */
+    private fun addBoardMessage(role: String, content: String, rawTags: List<String>) {
         val b = _board.value
-        b.messages.add(BoardMessage(
+        val newMsg = BoardMessage(
             role = role, content = content,
             round = b.round, rawTags = rawTags,
-        ))
-        _board.value = b.copy()
+        )
+        _board.value = b.copy(messages = b.messages + newMsg)
         log("[Board] +$role tags=$rawTags: ${content.take(60)}...")
     }
 
@@ -365,8 +352,7 @@ class AgentRuntime(
 
     private fun advanceRound() {
         if (!_board.value.finished) {
-            val b = _board.value
-            _board.value = b.copy(round = b.round + 1)
+            _board.value = _board.value.copy(round = _board.value.round + 1)
         }
     }
 
@@ -377,8 +363,7 @@ class AgentRuntime(
     }
 
     private fun finishWithRating(rating: String) {
-        val b = _board.value
-        _board.value = b.copy(
+        _board.value = _board.value.copy(
             finished = true,
             finalRating = rating,
             phase = BoardPhase.RATING,
