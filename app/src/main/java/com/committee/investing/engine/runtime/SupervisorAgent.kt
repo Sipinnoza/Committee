@@ -4,149 +4,124 @@ import android.util.Log
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *  SupervisorAgent — 主席 + 调度器
+ *  SupervisorAgent — 主席 / 裁判
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- *  这是整个系统的核心：
- *
- *  旧架构：CommitteeLooper（中央控制器）→ Scheduler → AgentPool
- *  新架构：SupervisorAgent（智能调度器）→ AgentRuntime → AgentPool
- *
  *  关键变化：
- *    ❌ 谁发言 = 查表（PhaseDef.agents 顺序）
- *    ✅ 谁发言 = Supervisor 根据 Blackboard 自主判断
+ *    ❌ 旧：PRIORITY 排序决定谁发言（伪调度）
+ *    ✅ 新：不排班，只裁判。Agent 自己通过 shouldAct 决定发言
  *
- *  调度策略：
- *    Round 1: intel → analyst → risk_officer → supervisor 评估
- *    Round 2+: analyst → risk_officer → strategist → supervisor 评估
- *    共识/最大轮次: supervisor 评级 → executor 执行
+ *  Supervisor 的职责：
+ *    1. 每轮观察讨论，必要时点评（act → LLM）
+ *    2. 判断讨论是否充分（shouldFinish → LLM）
+ *    3. 做最终评级（buildRatingPrompt → LLM）
  *
- *  但这些"策略"不是硬编码的流程，而是 Supervisor 基于 Blackboard 的判断：
- *    - shouldAct() = 每轮必须执行（supervisor 总是 true）
- *    - decideNextAgent() = 看谁还没说 + 谁有资格说
- *    - shouldFinish() = 看共识/轮次/讨论质量
+ *  Supervisor 不决定谁发言。那是 Agent 自己的事。
  */
 class SupervisorAgent : SupervisorCapability {
 
     companion object {
         private const val TAG = "SupervisorAgent"
-
-        /** Agent 优先级：数字越小越优先 */
-        private val PRIORITY = mapOf(
-            "intel" to 0,
-            "analyst" to 1,
-            "risk_officer" to 2,
-            "strategist" to 3,
-        )
-
-        /** 每轮期望发言的 agent 列表（按优先级） */
-        private val DEBATE_AGENTS = listOf("analyst", "risk_officer", "strategist")
-        private val ROUND1_EXTRA = listOf("intel")
     }
 
     override val role = "supervisor"
     override val displayName = "主席"
 
-    // ── Agent 接口实现 ─────────────────────────────────────────────
+    // ── eligible：Supervisor 始终有资格 ─────────────────────────
 
-    override fun shouldAct(board: Blackboard): Boolean {
-        // Supervisor 每轮必须执行（除非已结束）
-        return !board.finished
+    override fun eligible(board: Blackboard): Boolean = !board.finished
+
+    // ── shouldAct：Supervisor 每轮都要评估 ──────────────────────
+
+    override fun buildShouldActPrompt(board: Blackboard): String {
+        // Supervisor 总是需要评估，不需要问 LLM
+        // 返回空字符串 → shouldAct 基类返回 false
+        // 我们直接在 AgentRuntime 中特殊处理 supervisor
+        return ""
     }
 
-    override fun act(board: Blackboard): AgentDecision {
-        // Supervisor 的 act 分两种：
-        // 1. 每轮结束时的监督评估（不需要 LLM）
-        // 2. 最终评级（需要 LLM）
-
-        return if (shouldFinish(board)) {
-            // 需要做最终评级
-            val prompt = buildRatingPrompt(board)
-            AgentDecision(
-                action = AgentAction.Finish(rating = null),
-                needsLlm = true,
-                prompt = prompt,
-            )
-        } else {
-            // 每轮监督评估
-            AgentDecision(
-                action = AgentAction.Speak(""),
-                needsLlm = shouldSupervisorComment(board),
-                prompt = buildSupervisionPrompt(board),
-            )
-        }
-    }
-
-    // ── SupervisorAgent 调度接口 ───────────────────────────────────
-
-    override fun decideNextAgent(agents: List<Agent>, board: Blackboard): Agent? {
-        // 策略：找出所有 shouldAct == true 的 Agent，按优先级选一个
-
-        val candidates = agents
-            .filter { it.shouldAct(board) }
-            .sortedBy { PRIORITY[it.role] ?: 99 }
-
-        if (candidates.isEmpty()) {
-            Log.e(TAG, "[decideNextAgent] 没有候选 agent，本轮结束")
-            return null
-        }
-
-        val chosen = candidates.first()
-        Log.e(TAG, "[decideNextAgent] round=${board.round} 候选=${candidates.map { it.role }} → 选中=${chosen.role}")
-        return chosen
-    }
-
-    override fun shouldFinish(board: Blackboard): Boolean {
-        // 结束条件（任一满足即结束）
-        val reasons = mutableListOf<String>()
-
-        if (board.consensus) reasons += "共识已达成"
-        if (board.round > board.maxRounds) reasons += "超过最大轮次 ${board.maxRounds}"
-        if (board.finalRating != null) reasons += "已有评级"
-
-        // 检查连续 Pass：如果最近一轮所有人都没新发言
-        val lastRoundMessages = board.messages.count { it.round == board.round }
-        if (board.round > 1 && lastRoundMessages == 0) reasons += "本轮无人发言"
-
-        if (reasons.isNotEmpty()) {
-            Log.e(TAG, "[shouldFinish] true: ${reasons.joinToString(", ")}")
-            return true
-        }
+    override suspend fun shouldAct(board: Blackboard, llm: QuickLlm): Boolean {
+        // Supervisor 不走 shouldAct 流程，由 Runtime 直接安排
         return false
     }
 
-    // ── 内部逻辑 ───────────────────────────────────────────────────
+    // ── act：监督点评 或 评级 ────────────────────────────────────
 
-    /** Supervisor 是否需要发言（不是每轮都需要） */
-    private fun shouldSupervisorComment(board: Blackboard): Boolean {
-        // 第一轮末：需要做开场总结
-        // 后续轮：看讨论是否有分歧需要仲裁
-        val debateMessages = board.messages.filter { it.role in DEBATE_AGENTS }
-        return debateMessages.size >= 2 && board.messages.none { it.role == role && it.round == board.round }
+    override fun act(board: Blackboard): AgentDecision {
+        // Supervisor 在轮间做点评
+        return AgentDecision(
+            action = AgentAction.Speak(""),
+            needsLlm = true,
+            prompt = buildSupervisionPrompt(board),
+        )
     }
 
-    private fun buildSupervisionPrompt(board: Blackboard): String {
+    // ── shouldFinish：🔥 LLM 驱动判断 ──────────────────────────
+
+    override fun buildFinishPrompt(board: Blackboard): String {
+        val debateCount = board.messages.count { it.role != "supervisor" }
+        val voteSummary = if (board.votes.isNotEmpty()) {
+            val bull = board.votes.count { it.agree }
+            val bear = board.votes.size - bull
+            "投票情况：${bull}票看多 / ${bear}票看空"
+        } else {
+            "尚无投票"
+        }
+        val recentMsgs = board.messages.takeLast(6).joinToString("\n") { "[${it.role}] ${it.content.take(100)}" }
+
+        return """你是投委会主席。请判断讨论是否已经充分，可以做出最终评级。
+
+标的：${board.subject}
+轮次：${board.round}
+发言数：${debateCount}条
+$voteSummary
+
+近期讨论：
+$recentMsgs
+
+判断标准：
+- 多空双方是否都已充分表达？
+- 是否有足够信息做出评级？
+- 继续讨论是否会产生新价值？
+
+只回答：YES（可以评级）或 NO（需要继续讨论）"""
+    }
+
+    // ── 监督点评 prompt ────────────────────────────────────────
+
+    override fun buildSupervisionPrompt(board: Blackboard): String {
         val history = board.messages.takeLast(10).joinToString("\n") { "[${it.role}] ${it.content.take(200)}" }
+        val voteSummary = if (board.votes.isNotEmpty()) {
+            val bull = board.votes.count { it.agree }
+            val bear = board.votes.size - bull
+            "\n当前投票：${bull}看多 / ${bear}看空"
+        } else ""
+
         return """你是投资委员会的主席。
 当前标的：${board.subject}
-当前轮次：${board.round}/${board.maxRounds}
+当前轮次：${board.round}/${board.maxRounds}$voteSummary
 
 你的职责是监督讨论，确保讨论质量和方向。
 已有讨论：
 $history
 
-请简短点评当前讨论状态，指出需要补充的方向。100字以内。
+请简短点评当前讨论状态：
+1. 各方论点是否充分？
+2. 还有哪些方面需要补充？
+3. 讨论方向是否偏离？
 
-如果各方观点已经趋于一致，请明确说"【共识达成】"。
-如果讨论已经充分，需要做出评级，请说"【请求评级】"。"""
+100字以内。"""
     }
 
-    private fun buildRatingPrompt(board: Blackboard): String {
+    // ── 最终评级 prompt ────────────────────────────────────────
+
+    override fun buildRatingPrompt(board: Blackboard): String {
         val history = board.messages.joinToString("\n") { "[${it.role}] R${it.round}: ${it.content.take(300)}" }
         val votes = board.votes.joinToString("\n") { "[${it.role}] ${if (it.agree) "看多" else "看空"}: ${it.reason}" }
 
         return """你是投资委员会的主席，现在需要给出最终投资评级。
 当前标的：${board.subject}
+共 ${board.round} 轮讨论，${board.messages.size} 条发言。
 
 全部讨论记录：
 $history
@@ -158,5 +133,16 @@ ${if (votes.isNotBlank()) "投票记录：\n$votes" else ""}
 【最终评级】Buy/Overweight/Hold+/Hold/Underweight/Sell
 
 然后给出评级理由和关键考量因素，200字以内。"""
+    }
+
+    // ── 投票 prompt（Runtime 调用） ────────────────────────────
+
+    fun buildVotePrompt(board: Blackboard): String {
+        return """基于当前讨论，你对${board.subject}的投资立场是？
+
+A. 看多（BULLISH）
+B. 看空（BEARISH）
+
+只回答 A 或 B。"""
     }
 }
