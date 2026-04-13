@@ -5,52 +5,35 @@ package com.committee.investing.engine.runtime
  *  Blackboard — Agent 共享环境（唯一状态源）
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- *  所有 Agent 只能通过 Blackboard 读写状态
- *  Phase 不再是控制变量，而是从状态中推断出来的标签
- *  Consensus 不再靠字符串匹配，而是靠投票比例
+ *  优化：消息带标签 → Agent 只关注相关消息 → context ↓ token ↓
  */
 
 data class Blackboard(
-    /** 会议标的 */
     val subject: String = "",
-    /** 当前轮次 */
     var round: Int = 1,
-    /** 最大轮次（仅作为绝对安全阀） */
     var maxRounds: Int = 20,
-    /** 所有发言记录（append-only） */
     val messages: MutableList<BoardMessage> = mutableListOf(),
-    /** 投票记录 */
     val votes: MutableList<BoardVote> = mutableListOf(),
-    /** 当前阶段（从状态推断，不手动设置） */
     var phase: BoardPhase = BoardPhase.IDLE,
-    /** 是否达成共识（从投票比例计算） */
     var consensus: Boolean = false,
-    /** 是否结束 */
     var finished: Boolean = false,
-    /** 最终评级（supervisor 填写） */
     var finalRating: String? = null,
-    /** 执行计划（executor 填写） */
     var executionPlan: String? = null,
 ) {
-    /** 🔥 共识比例：看多票 / 总票数 */
     fun bullRatio(): Float {
         if (votes.isEmpty()) return 0f
-        val bull = votes.count { it.agree }
-        return bull.toFloat() / votes.size
+        return votes.count { it.agree }.toFloat() / votes.size
     }
 
-    /** 🔥 共识比例：看空票 / 总票数 */
     fun bearRatio(): Float {
         if (votes.isEmpty()) return 0f
         return 1f - bullRatio()
     }
 
-    /** 🔥 是否达成共识（任一方 > 70%） */
     fun hasConsensus(): Boolean {
         return votes.size >= 2 && (bullRatio() > 0.7f || bearRatio() > 0.7f)
     }
 
-    /** 🔥 从当前状态推断阶段（Phase 是标签，不是控制器） */
     fun inferPhase(): BoardPhase = when {
         finished && executionPlan != null -> BoardPhase.DONE
         finished && finalRating != null -> BoardPhase.EXECUTION
@@ -60,38 +43,42 @@ data class Blackboard(
         messages.isEmpty() -> BoardPhase.IDLE
         else -> BoardPhase.ANALYSIS
     }
+
+    /** 🔥 Attention：返回只含指定标签的消息 */
+    fun messagesByTags(vararg tags: String): List<BoardMessage> {
+        if (tags.isEmpty()) return messages
+        return messages.filter { msg -> tags.any { tag -> tag in msg.tags } }
+    }
+
+    /** 🔥 Attention：返回排除指定标签的消息 */
+    fun messagesExcludingTags(vararg tags: String): List<BoardMessage> {
+        return messages.filter { msg -> tags.none { tag -> tag in msg.tags } }
+    }
 }
 
-/** 消息 */
 data class BoardMessage(
     val role: String,
     val content: String,
     val round: Int,
     val timestamp: Long = System.currentTimeMillis(),
+    /** 消息标签，如 [BULL], [BEAR], [RISK], [VALUATION], [NEWS], [STRATEGY], [EXECUTION] */
+    val tags: List<String> = emptyList(),
 )
 
-/** 投票 */
 data class BoardVote(
     val role: String,
-    val agree: Boolean,     // true = 看多, false = 看空
+    val agree: Boolean,
     val reason: String = "",
     val round: Int,
 )
 
-/** 阶段 — 标签，不控制流程 */
 enum class BoardPhase {
-    IDLE,
-    ANALYSIS,
-    DEBATE,
-    VOTE,
-    RATING,
-    EXECUTION,
-    DONE,
+    IDLE, ANALYSIS, DEBATE, VOTE, RATING, EXECUTION, DONE,
 }
 
 /** Agent 行为输出 */
 sealed class AgentAction {
-    data class Speak(val content: String) : AgentAction()
+    data class Speak(val content: String, val tags: List<String> = emptyList()) : AgentAction()
     data class Vote(val agree: Boolean, val reason: String = "") : AgentAction()
     data object Pass : AgentAction()
     data class Finish(val rating: String? = null) : AgentAction()
@@ -103,3 +90,84 @@ data class AgentDecision(
     val needsLlm: Boolean = false,
     val prompt: String? = null,
 )
+
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *  UnifiedResponse — 合并 shouldAct + act + vote 的统一输出
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *
+ *  一次 LLM 调用，返回三个字段：
+ *    SPEAK: YES/NO
+ *    CONTENT: （如果 YES）发言内容
+ *    VOTE: BULL/BEAR （投票）
+ */
+data class UnifiedResponse(
+    val wantsToSpeak: Boolean,
+    val content: String,
+    val voteBull: Boolean?,   // null = 不投票（supervisor/executor）
+    val tags: List<String>,
+) {
+    companion object {
+        fun parse(raw: String, canVote: Boolean): UnifiedResponse {
+            val lines = raw.trim().lines()
+            var speak = false
+            var content = ""
+            var voteBull: Boolean? = null
+            val tags = mutableListOf<String>()
+            var inContent = false
+            val contentLines = mutableListOf<String>()
+
+            for (line in lines) {
+                val trimmed = line.trim()
+                if (trimmed.startsWith("SPEAK:", ignoreCase = true)) {
+                    val value = trimmed.substringAfter(":").trim().uppercase()
+                    speak = value.startsWith("YES") || value.startsWith("Y")
+                    inContent = false
+                } else if (trimmed.startsWith("CONTENT:", ignoreCase = true)) {
+                    inContent = true
+                    val firstLine = trimmed.substringAfter(":").trim()
+                    if (firstLine.isNotBlank()) contentLines.add(firstLine)
+                } else if (trimmed.startsWith("VOTE:", ignoreCase = true)) {
+                    inContent = false
+                    if (canVote) {
+                        val value = trimmed.substringAfter(":").trim().uppercase()
+                        voteBull = value.contains("BULL") || value.startsWith("A") || value.contains("看多")
+                    }
+                } else if (trimmed.startsWith("TAGS:", ignoreCase = true)) {
+                    inContent = false
+                    val value = trimmed.substringAfter(":").trim()
+                    tags.addAll(value.split(",", " ", "|").map { it.trim().uppercase() }
+                        .filter { it.isNotBlank() })
+                } else if (inContent && trimmed.isNotBlank()) {
+                    contentLines.add(trimmed)
+                }
+            }
+
+            content = contentLines.joinToString("\n")
+            if (tags.isEmpty() && content.isNotBlank()) {
+                tags.addAll(inferTags(content))
+            }
+
+            return UnifiedResponse(
+                wantsToSpeak = speak,
+                content = content,
+                voteBull = voteBull,
+                tags = tags,
+            )
+        }
+
+        private fun inferTags(content: String): List<String> {
+            val result = mutableListOf<String>()
+            val c = content.uppercase()
+            if (c.contains("估值") || c.contains("PE") || c.contains("EPS")) result.add("VALUATION")
+            if (c.contains("风险") || c.contains("下跌") || c.contains("止损")) result.add("RISK")
+            if (c.contains("增长") || c.contains("营收") || c.contains("利润")) result.add("GROWTH")
+            if (c.contains("新闻") || c.contains("公告") || c.contains("事件")) result.add("NEWS")
+            if (c.contains("策略") || c.contains("仓位") || c.contains("入场")) result.add("STRATEGY")
+            if (c.contains("执行") || c.contains("操作") || c.contains("买入") || c.contains("卖出")) result.add("EXECUTION")
+            if (c.contains("看多") || c.contains("利好") || c.contains("买入机会")) result.add("BULL")
+            if (c.contains("看空") || c.contains("利空") || c.contains("回避")) result.add("BEAR")
+            return result.ifEmpty { listOf("GENERAL") }
+        }
+    }
+}

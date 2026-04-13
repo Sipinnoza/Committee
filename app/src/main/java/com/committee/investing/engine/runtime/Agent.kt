@@ -2,81 +2,76 @@ package com.committee.investing.engine.runtime
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *  Agent — 自主决策单元
+ *  Agent — 自主决策单元（优化版）
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- *  核心原则：
- *    Agent 自己决定是否发言（shouldAct → 问 LLM）
- *    Agent 自己决定说什么（act → prompt → LLM）
- *    系统不控制 Agent，只提供平台
+ *  核心优化：shouldAct + act + vote 三合一
+ *  一次 LLM 调用返回 UnifiedResponse
+ *  不再分 shouldAct(LLM) + act(LLM) + vote(LLM) = 3次
  *
- *  shouldAct 的本质变化：
- *    ❌ 旧：return board.messages.any { it.role == "analyst" }  （规则）
- *    ✅ 新：问 LLM "你是否需要发言？" → YES/NO              （决策）
+ *  Attention 机制：每个 Agent 声明自己关注的标签
+ *  只拿相关消息构建 prompt → context ↓ token ↓
  */
 
-/** 轻量 LLM 调用器 —— 用于 shouldAct / 投票等短回答场景 */
+/** 轻量 LLM 调用器 */
 typealias QuickLlm = suspend (prompt: String) -> String
 
 interface Agent {
     val role: String
     val displayName: String
 
-    /**
-     * 基本资格过滤（不需要 LLM，纯计算）
-     * 只排除明确不该说话的情况（会议已结束、本轮已发言过多次等）
-     */
+    /** 🔥 这个 Agent 关注的消息标签（Attention） */
+    val attentionTags: List<String>
+        get() = emptyList()
+
+    /** 这个 Agent 是否能投票 */
+    val canVote: Boolean
+        get() = true
+
+    /** 基本资格过滤（纯计算，不调 LLM） */
     fun eligible(board: Blackboard): Boolean {
         if (board.finished) return false
-        // 安全阀：同一 agent 每轮最多发言 2 次，防止单个 agent 霸占对话
         val spokenThisRound = board.messages.count { it.role == role && it.round == board.round }
         return spokenThisRound < 2
     }
 
     /**
-     * 🔥 LLM 驱动决策：这个 Agent 是否想发言？
-     * 调用 LLM，传入 buildShouldActPrompt()，解析 YES/NO
+     * 🔥 统一入口：一次 LLM 调用返回 SPEAK + CONTENT + VOTE
+     * 这是唯一的 LLM 交互点
      */
-    suspend fun shouldAct(board: Blackboard, llm: QuickLlm): Boolean {
-        val prompt = buildShouldActPrompt(board)
-        if (prompt.isBlank()) return false
-        val response = llm(prompt)
-        return parseYesNo(response)
+    suspend fun respond(board: Blackboard, llm: QuickLlm): UnifiedResponse {
+        val prompt = buildUnifiedPrompt(board)
+        if (prompt.isBlank()) return UnifiedResponse(false, "", null, emptyList())
+        val raw = llm(prompt)
+        return UnifiedResponse.parse(raw, canVote)
     }
 
-    /** 构建 shouldAct 的 prompt —— 每个 Agent 各自实现 */
-    fun buildShouldActPrompt(board: Blackboard): String
+    /** 构建统一的 prompt（替代原来的 buildShouldActPrompt + act + vote） */
+    fun buildUnifiedPrompt(board: Blackboard): String
 
-    /** Agent 决策：要说什么（已有逻辑不变） */
-    fun act(board: Blackboard): AgentDecision
+    /** 旧接口保留兼容（不需要了，但 CommitteeLooper 等旧代码可能引用） */
+    fun act(board: Blackboard): AgentDecision {
+        return AgentDecision(action = AgentAction.Speak(""), needsLlm = true, prompt = "")
+    }
 
-    /** 解析 YES/NO 回答 */
-    fun parseYesNo(response: String): Boolean {
-        val r = response.trim().uppercase()
-        return r.startsWith("YES") || r.contains("AGREE") || r.startsWith("是") || r.startsWith("Y")
+    /** 🔥 Attention：获取与当前 Agent 相关的消息 */
+    fun relevantMessages(board: Blackboard): List<BoardMessage> {
+        return if (attentionTags.isEmpty()) board.messages.takeLast(8)
+        else board.messagesByTags(*attentionTags.toTypedArray()).takeLast(6)
     }
 }
 
 /**
- * Supervisor 扩展接口 —— 主席拥有额外的裁判权
+ * Supervisor 扩展接口
  */
 interface SupervisorCapability : Agent {
-
-    /**
-     * 🔥 LLM 驱动：会议是否应该结束？
-     * 不是 round > 10 的系统兜底，而是 Supervisor 看了讨论后的判断
-     */
-    suspend fun shouldFinish(board: Blackboard, llm: QuickLlm): Boolean {
-        val prompt = buildFinishPrompt(board)
-        if (prompt.isBlank()) return false
-        val response = llm(prompt)
-        return parseYesNo(response)
-    }
+    override val canVote: Boolean
+        get() = false
 
     /** 构建结束判断 prompt */
     fun buildFinishPrompt(board: Blackboard): String
 
-    /** 构建监督评论 prompt（轮间点评） */
+    /** 构建监督评论 prompt */
     fun buildSupervisionPrompt(board: Blackboard): String
 
     /** 构建最终评级 prompt */
