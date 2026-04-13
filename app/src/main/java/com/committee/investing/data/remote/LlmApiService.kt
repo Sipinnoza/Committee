@@ -1,56 +1,8 @@
 package com.committee.investing.data.remote
 
 import com.google.gson.annotations.SerializedName
-import retrofit2.http.Body
-import retrofit2.http.Header
-import retrofit2.http.POST
-import retrofit2.http.Path
 
-// ─── Anthropic /v1/messages ────────────────────────────────────────────────
-
-data class AnthropicRequest(
-    val model: String = "claude-sonnet-4-20250514",
-    @SerializedName("max_tokens") val maxTokens: Int = 2048,
-    val system: String,
-    val messages: List<AnthropicMessage>,
-)
-
-data class AnthropicMessage(
-    val role: String,   // "user" | "assistant"
-    val content: String,
-)
-
-data class AnthropicResponse(
-    val id: String,
-    val content: List<ContentBlock>,
-    val model: String,
-    val usage: Usage,
-) {
-    val text: String get() = content
-        .filter { it.type == "text" }
-        .joinToString("") { it.text }
-}
-
-data class ContentBlock(
-    val type: String,
-    val text: String,
-)
-
-data class Usage(
-    @SerializedName("input_tokens") val inputTokens: Int,
-    @SerializedName("output_tokens") val outputTokens: Int,
-)
-
-interface AnthropicApiService {
-    @POST("v1/messages")
-    suspend fun createMessage(
-        @Header("x-api-key") apiKey: String,
-        @Header("anthropic-version") version: String = "2023-06-01",
-        @Body request: AnthropicRequest,
-    ): AnthropicResponse
-}
-
-// ─── OpenAI-compatible /v1/chat/completions (DeepSeek, etc.) ───────────────
+// ─── OpenAI-compatible /v1/chat/completions (DeepSeek, Kimi, etc.) ────────
 
 data class OpenAiRequest(
     val model: String = "deepseek-chat",
@@ -85,10 +37,10 @@ data class OpenAiUsage(
 )
 
 interface OpenAiApiService {
-    @POST("{path}")
+    @retrofit2.http.POST("{path}")
     suspend fun createChatCompletion(
-        @Path("path") path: String,
-        @Header("Authorization") authorization: String,  // "Bearer sk-..."
-        @Body request: OpenAiRequest,
+        @retrofit2.http.Path("path") path: String,
+        @retrofit2.http.Header("Authorization") authorization: String,
+        @retrofit2.http.Body request: OpenAiRequest,
     ): OpenAiResponse
 }

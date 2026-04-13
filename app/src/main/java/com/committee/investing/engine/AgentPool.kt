@@ -2,12 +2,6 @@ package com.committee.investing.engine
 
 import android.content.Context
 import android.util.Log
-import com.committee.investing.data.remote.AnthropicApiService
-import com.committee.investing.data.remote.AnthropicMessage
-import com.committee.investing.data.remote.AnthropicRequest
-import com.committee.investing.data.remote.OpenAiApiService
-import com.committee.investing.data.remote.OpenAiMessage
-import com.committee.investing.data.remote.OpenAiRequest
 import com.committee.investing.di.DataStoreApiKeyProvider
 import com.committee.investing.domain.model.AgentRole
 import com.committee.investing.domain.model.MeetingState
@@ -40,9 +34,6 @@ import javax.inject.Singleton
  */
 @Singleton
 class AgentPool @Inject constructor(
-    private val anthropicApi: AnthropicApiService,
-    @Named("deepseek") private val deepSeekApi: OpenAiApiService,
-    @Named("kimi") private val kimiApi: OpenAiApiService,
     private val apiKeyProvider: DataStoreApiKeyProvider,
     private val gson: Gson,
     private val okHttp: OkHttpClient,
@@ -51,56 +42,10 @@ class AgentPool @Inject constructor(
     companion object {
         private const val TAG = "AgentPool"
 
-        // 最近 N 条发言全量注入，更早的只保留摘要
-        private const val FULL_SPEECH_WINDOW = 4
-        // 每条全量发言最多注入字符数
-        private const val MAX_SPEECH_CHARS = 1_500
-        // 每条摘要最多字符数
-        private const val MAX_SUMMARY_CHARS = 150
+
     }
 
-    // ── 非流式调用（AgentChatViewModel 使用）────────────────────────────────
-
-    suspend fun callAgent(role: AgentRole, context: MicContext): AgentResponse {
-        val config = apiKeyProvider.getAgentConfig(role.id)
-        val systemPrompt = buildSystemPrompt(role, context)
-        val userMessage  = buildUserMessage(context)
-
-        Log.e(TAG, "══════════════════════════════════════════════════")
-        Log.e(TAG, "[REQUEST] provider=${config.provider.displayName} model=${config.model}")
-        Log.e(TAG, "[REQUEST] role=${role.displayName} subject=${context.subject}")
-
-        val startTime = System.currentTimeMillis()
-
-        val text = try {
-            when (config.provider) {
-                LlmProvider.ANTHROPIC -> callAnthropic(config, systemPrompt, userMessage)
-                LlmProvider.DEEPSEEK  -> callOpenAiCompatible(deepSeekApi, config, systemPrompt, userMessage)
-                LlmProvider.KIMI      -> callOpenAiCompatible(kimiApi, config, systemPrompt, userMessage)
-            }
-        } catch (e: Exception) {
-            val elapsed = System.currentTimeMillis() - startTime
-            Log.e(TAG, "[ERROR] ${e.javaClass.simpleName}: ${e.message} elapsed=${elapsed}ms")
-            if (e is retrofit2.HttpException) {
-                Log.e(TAG, "[ERROR] HTTP ${e.code()} body=${e.response()?.errorBody()?.string()?.take(500)}")
-            }
-            throw e
-        }
-
-        val elapsed = System.currentTimeMillis() - startTime
-        Log.e(TAG, "[RESPONSE] ${elapsed}ms | ${text.length} chars")
-        Log.e(TAG, "══════════════════════════════════════════════════")
-
-        return AgentResponse(
-            role         = role,
-            content      = text,
-            summary      = extractSummary(text),
-            hasConsensus = text.contains("【CONSENSUS REACHED】"),
-            rating       = extractRating(text),
-        )
-    }
-
-    // ── 流式调用（CommitteeLooper 使用）─────────────────────────────────────
+    // ── 流式调用 ────────────────────────────────────────────────────────
 
     /**
      * 修复：Anthropic 分支改为真正的 SSE 流。
@@ -307,45 +252,6 @@ class AgentPool @Inject constructor(
         }
     }
 
-    // ── Retrofit 非流式（Anthropic）─────────────────────────────────────────
-
-    private suspend fun callAnthropic(config: LlmConfig, system: String, user: String): String {
-        val request = AnthropicRequest(
-            model     = config.model,
-            system    = system,
-            messages  = listOf(AnthropicMessage(role = "user", content = user)),
-            maxTokens = 2048,
-        )
-        val response = anthropicApi.createMessage(apiKey = config.apiKey, request = request)
-        Log.e(TAG, "[Anthropic] response.id=${response.id} usage=in=${response.usage.inputTokens} out=${response.usage.outputTokens}")
-        return response.text
-    }
-
-    private suspend fun callOpenAiCompatible(
-        api: OpenAiApiService,
-        config: LlmConfig,
-        system: String,
-        user: String,
-    ): String {
-        val request = OpenAiRequest(
-            model    = config.model,
-            messages = listOf(
-                OpenAiMessage(role = "system", content = system),
-                OpenAiMessage(role = "user",   content = user),
-            ),
-            maxTokens = 2048,
-        )
-        val response = api.createChatCompletion(
-            path          = config.provider.chatEndpoint,
-            authorization = "Bearer ${config.apiKey}",
-            request       = request,
-        )
-        response.usage?.let { u ->
-            Log.e(TAG, "[OpenAI-compat] usage prompt=${u.promptTokens} completion=${u.completionTokens}")
-        }
-        return response.text
-    }
-
     // ── System Prompts ─────────────────────────────────────────────────────
 
     fun getSystemPromptText(role: AgentRole): String = buildSystemPrompt(role, EMPTY_CONTEXT)
@@ -455,8 +361,7 @@ class AgentPool @Inject constructor(
     /**
      * 修复：对旧发言做摘要压缩，防止 token 随轮次爆炸。
      *
-     * 策略：最近 FULL_SPEECH_WINDOW 条发言全量注入（每条上限 MAX_SPEECH_CHARS 字符），
-     *        更早的发言只保留摘要（MAX_SUMMARY_CHARS 字符）。
+     * 简化版：runtime 层通过 board.contextForAgent 管理 context。
      *
      * 原代码注入全量历史：14 轮（8辩+6评估）× 平均 800 字 ≈ 11200 字/次调用，
      *        到后期每次 API 调用 context 可超过 10k token。
@@ -465,77 +370,17 @@ class AgentPool @Inject constructor(
         val phaseDesc = when (ctx.phase) {
             MeetingState.VALIDATING          -> "【入场评估】请评估本次会议的合规性与标的适格性"
             MeetingState.PREPPING            -> "【准备阶段】请完成你的准备工作"
-            MeetingState.PHASE1_DEBATE       -> "【辩论 第${ctx.round}轮】请发表你的观点，你必须回应其他成员的论点"
+            MeetingState.PHASE1_DEBATE       -> "【辩论 第${ctx.round}轮】请发表你的观点"
             MeetingState.PHASE2_ASSESSMENT   -> "【风险评估 第${ctx.round}轮】请基于已有讨论进行评估"
-            MeetingState.FINAL_RATING        -> "【发布评级】请基于全部讨论发布最终投资评级与执行方案"
-            MeetingState.PHASE1_ADJUDICATING -> "【仲裁】轮次已用尽，请基于全部发言作出最终裁决"
+            MeetingState.FINAL_RATING        -> "【发布评级】请基于全部讨论发布最终投资评级"
             MeetingState.COMPLETED           -> "【撰写纪要】请撰写本次会议完整纪要"
             else                             -> "【${ctx.phase.displayName}】请执行你的职责"
         }
-
         return buildString {
             appendLine(phaseDesc)
-            appendLine()
             appendLine("标的：${ctx.subject}")
-            appendLine("会议ID：${ctx.traceId}")
-            if (ctx.task.isNotBlank()) {
-                appendLine()
-                appendLine("任务说明：${ctx.task}")
-            }
-
-            val prevSpeeches = ctx.previousSpeeches.filter { !it.isStreaming }
-            if (prevSpeeches.isNotEmpty()) {
-                appendLine()
-                appendLine("━━━ 会议记录 ━━━")
-
-                val recentSpeeches = prevSpeeches.takeLast(FULL_SPEECH_WINDOW)
-                val oldSpeeches    = prevSpeeches.dropLast(FULL_SPEECH_WINDOW)
-
-                // 早期发言：只保留摘要，节省 token
-                if (oldSpeeches.isNotEmpty()) {
-                    appendLine()
-                    appendLine("[早期发言摘要（${oldSpeeches.size} 条）]")
-                    oldSpeeches.forEach { speech ->
-                        appendLine("· 【${speech.agent.displayName}】(第${speech.round}轮): ${speech.summary.take(MAX_SUMMARY_CHARS)}")
-                    }
-                }
-
-                // 最近发言：全量注入（单条上限 MAX_SPEECH_CHARS 字符）
-                recentSpeeches.forEach { speech ->
-                    appendLine()
-                    appendLine("【${speech.agent.displayName}】(第${speech.round}轮):")
-                    val content = speech.content
-                    if (content.length > MAX_SPEECH_CHARS) {
-                        appendLine(content.take(MAX_SPEECH_CHARS))
-                        appendLine("…[内容已截断，完整发言请见会议记录]")
-                    } else {
-                        appendLine(content)
-                    }
-                }
-
-                appendLine()
-                appendLine("━━━ 以上为会议记录，请基于以上讨论发表你的观点 ━━━")
-            }
+            if (ctx.task.isNotBlank()) appendLine("任务说明：${ctx.task}")
         }
     }
 
-    private fun extractSummary(text: String): String =
-        text.lines().firstOrNull { it.isNotBlank() }?.take(100) ?: text.take(100)
-
-    private fun extractRating(text: String): String? {
-        val pattern = Regex("【最终评级】(Buy|Overweight|Hold\\+|Hold|Underweight|Sell)")
-        return pattern.find(text)?.groupValues?.get(1)
-    }
-}
-
-data class AgentResponse(
-    val role: AgentRole,
-    val content: String,
-    val summary: String,
-    val hasConsensus: Boolean,
-    val rating: String? = null,
-)
-
-interface ApiKeyProvider {
-    fun getKey(): String
 }

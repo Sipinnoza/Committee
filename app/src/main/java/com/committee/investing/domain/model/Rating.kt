@@ -10,7 +10,4 @@ enum class Rating(val displayName: String, val level: Int, val colorHex: String)
     HOLD("Hold", 4, "#FFD740"),
     UNDERWEIGHT("Underweight", 5, "#FF6D00"),
     SELL("Sell", 6, "#D50000");
-
-    val isBullish get() = level <= 2
-    val isBearish get() = level >= 5
 }

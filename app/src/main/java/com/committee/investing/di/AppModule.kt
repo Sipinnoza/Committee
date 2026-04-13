@@ -12,14 +12,11 @@ import com.committee.investing.data.db.EventDao
 import com.committee.investing.data.db.MeetingSessionDao
 import com.committee.investing.data.db.SpeechDao
 import com.committee.investing.data.db.AgentChatDao
-import com.committee.investing.data.remote.AnthropicApiService
-import com.committee.investing.data.remote.OpenAiApiService
 import com.committee.investing.data.repository.EventRepository
-import com.committee.investing.engine.ApiKeyProvider
+import com.committee.investing.di.DataStoreApiKeyProvider
 import com.committee.investing.engine.AgentPool
 import com.committee.investing.engine.runtime.*
 import com.google.gson.Gson
-import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -27,8 +24,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Named
 import javax.inject.Singleton
@@ -70,8 +65,7 @@ object AppModule {
             // 若仍需兼容版本 1/2 的老数据库（这些版本无从得知 Schema），
             // 可改为 .fallbackToDestructiveMigrationFrom(1, 2)，仅对这两个老版本执行清除，
             // 版本 3 以后必须通过 addMigrations() 显式迁移。
-            .fallbackToDestructiveMigrationFrom(1, 2)
-            // 未来有 Schema 变更时在此注册：.addMigrations(MIGRATION_3_4)
+            .fallbackToDestructiveMigrationFrom(1, 2, 3)
             .build()
 
     @Provides fun provideEventDao(db: CommitteeDatabase): EventDao         = db.eventDao()
@@ -115,56 +109,7 @@ object AppModule {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    // ── Anthropic ──────────────────────────────────────────────────────
-
-    @Provides @Singleton @Named("anthropic")
-    fun provideAnthropicRetrofit(okHttp: OkHttpClient, gson: Gson): Retrofit =
-        Retrofit.Builder()
-            .baseUrl("https://api.anthropic.com/")
-            .client(okHttp)
-            .addConverterFactory(GsonConverterFactory.create(gson))
-            .build()
-
-    @Provides @Singleton
-    fun provideAnthropicApi(@Named("anthropic") retrofit: Retrofit): AnthropicApiService =
-        retrofit.create(AnthropicApiService::class.java)
-
-    // ── DeepSeek ───────────────────────────────────────────────────────
-
-    @Provides @Singleton @Named("deepseek")
-    fun provideDeepSeekRetrofit(okHttp: OkHttpClient, gson: Gson): Retrofit =
-        Retrofit.Builder()
-            .baseUrl("https://api.deepseek.com/")
-            .client(okHttp)
-            .addConverterFactory(GsonConverterFactory.create(gson))
-            .build()
-
-    @Provides @Singleton @Named("deepseek")
-    fun provideDeepSeekApi(@Named("deepseek") retrofit: Retrofit): OpenAiApiService =
-        retrofit.create(OpenAiApiService::class.java)
-
-    // ── Kimi / Moonshot ────────────────────────────────────────────────
-
-    @Provides @Singleton @Named("kimi")
-    fun provideKimiRetrofit(okHttp: OkHttpClient, gson: Gson): Retrofit =
-        Retrofit.Builder()
-            .baseUrl("https://api.moonshot.cn/")
-            .client(okHttp)
-            .addConverterFactory(GsonConverterFactory.create(gson))
-            .build()
-
-    @Provides @Singleton @Named("kimi")
-    fun provideKimiApi(@Named("kimi") retrofit: Retrofit): OpenAiApiService =
-        retrofit.create(OpenAiApiService::class.java)
-
     @Provides @Singleton
     fun provideDataStore(@ApplicationContext ctx: Context): DataStore<Preferences> =
         ctx.dataStore
-}
-
-@Module
-@InstallIn(SingletonComponent::class)
-abstract class BindingsModule {
-    @Binds @Singleton
-    abstract fun bindApiKeyProvider(impl: DataStoreApiKeyProvider): ApiKeyProvider
 }

@@ -40,8 +40,8 @@ interface MeetingSessionDao {
     @Query("SELECT * FROM meeting_sessions WHERE isCompleted = 0 ORDER BY startTime DESC LIMIT 1")
     suspend fun getActiveSession(): MeetingSessionEntity?
 
-    @Query("UPDATE meeting_sessions SET currentState = :state, stateJson = :stateJson WHERE traceId = :traceId")
-    suspend fun updateState(traceId: String, state: String, stateJson: String)
+    @Query("UPDATE meeting_sessions SET currentState = :state WHERE traceId = :traceId")
+    suspend fun updateState(traceId: String, state: String)
 }
 
 @Dao

@@ -5,7 +5,6 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.mutablePreferencesOf
-import com.committee.investing.engine.ApiKeyProvider
 import com.committee.investing.engine.LlmConfig
 import com.committee.investing.engine.LlmProvider
 import kotlinx.coroutines.flow.first
@@ -27,9 +26,9 @@ private fun agentBaseUrlKey(roleId: String) = stringPreferencesKey("agent_${role
 @Singleton
 class DataStoreApiKeyProvider @Inject constructor(
     private val dataStore: DataStore<Preferences>,
-) : ApiKeyProvider {
+) {
 
-    override fun getKey(): String = runBlocking {
+    fun getKey(): String = runBlocking {
         dataStore.data.first()[PREF_API_KEY] ?: ""
     }
 
