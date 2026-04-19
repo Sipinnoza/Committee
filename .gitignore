@@ -32,3 +32,4 @@ Thumbs.db
 
 # Secrets
 *.env
+/.kotlin/sessions/kotlin-compiler-10489500257147638738.salive

@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.committee.investing"
+    namespace = "com.znliang.committee"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.committee.investing"
+        applicationId = "com.znliang.committee"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
@@ -80,6 +80,9 @@ dependencies {
 
     // Splash Screen
     implementation(libs.splashscreen)
+
+    // JSoup (Web page extraction)
+    implementation(libs.jsoup)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
