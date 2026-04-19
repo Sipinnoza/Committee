@@ -13,6 +13,7 @@ import com.znliang.committee.data.repository.EvolutionRepository
 import com.znliang.committee.engine.AgentPool
 import com.znliang.committee.engine.runtime.*
 import com.google.gson.Gson
+import com.znliang.committee.data.repository.AppConfigRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -123,6 +124,17 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS app_config (
+                id INTEGER PRIMARY KEY NOT NULL DEFAULT 1,
+                selectedLanguage TEXT NOT NULL DEFAULT 'auto'
+            )
+        """.trimIndent())
+    }
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
@@ -131,7 +143,7 @@ object AppModule {
     fun provideDatabase(@ApplicationContext ctx: Context): CommitteeDatabase =
         Room.databaseBuilder(ctx, CommitteeDatabase::class.java, "committee.db")
             .fallbackToDestructiveMigrationFrom(1, 2, 3)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
             .build()
 
     @Provides fun provideEventDao(db: CommitteeDatabase): EventDao = db.eventDao()
@@ -143,6 +155,7 @@ object AppModule {
     @Provides fun provideChangelogDao(db: CommitteeDatabase): PromptChangelogDao = db.changelogDao()
     @Provides fun provideOutcomeDao(db: CommitteeDatabase): MeetingOutcomeDao = db.outcomeDao()
     @Provides fun provideSkillDefinitionDao(db: CommitteeDatabase): SkillDefinitionDao = db.skillDefinitionDao()
+    @Provides fun provideAppConfigDao(db: CommitteeDatabase): AppConfigDao = db.appConfigDao()
     @Provides @Singleton fun provideGson(): Gson = Gson()
 
     @Provides @Singleton
@@ -246,4 +259,8 @@ object AppModule {
     @Provides @Singleton
     fun provideDataStore(@ApplicationContext ctx: Context): DataStore<Preferences> =
         ctx.dataStore
+
+    @Provides @Singleton
+    fun provideAppConfigRepository(dao: AppConfigDao): AppConfigRepository =
+        AppConfigRepository(dao)
 }

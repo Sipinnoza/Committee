@@ -54,7 +54,7 @@ fun SkillManagementScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "返回", tint = TextPrimary)
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.back), tint = TextPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceCard),
@@ -74,7 +74,7 @@ fun SkillManagementScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
+                    .padding(top = padding.calculateTopPadding(), bottom = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -173,7 +173,7 @@ fun SkillManagementScreen(
             },
             dismissButton = {
                 TextButton(onClick = { deletingSkill = null }) {
-                    Text("取消", color = TextSecondary)
+                    Text(stringResource(R.string.cancel), color = TextSecondary)
                 }
             },
             containerColor = SurfaceCard,
@@ -275,7 +275,7 @@ private fun SkillCard(
                         tint = CommitteeGold,
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text("编辑", color = CommitteeGold, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.edit), color = CommitteeGold, fontWeight = FontWeight.Medium)
                 }
                 Spacer(Modifier.width(4.dp))
                 TextButton(onClick = onDelete) {
@@ -321,7 +321,7 @@ private fun SkillEditDialog(
 
     // Default config examples shown as helper text
     val httpExample = """{"url":"https://api.example.com/search","method":"POST","headers":{},"bodyTemplate":"{\"query\":\"{{query}}\"}"}"""
-    val llmExample = """{"systemPromptTemplate":"根据{{query}}进行分析"}"""
+    val llmExample = """{"systemPromptTemplate":"Analyze based on {{query}}"}"""
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -412,7 +412,7 @@ private fun SkillEditDialog(
                         .heightIn(min = 80.dp),
                     supportingText = {
                         Text(
-                            """例: {"type":"object","properties":{"query":{"type":"string"}}}""",
+                            stringResource(R.string.skill_param_example),
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted,
                         )
@@ -432,9 +432,9 @@ private fun SkillEditDialog(
                     supportingText = {
                         Text(
                             if (executionType == "http")
-                                "例: $httpExample"
+                                stringResource(R.string.skill_example, httpExample)
                             else
-                                "例: $llmExample",
+                                stringResource(R.string.skill_example, llmExample),
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted,
                         )
@@ -466,7 +466,7 @@ private fun SkillEditDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消", color = TextSecondary)
+                Text(stringResource(R.string.cancel), color = TextSecondary)
             }
         },
         containerColor = SurfaceCard,

@@ -3,7 +3,7 @@ package com.znliang.committee.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -91,7 +91,7 @@ fun LogScreen(viewModel: MeetingViewModel) {
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    items(items = uiState.looperLogs, key = { index -> "log_$index" }) { line ->
+                    itemsIndexed(items = uiState.looperLogs, key = { idx, _ -> "log_$idx" }) { _, line ->
                         val color = when {
                             line.contains(stringResource(R.string.log_tag_transition)) -> CommitteeGold
                             line.contains(stringResource(R.string.log_tag_event))    -> AnalystColor

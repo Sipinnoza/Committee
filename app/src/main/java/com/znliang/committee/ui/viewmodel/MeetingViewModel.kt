@@ -6,6 +6,7 @@ import android.util.Log
 import com.znliang.committee.data.db.MeetingSessionEntity
 import com.znliang.committee.data.repository.EventRepository
 import com.znliang.committee.di.DataStoreApiKeyProvider
+import com.znliang.committee.domain.model.AppConfig
 import com.znliang.committee.domain.model.MeetingState
 import com.znliang.committee.domain.model.SpeechRecord
 import com.znliang.committee.engine.LlmConfig
@@ -32,6 +33,7 @@ data class MeetingUiState(
     val boardFinished: Boolean = false,
     val boardRating: String? = null,
     val boardSummary: String = "",
+    val appConfig: AppConfig = AppConfig(),
 )
 
 @HiltViewModel
@@ -98,11 +100,11 @@ class MeetingViewModel @Inject constructor(
     fun requestMeeting(subject: String) {
         Log.i("MeetingVM", "requestMeeting: subject=$subject")
         if (subject.isBlank()) {
-            _uiState.value = _uiState.value.copy(error = "请输入标的名称")
+            _uiState.value = _uiState.value.copy(error = "Please enter a subject")
             return
         }
         if (!apiKeyProvider.hasKey()) {
-            _uiState.value = _uiState.value.copy(error = "请先在设置中配置 API Key")
+            _uiState.value = _uiState.value.copy(error = "Please configure API Key in Settings")
             return
         }
         runtime.startMeeting(subject)

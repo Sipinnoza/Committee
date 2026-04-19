@@ -1,41 +1,108 @@
 package com.znliang.committee.ui.screen
 
-import androidx.compose.animation.*
-import androidx.compose.foundation.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.toColorInt
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.znliang.committee.R
-import com.znliang.committee.domain.model.*
+import com.znliang.committee.domain.model.AgentRole
+import com.znliang.committee.domain.model.MeetingPresetConfig
+import com.znliang.committee.domain.model.MeetingState
+import com.znliang.committee.domain.model.PresetRole
 import com.znliang.committee.engine.runtime.BoardPhase
-import com.znliang.committee.ui.component.*
-import com.znliang.committee.ui.theme.*
-import com.znliang.committee.ui.viewmodel.AgentMemoryViewModel
+import com.znliang.committee.ui.component.ChatBubble
+import com.znliang.committee.ui.component.EventBubble
+import com.znliang.committee.ui.component.PulsingDot
+import com.znliang.committee.ui.component.SectionHeader
+import com.znliang.committee.ui.component.StateBadge
+import com.znliang.committee.ui.component.SystemBubble
+import com.znliang.committee.ui.theme.BorderColor
+import com.znliang.committee.ui.theme.BuyColor
+import com.znliang.committee.ui.theme.CommitteeGold
+import com.znliang.committee.ui.theme.SellColor
+import com.znliang.committee.ui.theme.StateErrorColor
+import com.znliang.committee.ui.theme.StateWarningColor
+import com.znliang.committee.ui.theme.SurfaceCard
+import com.znliang.committee.ui.theme.SurfaceDark
+import com.znliang.committee.ui.theme.TextMuted
+import com.znliang.committee.ui.theme.TextPrimary
+import com.znliang.committee.ui.theme.TextSecondary
+import com.znliang.committee.ui.theme.committeeTextFieldColors
 import com.znliang.committee.ui.viewmodel.AgentMemoryStats
-import com.znliang.committee.ui.viewmodel.FlowVizViewModel
+import com.znliang.committee.ui.viewmodel.AgentMemoryViewModel
 import com.znliang.committee.ui.viewmodel.MeetingUiState
 import com.znliang.committee.ui.viewmodel.MeetingViewModel
-import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 
 /**
@@ -52,17 +119,13 @@ fun HomeScreen(
     onAgentClick: (AgentRole) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var activePreset by remember { mutableStateOf(presetConfig.getActivePreset()) }
-    LaunchedEffect(Unit) {
-        presetConfig.activePresetFlow().collect { activePreset = it }
-    }
-    val vizViewModel: FlowVizViewModel = hiltViewModel()
-    val vizState by vizViewModel.state.collectAsState()
+    val activePreset by presetConfig.activePresetFlow()
+        .collectAsState(initial = presetConfig.getActivePreset())
+
     val memoryViewModel: AgentMemoryViewModel = hiltViewModel()
     val memoryStats by memoryViewModel.stats.collectAsState()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val keyboard = LocalSoftwareKeyboardController.current
     var subjectInput by remember { mutableStateOf("") }
     // Track expanded state per speech
     val expandedKeys = remember { mutableStateMapOf<String, Boolean>() }
@@ -111,7 +174,7 @@ fun HomeScreen(
                     }
                     if (!isMeetingActive) {
                         IconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Default.Settings, "设置", tint = TextMuted, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Settings, stringResource(R.string.nav_settings), tint = TextMuted, modifier = Modifier.size(20.dp))
                         }
                     }
                     if (uiState.hasApiKey && !isMeetingActive) {
@@ -140,16 +203,15 @@ fun HomeScreen(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                    .padding(top = paddingValues.calculateTopPadding(), bottom = 6.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 // ── Meeting active: compact status bar (expandable) ──────────
                 if (isMeetingActive) {
                     item(key = "status_bar") {
                         MeetingStatusBar(
                             uiState = uiState,
-                            vizState = vizState,
                         )
                     }
                 }
@@ -167,7 +229,7 @@ fun HomeScreen(
 
                 // ── Agent roster ──────────────────────────────────────────
                 item(key = "agents_header") {
-                    SectionHeader("${activePreset.committeeLabel}成员")
+                    SectionHeader(stringResource(R.string.agents_members, activePreset.committeeLabel))
                 }
                 items(activePreset.roles, key = { "agent_${it.id}" }) { presetRole ->
                     CompactAgentCard(
@@ -184,11 +246,11 @@ fun HomeScreen(
             // ── System event: meeting start ──────────────────────────────
             if (uiState.speeches.isNotEmpty()) {
                 item(key = "meeting_start_event") {
-                    EventBubble("会议开始 · ${uiState.speeches.firstOrNull()?.let { s -> 
+                    EventBubble(stringResource(R.string.home_meeting_start, uiState.speeches.firstOrNull()?.let { s -> 
                         java.time.format.DateTimeFormatter.ofPattern("HH:mm")
                             .withZone(java.time.ZoneId.systemDefault())
                             .format(s.timestamp) 
-                    } ?: ""}")
+                    } ?: ""))
                 }
             }
 
@@ -225,9 +287,9 @@ fun HomeScreen(
                 item(key = "recent_logs") {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         recentLogs.forEach { line ->
-                            val isThinking = line.contains("[思考中]")
-                            val isError = line.contains("[错误]") || line.contains("[API 错误]")
-                            val isResponse = line.contains("[响应]")
+                            val isThinking = line.contains("[Thinking]")
+                            val isError = line.contains("[Error]") || line.contains("[API Error]")
+                            val isResponse = line.contains("[Response]")
                             when {
                                 isThinking -> EventBubble(line.substringAfter("] ").substringAfter("] "),
                                     color = CommitteeGold)
@@ -243,7 +305,7 @@ fun HomeScreen(
             }
 
             // ── Waiting indicator ─────────────────────────────────────────
-            if (isMeetingActive && uiState.looperLogs.lastOrNull()?.contains("[思考中]") == true) {
+            if (isMeetingActive && uiState.looperLogs.lastOrNull()?.contains("[Thinking]") == true) {
                 item(key = "thinking_indicator") {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
@@ -278,8 +340,8 @@ private fun MeetingInitCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(14.dp),
+            .padding(vertical = 8.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceCard),
         border = BorderStroke(1.dp, if (isRejected) StateWarningColor.copy(alpha = 0.3f) else BorderColor),
     ) {
@@ -397,7 +459,6 @@ private fun ExecutionConfirmBar(viewModel: MeetingViewModel) {
 @Composable
 private fun MeetingStatusBar(
     uiState: MeetingUiState,
-    vizState: com.znliang.committee.ui.viewmodel.FlowVizState,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -484,7 +545,8 @@ private fun MeetingStatusBar(
                             color = BuyColor, fontWeight = FontWeight.Bold)
                     }
                     if (uiState.boardRating != null) {
-                        Text(uiState.boardRating!!, style = MaterialTheme.typography.labelSmall,
+                        Text(
+                            uiState.boardRating, style = MaterialTheme.typography.labelSmall,
                             color = CommitteeGold, fontWeight = FontWeight.Bold)
                     }
                     Icon(
@@ -539,7 +601,7 @@ private fun MeetingSummaryCard(
         Column(modifier = Modifier.padding(16.dp)) {
             // 标题行
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Assignment, null, tint = CommitteeGold, modifier = Modifier.size(20.dp))
+                Icon(Icons.AutoMirrored.Filled.Assignment, null, tint = CommitteeGold, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.home_minutes), style = MaterialTheme.typography.titleMedium,
                     color = CommitteeGold, fontWeight = FontWeight.Bold)
@@ -600,7 +662,7 @@ private fun MeetingSummaryCard(
 @Composable
 private fun CompactAgentCard(role: PresetRole, stats: AgentMemoryStats? = null, onClick: () -> Unit) {
     val agentColor = remember(role.colorHex) {
-        runCatching { Color(android.graphics.Color.parseColor(role.colorHex)) }
+        runCatching { Color(role.colorHex.toColorInt()) }
             .getOrDefault(Color(0xFF607D8B.toInt()))
     }
     Card(

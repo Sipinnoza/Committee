@@ -1,17 +1,50 @@
 package com.znliang.committee.domain.model
 
+import com.znliang.committee.R
+
 /**
- * 会议状态（UI 映射用）
+ * Meeting states (UI mapping)
+ *
+ * displayName/description are English defaults.
+ * UI code should use displayNameRes()/descriptionRes() to get localized strings.
  */
 enum class MeetingState(val displayName: String, val description: String) {
-    IDLE("待机", "等待发起新会议"),
-    VALIDATING("入场评估", "策略师检查前序决议执行与标的适格性"),
-    REJECTED("已拒绝", "入场评估未通过"),
-    PREPPING("并行准备", "四路并行准备中"),
-    PHASE1_DEBATE("多方辩论", "Bull vs Bear 辩论"),
-    PHASE1_ADJUDICATING("监督员仲裁", "轮次用尽，监督员裁决"),
-    PHASE2_ASSESSMENT("风险评估", "执行员提方案，风险官挑战"),
-    FINAL_RATING("发布评级", "发布最终评级与执行方案"),
-    APPROVED("已批准", "等待用户确认执行"),
-    COMPLETED("会议完成", "会议结束");
+    IDLE("Idle", "Waiting for new meeting"),
+    VALIDATING("Entry Assessment", "Strategist checks prior resolution execution & target eligibility"),
+    REJECTED("Rejected", "Entry assessment failed"),
+    PREPPING("Parallel Prep", "Four parallel preparations in progress"),
+    PHASE1_DEBATE("Debate", "Bull vs Bear debate"),
+    PHASE1_ADJUDICATING("Adjudicating", "Rounds exhausted, supervisor adjudicates"),
+    PHASE2_ASSESSMENT("Risk Assessment", "Executor proposes, risk officer challenges"),
+    FINAL_RATING("Final Rating", "Publish final rating & execution plan"),
+    APPROVED("Approved", "Awaiting user execution confirmation"),
+    COMPLETED("Completed", "Meeting concluded");
+
+    /** @return String resource ID for the localized display name */
+    fun displayNameRes(): Int = when (this) {
+        IDLE                -> R.string.home_state_idle
+        VALIDATING          -> R.string.home_state_validating
+        REJECTED            -> R.string.home_state_rejected
+        PREPPING            -> R.string.home_state_prepping
+        PHASE1_DEBATE       -> R.string.home_state_phase1_debate
+        PHASE1_ADJUDICATING -> R.string.home_state_phase1_adjudicating
+        PHASE2_ASSESSMENT   -> R.string.home_state_phase2_assessment
+        FINAL_RATING        -> R.string.home_state_final_rating
+        APPROVED            -> R.string.home_state_approved
+        COMPLETED           -> R.string.home_state_completed
+    }
+
+    /** @return String resource ID for the localized description */
+    fun descriptionRes(): Int = when (this) {
+        IDLE                -> R.string.home_state_desc_idle
+        VALIDATING          -> R.string.home_state_desc_validating
+        REJECTED            -> R.string.home_state_desc_rejected
+        PREPPING            -> R.string.home_state_desc_prepping
+        PHASE1_DEBATE       -> R.string.home_state_desc_debate
+        PHASE1_ADJUDICATING -> R.string.home_state_desc_adjudicating
+        PHASE2_ASSESSMENT   -> R.string.home_state_desc_assessment
+        FINAL_RATING        -> R.string.home_state_desc_rating
+        APPROVED            -> R.string.home_state_desc_approved
+        COMPLETED           -> R.string.home_state_desc_completed
+    }
 }

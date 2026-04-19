@@ -98,7 +98,7 @@
     <string name="home_state_validating">入场评估</string>
     <string name="home_state_vote">投票</string>
     <string name="home_subject_label">标的：</string>
-    <string name="home_title">群策 Agentra</string>
+    <string name="home_title">群策</string>
     <string name="home_transition_history">转场历史</string>
     <string name="log_tag_event">[事件]</string>
     <string name="log_tag_mic">[话筒]</string>
@@ -161,4 +161,111 @@
     <string name="skill_param_template">参数模板 (JSON Schema)</string>
     <string name="skill_registered_count">已注册技能 (%1$d)</string>
     <string name="skill_save_btn">保存</string>
+    <string name="agents_local_file">本地文件</string>
+    <string name="agents_no_change">无需修改</string>
+    <string name="agents_last_used">最后 %s</string>
+    <string name="home_meeting_start">会议开始 · %s</string>
+    <string name="home_thinking">[思考中]</string>
+    <string name="home_error">[错误]</string>
+    <string name="home_response">[响应]</string>
+    <string name="settings_meeting_mode">会议模式</string>
+    <string name="settings_meeting_mode_desc">选择会议模式，不同模式有不同的角色和工作流</string>
+    <string name="settings_role_management">角色管理</string>
+    <string name="settings_reset_default">恢复默认</string>
+    <string name="settings_current_mode">当前模式：%1$s · %2$d个角色</string>
+    <string name="settings_roles_format">%1$d个角色 · %2$s</string>
+    <string name="settings_add_role">添加角色</string>
+    <string name="settings_edit_role">编辑角色</string>
+    <string name="settings_role_name">角色名称</string>
+    <string name="settings_stance">立场</string>
+    <string name="settings_responsibility">职责描述</string>
+    <string name="settings_role_color">角色颜色</string>
+    <string name="settings_language">语言 / Language</string>
+    <string name="mandate_debate_rounds">辩论轮数</string>
+    <string name="mandate_consensus_required">需要共识</string>
+    <string name="mandate_supervisor_final">监督员最终裁决</string>
+    <string name="mandate_phase1">阶段一</string>
+    <string name="mandate_phase2">阶段二</string>
+    <string name="mandate_yes">是</string>
+    <string name="mandate_no">否</string>
+    <string name="app_title_format">%s助手</string>
+    <string name="agents_members">%s成员</string>
+    <string name="skill_example">例: %s</string>
+    <string name="skill_param_example">例: {\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"}}}</string>
+    <string name="home_state_desc_idle">等待发起新会议</string>
+    <string name="home_state_desc_validating">策略师检查前序决议执行与标的适格性</string>
+    <string name="home_state_desc_rejected">入场评估未通过</string>
+    <string name="home_state_desc_prepping">四路并行准备中</string>
+    <string name="home_state_desc_debate">Bull vs Bear 辩论</string>
+    <string name="home_state_desc_adjudicating">轮次用尽，监督员裁决</string>
+    <string name="home_state_desc_assessment">执行员提方案，风险官挑战</string>
+    <string name="home_state_desc_rating">发布最终评级与执行方案</string>
+    <string name="home_state_desc_approved">等待用户确认执行</string>
+    <string name="home_state_desc_completed">会议结束</string>
+    <string name="role_analyst_display">分析师</string>
+    <string name="role_analyst_stance">看多（Bull）</string>
+    <string name="role_analyst_resp">Bull Case + 估值框架 + 前次预测回顾</string>
+    <string name="role_risk_display">风险官</string>
+    <string name="role_risk_stance">看空（Bear）</string>
+    <string name="role_risk_resp">Bear Case + 风险日历 + 质疑</string>
+    <string name="role_strategist_display">策略师</string>
+    <string name="role_strategist_stance">中立/框架</string>
+    <string name="role_strategist_resp">Top-down 策略框架 + 入场评估 + 跨会议一致性</string>
+    <string name="role_executor_display">执行员</string>
+    <string name="role_executor_stance">方案</string>
+    <string name="role_executor_resp">执行方案 + 评级 + 执行追踪</string>
+    <string name="role_intel_display">情报员</string>
+    <string name="role_intel_stance">事实</string>
+    <string name="role_intel_resp">基础情报 + 增量推送</string>
+    <string name="role_supervisor_display">监督员</string>
+    <string name="role_supervisor_stance">评判</string>
+    <string name="role_supervisor_resp">仲裁 + 纪要 + 执行纪律追踪</string>
+    <string name="preset_ic_name">投委会</string>
+    <string name="preset_ic_desc">投资决策委员会 — 多空辩论 + 风险评估 + 6级评级体系</string>
+    <string name="preset_ic_label">投委会</string>
+    <string name="preset_gm_name">通用会议</string>
+    <string name="preset_gm_desc">通用评审会议 — 协调 / 研究 / 评审三角色</string>
+    <string name="preset_gm_label">评审会</string>
+    <string name="preset_gm_coordinator_name">协调员</string>
+    <string name="preset_gm_coordinator_stance">中立/引导</string>
+    <string name="preset_gm_coordinator_resp">流程引导 + 议程管理 + 总结归纳</string>
+    <string name="preset_gm_researcher_name">研究员</string>
+    <string name="preset_gm_researcher_stance">探究</string>
+    <string name="preset_gm_researcher_resp">信息收集 + 深度分析 + 方案建议</string>
+    <string name="preset_gm_reviewer_name">评审员</string>
+    <string name="preset_gm_reviewer_stance">审视</string>
+    <string name="preset_gm_reviewer_resp">方案审核 + 风险发现 + 改进建议</string>
+    <string name="preset_gm_rating_pass">通过</string>
+    <string name="preset_gm_rating_cond_pass">有条件通过</string>
+    <string name="preset_gm_rating_revise">修改后重审</string>
+    <string name="preset_gm_rating_fail">不通过</string>
+    <string name="lang_system">跟随系统</string>
+    <string name="lang_chinese">中文</string>
+    <string name="lang_english">英文</string>
+
+    <!-- HomeScreen: 设置图标 content description -->
+    <string name="home_settings">设置</string>
+
+    <!-- HomeScreen: Looper 日志标签 - API 错误 -->
+    <string name="home_api_error">[API 错误]</string>
+
+    <!-- SettingsScreen: API Key 标题 -->
+    <string name="settings_apikey_header">API Key</string>
+
+    <!-- SettingsScreen: API Base URL 标签 -->
+    <string name="settings_api_base_url">API Base URL</string>
+
+    <!-- SettingsScreen: Tavily 保存按钮（硬编码在 stringResource 旁边） -->
+    <string name="settings_tavily_save">保存</string>
+
+    <!-- 会议预设 mandate 阶段标签 -->
+    <string name="preset_ic_phase1_label">多方辩论</string>
+    <string name="preset_ic_phase2_label">风险评估</string>
+    <string name="preset_gm_phase1_label">方案讨论</string>
+    <string name="preset_gm_phase2_label">评审评估</string>
+
+    <!-- 关于部分描述 -->
+    <string name="settings_about_desc_1">超智能体自进化架构</string>
+    <string name="settings_about_desc_2">多智能体自主讨论系统</string>
+    <string name="settings_about_desc_3">由 Claude / DeepSeek / Kimi / GLM 驱动</string>
 </resources>

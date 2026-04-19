@@ -37,15 +37,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -72,6 +70,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -81,12 +80,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import com.znliang.committee.R
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.znliang.committee.R
 import com.znliang.committee.domain.model.AgentRole
 import com.znliang.committee.engine.LlmConfig
 import com.znliang.committee.engine.LlmProvider
@@ -104,147 +104,9 @@ import com.znliang.committee.ui.theme.TextPrimary
 import com.znliang.committee.ui.theme.TextSecondary
 import com.znliang.committee.ui.theme.committeeTextFieldColors
 import com.znliang.committee.ui.viewmodel.AgentChatViewModel
-import com.znliang.committee.ui.viewmodel.AgentMemoryViewModel
 import com.znliang.committee.ui.viewmodel.AgentMemoryDetail
-import com.znliang.committee.ui.viewmodel.AgentMemoryStats
-import androidx.hilt.navigation.compose.hiltViewModel
+import com.znliang.committee.ui.viewmodel.AgentMemoryViewModel
 import kotlinx.coroutines.delay
-
-// ── Agents List Screen ────────────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AgentsScreen(
-    onAgentClick: (AgentRole) -> Unit,
-    memoryViewModel: AgentMemoryViewModel = hiltViewModel(),
-) {
-    val stats by memoryViewModel.stats.collectAsState()
-
-    Scaffold(
-        containerColor = SurfaceDark,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Icon(Icons.Default.SmartToy, null, tint = CommitteeGold)
-                        Text("Agents", color = TextPrimary, fontWeight = FontWeight.Bold)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceCard),
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            items(AgentRole.entries.toList()) { role ->
-                AgentCard(
-                    role = role,
-                    stats = stats[role.id],
-                    onClick = { onAgentClick(role) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AgentCard(role: AgentRole, stats: AgentMemoryStats? = null, onClick: () -> Unit) {
-    val agentColor = role.color
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-        border = BorderStroke(1.dp, BorderColor),
-    ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Avatar
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(agentColor.copy(alpha = 0.15f))
-                    .border(1.5.dp, agentColor.copy(alpha = 0.5f), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "${role.displayName.first()}",
-                    color = agentColor,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                )
-            }
-
-            Spacer(Modifier.width(12.dp))
-
-            // Info
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    role.displayName,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    role.stance,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = agentColor.copy(alpha = 0.7f),
-                )
-                Text(
-                    role.responsibility,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted,
-                    maxLines = 2,
-                )
-                // Memory stats badges
-                if (stats != null && (stats.experienceCount > 0 || stats.skillCount > 0)) {
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (stats.experienceCount > 0) {
-                            MemoryBadge("🧠 ${stats.experienceCount}", CommitteeGold)
-                        }
-                        if (stats.skillCount > 0) {
-                            MemoryBadge("🎓 ${stats.skillCount}", agentColor)
-                        }
-                        if (stats.changelogCount > 0) {
-                            MemoryBadge("✨ ${stats.changelogCount}", TextSecondary)
-                        }
-                    }
-                }
-            }
-
-            // Arrow (forward)
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = TextMuted,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun MemoryBadge(text: String, color: Color) {
-    Text(
-        text,
-        fontSize = 10.sp,
-        color = color,
-        modifier = Modifier
-            .background(color.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-    )
-}
 
 // ── Agent Config & Chat Screen ────────────────────────────────────────────
 
@@ -261,13 +123,14 @@ fun AgentConfigChatScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     var messageInput by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf(
         stringResource(R.string.agents_tab_chat),
         stringResource(R.string.agents_tab_experience),
         stringResource(R.string.agents_tab_skills),
         stringResource(R.string.agents_tab_evolution),
     )
+    val localFileLabel = stringResource(R.string.agents_local_file)
 
     LaunchedEffect(role) {
         viewModel.setAgent(role)
@@ -401,7 +264,7 @@ fun AgentConfigChatScreen(
                         modifier = Modifier.padding(bottom = 2.dp),
                     ) {
                         Icon(
-                            Icons.Default.Send,
+                            Icons.AutoMirrored.Filled.Send,
                             stringResource(R.string.agents_send),
                             tint = if (messageInput.isNotBlank()) agentColor else TextMuted,
                             modifier = Modifier.size(22.dp),
@@ -470,7 +333,7 @@ fun AgentConfigChatScreen(
                                 Spacer(Modifier.width(8.dp))
                                 Text(
                                     uiState.promptSource,
-                                    color = if (uiState.promptSource == "本地文件") CommitteeGold else TextMuted,
+                                    color = if (uiState.promptSource == localFileLabel) CommitteeGold else TextMuted,
                                     style = MaterialTheme.typography.labelSmall,
                                 )
                             }
@@ -519,7 +382,7 @@ fun AgentConfigChatScreen(
                                     ) {
                                         Text(stringResource(R.string.cancel), fontSize = 13.sp, color = TextMuted)
                                     }
-                                    if (uiState.promptSource == "本地文件") {
+                                    if (uiState.promptSource == localFileLabel) {
                                         OutlinedButton(
                                             onClick = { viewModel.resetPrompt() },
                                             shape = RoundedCornerShape(8.dp),
@@ -566,7 +429,7 @@ fun AgentConfigChatScreen(
                                         Spacer(Modifier.width(4.dp))
                                         Text(stringResource(R.string.edit), color = CommitteeGold, fontSize = 13.sp)
                                     }
-                                    if (uiState.promptSource == "本地文件") {
+                                    if (uiState.promptSource == localFileLabel) {
                                         OutlinedButton(
                                             onClick = { viewModel.resetPrompt() },
                                             shape = RoundedCornerShape(8.dp),
@@ -624,7 +487,7 @@ fun AgentConfigChatScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Text("${config.provider.displayName}", color = CommitteeGold, style = MaterialTheme.typography.labelMedium)
+                            Text(config.provider.displayName, color = CommitteeGold, style = MaterialTheme.typography.labelMedium)
                             Text(config.model, color = TextSecondary, style = MaterialTheme.typography.labelMedium)
                         }
 
@@ -959,7 +822,7 @@ private fun PromptSuggestionCard(
             }
 
             // 建议
-            if (suggestionText.isNotBlank() && !suggestionText.contains("无需修改")) {
+            if (suggestionText.isNotBlank() && !suggestionText.contains(stringResource(R.string.agents_no_change))) {
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider(color = BorderColor)
                 Spacer(Modifier.height(8.dp))
@@ -983,7 +846,7 @@ private fun PromptSuggestionCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (suggestionText.isNotBlank() && !suggestionText.contains("无需修改")) {
+                if (suggestionText.isNotBlank() && !suggestionText.contains(stringResource(R.string.agents_no_change))) {
                     Button(
                         onClick = onApply,
                         modifier = Modifier.weight(1f),
@@ -1002,7 +865,7 @@ private fun PromptSuggestionCard(
                     border = BorderStroke(1.dp, TextMuted),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextMuted),
                 ) {
-                    Text(if (suggestionText.contains("无需修改")) stringResource(R.string.agents_got_it) else stringResource(R.string.agents_ignore), fontSize = 12.sp)
+                    Text(if (suggestionText.contains(stringResource(R.string.agents_no_change))) stringResource(R.string.agents_got_it) else stringResource(R.string.agents_ignore), fontSize = 12.sp)
                 }
             }
         }
@@ -1111,7 +974,7 @@ private fun SkillsTab(
                             Text(stringResource(R.string.agents_used_times, skill.usageCount), color = TextMuted, fontSize = 10.sp)
                             if (skill.lastUsed > 0) {
                                 Spacer(Modifier.width(12.dp))
-                                Text("最后 ${formatTimestamp(skill.lastUsed)}", color = TextMuted, fontSize = 10.sp)
+                                Text(stringResource(R.string.agents_last_used, formatTimestamp(skill.lastUsed)), color = TextMuted, fontSize = 10.sp)
                             }
                         }
                     }
@@ -1183,9 +1046,9 @@ private fun EvolutionTab(
                     Spacer(Modifier.height(4.dp))
                 }
                 items(items = outcomes, key = { it.id }) { out ->
-                    val voteColor = when {
-                        out.voteCorrect == true -> CommitteeGold
-                        out.voteCorrect == false -> StateErrorColor
+                    val voteColor = when (out.voteCorrect) {
+                        true -> CommitteeGold
+                        false -> StateErrorColor
                         else -> TextMuted
                     }
                     Card(

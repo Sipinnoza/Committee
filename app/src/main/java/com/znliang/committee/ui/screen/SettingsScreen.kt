@@ -6,36 +6,104 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.MeetingRoom
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import com.znliang.committee.R
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.toColorInt
+import com.znliang.committee.R
+import com.znliang.committee.domain.model.ALL_PRESETS
+import com.znliang.committee.domain.model.AppLanguage
+import com.znliang.committee.domain.model.MeetingPresetConfig
+import com.znliang.committee.domain.model.PresetRole
 import com.znliang.committee.engine.LlmConfig
 import com.znliang.committee.engine.LlmProvider
-import com.znliang.committee.domain.model.ALL_PRESETS
-import com.znliang.committee.domain.model.MeetingPreset
-import com.znliang.committee.domain.model.MeetingPresetConfig
 import com.znliang.committee.ui.component.SectionHeader
-import com.znliang.committee.ui.theme.*
+import com.znliang.committee.ui.theme.BorderColor
+import com.znliang.committee.ui.theme.BuyColor
+import com.znliang.committee.ui.theme.CommitteeGold
+import com.znliang.committee.ui.theme.StateWarningColor
+import com.znliang.committee.ui.theme.SurfaceCard
+import com.znliang.committee.ui.theme.SurfaceDark
+import com.znliang.committee.ui.theme.TextMuted
+import com.znliang.committee.ui.theme.TextPrimary
+import com.znliang.committee.ui.theme.TextSecondary
+import com.znliang.committee.ui.theme.committeeTextFieldColors
 import com.znliang.committee.ui.viewmodel.MeetingViewModel
+import com.znliang.committee.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -44,6 +112,8 @@ fun SettingsScreen(
     viewModel: MeetingViewModel,
     presetConfig: MeetingPresetConfig,
     onManageSkills: () -> Unit = {},
+    onRestartApp: () -> Unit = {},
+    settingsViewModel: SettingsViewModel,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val keyboard = LocalSoftwareKeyboardController.current
@@ -77,7 +147,7 @@ fun SettingsScreen(
 
     // Agent management state
     var showAgentDialog by remember { mutableStateOf(false) }
-    var editingRole by remember { mutableStateOf<com.znliang.committee.domain.model.PresetRole?>(null) }
+    var editingRole by remember { mutableStateOf<PresetRole?>(null) }
     var customRoles by remember { mutableStateOf(presetConfig.getActivePreset().roles) }
 
     // Refresh custom roles when preset changes
@@ -106,7 +176,9 @@ fun SettingsScreen(
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = padding.calculateTopPadding(), bottom = 6.dp),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -295,7 +367,7 @@ fun SettingsScreen(
                         SectionHeader(stringResource(R.string.settings_tavily_title))
                         Text(
                             stringResource(R.string.settings_tavily_desc),
-                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodySmall,
                             color = TextMuted,
                         )
                         OutlinedTextField(
@@ -331,7 +403,7 @@ fun SettingsScreen(
                                 Icon(if (tavilySaved) Icons.Default.Check else Icons.Default.Save, null,
                                     Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text(if (tavilySaved) stringResource(R.string.settings_saved) else "保存", fontWeight = FontWeight.Bold)
+                                Text(if (tavilySaved) stringResource(R.string.settings_saved) else stringResource(R.string.settings_tavily_save), fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -347,9 +419,9 @@ fun SettingsScreen(
                     border = BorderStroke(1.dp, BorderColor),
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionHeader("会议模式")
+                        SectionHeader(stringResource(R.string.settings_meeting_mode))
                         Text(
-                            "选择会议模式，不同模式有不同的角色和工作流",
+                            stringResource(R.string.settings_meeting_mode_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = TextMuted,
                         )
@@ -397,7 +469,7 @@ fun SettingsScreen(
                                             color = if (isSelected) CommitteeGold else TextPrimary,
                                         )
                                         Text(
-                                            "${preset.roles.size}个角色 · ${preset.roles.joinToString("、") { it.displayName }}",
+                                            stringResource(R.string.settings_roles_format, preset.roles.size, preset.roles.joinToString(", ") { it.displayName }),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = TextMuted,
                                             maxLines = 1,
@@ -437,16 +509,16 @@ fun SettingsScreen(
                         // Show mandates from active preset
                         activePreset.mandates.forEach { (key, value) ->
                             val label = when (key) {
-                                "debate_rounds" -> "辩论轮数"
-                                "consensus_required" -> "需要共识"
-                                "supervisor_final_call" -> "监督员最终裁决"
-                                "phase1_label" -> "阶段一"
-                                "phase2_label" -> "阶段二"
+                                "debate_rounds" -> stringResource(R.string.mandate_debate_rounds)
+                                "consensus_required" -> stringResource(R.string.mandate_consensus_required)
+                                "supervisor_final_call" -> stringResource(R.string.mandate_supervisor_final)
+                                "phase1_label" -> stringResource(R.string.mandate_phase1)
+                                "phase2_label" -> stringResource(R.string.mandate_phase2)
                                 else -> key
                             }
                             val displayValue = when (value) {
-                                "true" -> "是"
-                                "false" -> "否"
+                                "true" -> stringResource(R.string.mandate_yes)
+                                "false" -> stringResource(R.string.mandate_no)
                                 else -> value
                             }
                             MandateRow(label, displayValue)
@@ -469,7 +541,7 @@ fun SettingsScreen(
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            SectionHeader("角色管理")
+                            SectionHeader(stringResource(R.string.settings_role_management))
                             Spacer(Modifier.weight(1f))
                             if (presetConfig.hasCustomRoles(activePreset.id)) {
                                 TextButton(
@@ -482,19 +554,19 @@ fun SettingsScreen(
                                 ) {
                                     Icon(Icons.Default.RestartAlt, null, modifier = Modifier.size(16.dp), tint = TextMuted)
                                     Spacer(Modifier.width(4.dp))
-                                    Text("恢复默认", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                                    Text(stringResource(R.string.settings_reset_default), style = MaterialTheme.typography.labelSmall, color = TextMuted)
                                 }
                             }
                         }
                         Text(
-                            "当前模式：${activePreset.name} · ${customRoles.size}个角色",
+                            stringResource(R.string.settings_current_mode, activePreset.name, customRoles.size),
                             style = MaterialTheme.typography.bodySmall,
                             color = TextMuted,
                         )
                         // Role list
                         customRoles.forEachIndexed { index, role ->
                             val roleColor = runCatching {
-                                androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(role.colorHex))
+                                androidx.compose.ui.graphics.Color(role.colorHex.toColorInt())
                             }.getOrDefault(TextSecondary)
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -555,7 +627,7 @@ fun SettingsScreen(
                         ) {
                             Icon(Icons.Default.Add, null, tint = CommitteeGold, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("添加角色", color = CommitteeGold, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.settings_add_role), color = CommitteeGold, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -578,6 +650,49 @@ fun SettingsScreen(
                         Text(stringResource(R.string.settings_skill_mgmt), color = TextPrimary, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.weight(1f))
                         Icon(Icons.Default.ChevronRight, null, tint = TextMuted, modifier = Modifier.size(20.dp))
+                    }
+                }
+            }
+
+            // ── Language ──────────────────────────────────────────────────
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                    border = BorderStroke(1.dp, BorderColor),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        SectionHeader(stringResource(R.string.settings_language))
+                        AppLanguage.entries.forEach { language ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        settingsViewModel.saveLanguage(language)
+                                        onRestartApp()
+                                    }
+                                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                RadioButton(
+                                    selected = settingsViewModel.appConfig.selectedLanguage == language,
+                                    onClick = null,
+                                    colors = RadioButtonDefaults.colors(selectedColor = CommitteeGold),
+                                )
+                                Column {
+                                    Text(
+                                        stringResource(language.displayNameRes),
+                                        color = if (settingsViewModel.appConfig.selectedLanguage == language)
+                                            CommitteeGold else TextPrimary,
+                                        fontWeight = if (settingsViewModel.appConfig.selectedLanguage == language)
+                                            FontWeight.Bold else FontWeight.Normal,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -637,9 +752,9 @@ private fun MandateRow(label: String, value: String) {
 
 @Composable
 private fun AgentEditDialog(
-    existingRole: com.znliang.committee.domain.model.PresetRole?,
+    existingRole: PresetRole?,
     onDismiss: () -> Unit,
-    onSave: (com.znliang.committee.domain.model.PresetRole) -> Unit,
+    onSave: (PresetRole) -> Unit,
 ) {
     var name by remember { mutableStateOf(existingRole?.displayName ?: "") }
     var stance by remember { mutableStateOf(existingRole?.stance ?: "") }
@@ -652,7 +767,7 @@ private fun AgentEditDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                if (existingRole != null) "编辑角色" else "添加角色",
+                if (existingRole != null) stringResource(R.string.settings_edit_role) else stringResource(R.string.settings_add_role),
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary,
             )
@@ -663,7 +778,7 @@ private fun AgentEditDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("角色名称") },
+                    label = { Text(stringResource(R.string.settings_role_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -671,7 +786,7 @@ private fun AgentEditDialog(
                 OutlinedTextField(
                     value = stance,
                     onValueChange = { stance = it },
-                    label = { Text("立场") },
+                    label = { Text(stringResource(R.string.settings_stance)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -679,16 +794,16 @@ private fun AgentEditDialog(
                 OutlinedTextField(
                     value = responsibility,
                     onValueChange = { responsibility = it },
-                    label = { Text("职责描述") },
+                    label = { Text(stringResource(R.string.settings_responsibility)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 3,
                 )
                 // Color picker
-                Text("角色颜色", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                Text(stringResource(R.string.settings_role_color), style = MaterialTheme.typography.labelMedium, color = TextSecondary)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     predefinedColors.forEach { hex ->
-                        val color = androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(hex))
+                        val color = androidx.compose.ui.graphics.Color(hex.toColorInt())
                         val selected = colorHex == hex
                         Box(
                             modifier = Modifier
@@ -713,7 +828,7 @@ private fun AgentEditDialog(
                     if (name.isBlank()) return@TextButton
                     val id = existingRole?.id ?: "custom_${System.currentTimeMillis()}"
                     onSave(
-                        com.znliang.committee.domain.model.PresetRole(
+                        PresetRole(
                             id = id,
                             displayName = name,
                             stance = stance,
@@ -725,12 +840,12 @@ private fun AgentEditDialog(
                 },
                 enabled = name.isNotBlank(),
             ) {
-                Text("保存", color = CommitteeGold, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.save), color = CommitteeGold, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消", color = TextMuted)
+                Text(stringResource(R.string.cancel), color = TextMuted)
             }
         },
         containerColor = SurfaceCard,

@@ -16,8 +16,10 @@ import androidx.room.RoomDatabase
         MeetingOutcomeEntity::class,
         // v6: 动态 skill 定义
         SkillDefinitionEntity::class,
+        // v7: app 设置
+        AppConfigEntity::class,
     ],
-    version = 6,
+    version = 7 ,
     exportSchema = false,
 )
 abstract class CommitteeDatabase : RoomDatabase() {
@@ -34,4 +36,7 @@ abstract class CommitteeDatabase : RoomDatabase() {
 
     // v6: 动态 skill DAO
     abstract fun skillDefinitionDao(): SkillDefinitionDao
+
+    // v7: App设置 Dao
+    abstract fun appConfigDao(): AppConfigDao
 }

@@ -161,4 +161,111 @@
     <string name="skill_param_template">Parameters (JSON Schema)</string>
     <string name="skill_registered_count">Registered Skills (%1$d)</string>
     <string name="skill_save_btn">Save</string>
+    <string name="agents_local_file">Local File</string>
+    <string name="agents_no_change">No change needed</string>
+    <string name="agents_last_used">Last %s</string>
+    <string name="home_meeting_start">Meeting Started · %s</string>
+    <string name="home_thinking">[Thinking]</string>
+    <string name="home_error">[Error]</string>
+    <string name="home_response">[Response]</string>
+    <string name="settings_meeting_mode">Meeting Mode</string>
+    <string name="settings_meeting_mode_desc">Select meeting mode; different modes have different roles and workflows</string>
+    <string name="settings_role_management">Role Management</string>
+    <string name="settings_reset_default">Reset to Default</string>
+    <string name="settings_current_mode">Current: %1$s · %2$d roles</string>
+    <string name="settings_roles_format">%1$d roles · %2$s</string>
+    <string name="settings_add_role">Add Role</string>
+    <string name="settings_edit_role">Edit Role</string>
+    <string name="settings_role_name">Role Name</string>
+    <string name="settings_stance">Stance</string>
+    <string name="settings_responsibility">Responsibility</string>
+    <string name="settings_role_color">Role Color</string>
+    <string name="settings_language">Language</string>
+    <string name="mandate_debate_rounds">Debate Rounds</string>
+    <string name="mandate_consensus_required">Consensus Required</string>
+    <string name="mandate_supervisor_final">Supervisor Final Call</string>
+    <string name="mandate_phase1">Phase 1</string>
+    <string name="mandate_phase2">Phase 2</string>
+    <string name="mandate_yes">Yes</string>
+    <string name="mandate_no">No</string>
+    <string name="app_title_format">%s Assistant</string>
+    <string name="agents_members">%s Members</string>
+    <string name="skill_example">e.g. %s</string>
+    <string name="skill_param_example">e.g. {\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"}}}</string>
+    <string name="home_state_desc_idle">Waiting for new meeting</string>
+    <string name="home_state_desc_validating">Strategist checks prior resolution execution &amp;amp; target eligibility</string>
+    <string name="home_state_desc_rejected">Entry assessment failed</string>
+    <string name="home_state_desc_prepping">Four parallel preparations in progress</string>
+    <string name="home_state_desc_debate">Bull vs Bear debate</string>
+    <string name="home_state_desc_adjudicating">Rounds exhausted, supervisor adjudicates</string>
+    <string name="home_state_desc_assessment">Executor proposes, risk officer challenges</string>
+    <string name="home_state_desc_rating">Publish final rating &amp;amp; execution plan</string>
+    <string name="home_state_desc_approved">Awaiting user execution confirmation</string>
+    <string name="home_state_desc_completed">Meeting concluded</string>
+    <string name="role_analyst_display">Analyst</string>
+    <string name="role_analyst_stance">Bull</string>
+    <string name="role_analyst_resp">Bull Case + Valuation Framework + Prior Forecast Review</string>
+    <string name="role_risk_display">Risk Officer</string>
+    <string name="role_risk_stance">Bear</string>
+    <string name="role_risk_resp">Bear Case + Risk Calendar + Challenge</string>
+    <string name="role_strategist_display">Strategist</string>
+    <string name="role_strategist_stance">Neutral / Framework</string>
+    <string name="role_strategist_resp">Top-down Strategy Framework + Entry Assessment + Cross-meeting Consistency</string>
+    <string name="role_executor_display">Executor</string>
+    <string name="role_executor_stance">Execution</string>
+    <string name="role_executor_resp">Execution Plan + Rating + Execution Tracking</string>
+    <string name="role_intel_display">Intel Agent</string>
+    <string name="role_intel_stance">Facts</string>
+    <string name="role_intel_resp">Base Intelligence + Incremental Updates</string>
+    <string name="role_supervisor_display">Supervisor</string>
+    <string name="role_supervisor_stance">Adjudication</string>
+    <string name="role_supervisor_resp">Arbitration + Minutes + Execution Discipline Tracking</string>
+    <string name="preset_ic_name">Investment Committee</string>
+    <string name="preset_ic_desc">Investment Decision Committee — Bull/Bear debate + Risk Assessment + 6-tier Rating System</string>
+    <string name="preset_ic_label">Investment Committee</string>
+    <string name="preset_gm_name">General Meeting</string>
+    <string name="preset_gm_desc">General Review Meeting — Coordinator / Researcher / Reviewer</string>
+    <string name="preset_gm_label">Review Committee</string>
+    <string name="preset_gm_coordinator_name">Coordinator</string>
+    <string name="preset_gm_coordinator_stance">Neutral / Facilitation</string>
+    <string name="preset_gm_coordinator_resp">Process Facilitation + Agenda Management + Summary</string>
+    <string name="preset_gm_researcher_name">Researcher</string>
+    <string name="preset_gm_researcher_stance">Investigation</string>
+    <string name="preset_gm_researcher_resp">Information Collection + Deep Analysis + Recommendations</string>
+    <string name="preset_gm_reviewer_name">Reviewer</string>
+    <string name="preset_gm_reviewer_stance">Review</string>
+    <string name="preset_gm_reviewer_resp">Plan Review + Risk Discovery + Improvement Suggestions</string>
+    <string name="preset_gm_rating_pass">Pass</string>
+    <string name="preset_gm_rating_cond_pass">Conditional Pass</string>
+    <string name="preset_gm_rating_revise">Revise &amp;amp; Re-review</string>
+    <string name="preset_gm_rating_fail">Fail</string>
+    <string name="lang_system">Follow System</string>
+    <string name="lang_chinese">Chinese</string>
+    <string name="lang_english">English</string>
+
+    <!-- HomeScreen: Settings icon content description -->
+    <string name="home_settings">Settings</string>
+
+    <!-- HomeScreen: Looper log tag for API error -->
+    <string name="home_api_error">[API Error]</string>
+
+    <!-- SettingsScreen: API Key section header -->
+    <string name="settings_apikey_header">API Key</string>
+
+    <!-- SettingsScreen: API Base URL label -->
+    <string name="settings_api_base_url">API Base URL</string>
+
+    <!-- SettingsScreen: Tavily save button (hardcoded alongside stringResource) -->
+    <string name="settings_tavily_save">Save</string>
+
+    <!-- Meeting preset mandate phase labels -->
+    <string name="preset_ic_phase1_label">Multi-party Debate</string>
+    <string name="preset_ic_phase2_label">Risk Assessment</string>
+    <string name="preset_gm_phase1_label">Plan Discussion</string>
+    <string name="preset_gm_phase2_label">Review Assessment</string>
+
+    <!-- About section descriptions -->
+    <string name="settings_about_desc_1">Super-agent self-evolution architecture</string>
+    <string name="settings_about_desc_2">Multi-Agent Autonomous Discussion System</string>
+    <string name="settings_about_desc_3">Powered by Claude / DeepSeek / Kimi / GLM</string>
 </resources>

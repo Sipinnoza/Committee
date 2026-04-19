@@ -1,5 +1,6 @@
 package com.znliang.committee.ui
 
+import android.content.res.Resources
 import android.os.Bundle
 import javax.inject.Inject
 import androidx.activity.ComponentActivity
@@ -48,8 +49,11 @@ import com.znliang.committee.ui.screen.SessionDetailScreen
 import com.znliang.committee.ui.screen.SettingsScreen
 import com.znliang.committee.ui.screen.SkillManagementScreen
 import androidx.annotation.StringRes
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.znliang.committee.R
+import com.znliang.committee.data.repository.AppConfigRepository
+import com.znliang.committee.domain.model.AppLanguage
 import com.znliang.committee.ui.theme.CommitteeGold
 import com.znliang.committee.ui.theme.CommitteeTheme
 import com.znliang.committee.ui.theme.SurfaceCard
@@ -57,7 +61,10 @@ import com.znliang.committee.ui.theme.SurfaceDark
 import com.znliang.committee.ui.theme.TextMuted
 import com.znliang.committee.ui.viewmodel.AgentChatViewModel
 import com.znliang.committee.ui.viewmodel.MeetingViewModel
+import com.znliang.committee.ui.viewmodel.SettingsViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.runBlocking
+import java.util.Locale
 
 sealed class NavRoute(val route: String, @StringRes val labelRes: Int, val icon: ImageVector) {
     object Home     : NavRoute("home",     R.string.nav_meeting,  Icons.Default.Groups)
@@ -70,16 +77,36 @@ private val bottomNavItems = listOf(NavRoute.Home, NavRoute.History, NavRoute.Lo
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    @Inject lateinit var presetConfig: com.znliang.committee.domain.model.MeetingPresetConfig
+    @Inject lateinit var presetConfig: MeetingPresetConfig
+
+    @Inject lateinit var appConfigRepository: AppConfigRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val config = runBlocking { appConfigRepository.getConfig() }
+        applyLanguage(config.selectedLanguage)
         enableEdgeToEdge()
         setContent {
             CommitteeTheme {
                 CommitteeApp(presetConfig)
             }
         }
+    }
+
+    private fun applyLanguage(language: AppLanguage) {
+        val locale = when (language) {
+            AppLanguage.SYSTEM -> Resources.getSystem().configuration.locales[0]
+            else -> Locale(language.code)
+        }
+        Locale.setDefault(locale)
+        val config = resources.configuration
+        config.setLocale(locale)
+        resources.updateConfiguration(config, resources.displayMetrics)
+    }
+
+    fun restartSelf() {
+        finish()
+        startActivity(intent)
     }
 }
 
@@ -135,12 +162,18 @@ fun CommitteeApp(presetConfig: MeetingPresetConfig) {
             modifier = Modifier.padding(innerPadding),
             enterTransition = { fadeIn(tween(250)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start) },
             exitTransition = { fadeOut(tween(150)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start) },
+            popEnterTransition = { fadeIn(tween(250)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End) },
+            popExitTransition = { fadeOut(tween(150)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End) },
         ) {
             composable(NavRoute.Home.route)     {
                 HomeScreen(
                     viewModel = viewModel,
                     presetConfig = presetConfig,
-                    onNavigateToSettings = { navController.navigate(NavRoute.Settings.route) },
+                    onNavigateToSettings = { navController.navigate(NavRoute.Settings.route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    } },
                     onAgentClick = { role -> navController.navigate("agent_chat/${role.id}") },
                 )
             }
@@ -154,7 +187,17 @@ fun CommitteeApp(presetConfig: MeetingPresetConfig) {
                 )
             }
             composable(NavRoute.Log.route)      { LogScreen(viewModel) }
-            composable(NavRoute.Settings.route) { SettingsScreen(viewModel, presetConfig, onManageSkills = { navController.navigate("skill_management") }) }
+            composable(NavRoute.Settings.route) {
+                val settingsViewModel: SettingsViewModel = hiltViewModel()
+                val context = LocalContext.current
+                SettingsScreen(
+                    viewModel = viewModel,
+                    settingsViewModel = settingsViewModel,
+                    presetConfig = presetConfig,
+                    onManageSkills = { navController.navigate("skill_management") },
+                    onRestartApp = { (context as MainActivity).restartSelf() },
+                )
+            }
 
             // Skill management route
             composable("skill_management") {

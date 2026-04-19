@@ -65,59 +65,59 @@ data class MeetingPreset(
 
 // ── Default Presets ──────────────────────────────────────────
 
-/** 投委会 preset — 与现有 AgentRole enum 的 6 个角色完全对应 */
+/** Investment Committee preset — corresponds to the 6 AgentRole enum roles */
 val INVESTMENT_COMMITTEE_PRESET = MeetingPreset(
     id = "investment_committee",
-    name = "投委会",
-    description = "投资决策委员会 — 多空辩论 + 风险评估 + 6级评级体系",
+    name = "Investment Committee",
+    description = "Investment Decision Committee — Bull/Bear debate + Risk Assessment + 6-tier Rating System",
     iconName = "account_balance",
-    committeeLabel = "投委会",
+    committeeLabel = "Investment Committee",
     roles = listOf(
         PresetRole(
             id = "analyst",
-            displayName = "分析师",
-            stance = "看多（Bull）",
-            responsibility = "Bull Case + 估值框架 + 前次预测回顾",
+            displayName = "Analyst",
+            stance = "Bull",
+            responsibility = "Bull Case + Valuation Framework + Prior Forecast Review",
             systemPromptKey = "role_analyst",
             colorHex = "#4CAF50",
         ),
         PresetRole(
             id = "risk_officer",
-            displayName = "风险官",
-            stance = "看空（Bear）",
-            responsibility = "Bear Case + 风险日历 + 质疑",
+            displayName = "Risk Officer",
+            stance = "Bear",
+            responsibility = "Bear Case + Risk Calendar + Challenge",
             systemPromptKey = "role_risk_officer",
             colorHex = "#F44336",
         ),
         PresetRole(
             id = "strategy_validator",
-            displayName = "策略师",
-            stance = "中立/框架",
-            responsibility = "Top-down 策略框架 + 入场评估 + 跨会议一致性",
+            displayName = "Strategist",
+            stance = "Neutral / Framework",
+            responsibility = "Top-down Strategy Framework + Entry Assessment + Cross-meeting Consistency",
             systemPromptKey = "role_strategist",
             colorHex = "#2196F3",
         ),
         PresetRole(
             id = "executor",
-            displayName = "执行员",
-            stance = "方案",
-            responsibility = "执行方案 + 评级 + 执行追踪",
+            displayName = "Executor",
+            stance = "Execution",
+            responsibility = "Execution Plan + Rating + Execution Tracking",
             systemPromptKey = "role_executor",
             colorHex = "#FF9800",
         ),
         PresetRole(
             id = "intel",
-            displayName = "情报员",
-            stance = "事实",
-            responsibility = "基础情报 + 增量推送",
+            displayName = "Intel Agent",
+            stance = "Facts",
+            responsibility = "Base Intelligence + Incremental Updates",
             systemPromptKey = "role_intel",
             colorHex = "#9C27B0",
         ),
         PresetRole(
             id = "supervisor",
-            displayName = "监督员",
-            stance = "评判",
-            responsibility = "仲裁 + 纪要 + 执行纪律追踪",
+            displayName = "Supervisor",
+            stance = "Adjudication",
+            responsibility = "Arbitration + Minutes + Execution Discipline Tracking",
             systemPromptKey = "role_supervisor",
             colorHex = "#607D8B",
         ),
@@ -126,41 +126,41 @@ val INVESTMENT_COMMITTEE_PRESET = MeetingPreset(
         "debate_rounds" to "3",
         "consensus_required" to "false",
         "supervisor_final_call" to "true",
-        "phase1_label" to "多方辩论",
-        "phase2_label" to "风险评估",
+        "phase1_label" to "Debate",
+        "phase2_label" to "Risk Assessment",
     ),
     ratingScale = listOf("Buy", "Overweight", "Hold+", "Hold", "Underweight", "Sell"),
 )
 
-/** 通用会议 preset — 3 个通用角色 */
+/** General Meeting preset — 3 generic roles */
 val GENERAL_MEETING_PRESET = MeetingPreset(
     id = "general_meeting",
-    name = "通用会议",
-    description = "通用评审会议 — 协调 / 研究 / 评审三角色",
+    name = "General Meeting",
+    description = "General Review Meeting — Coordinator / Researcher / Reviewer",
     iconName = "groups",
-    committeeLabel = "评审会",
+    committeeLabel = "Review Committee",
     roles = listOf(
         PresetRole(
             id = "coordinator",
-            displayName = "协调员",
-            stance = "中立/引导",
-            responsibility = "流程引导 + 议程管理 + 总结归纳",
+            displayName = "Coordinator",
+            stance = "Neutral / Facilitation",
+            responsibility = "Process Facilitation + Agenda Management + Summary",
             systemPromptKey = "role_coordinator",
             colorHex = "#1976D2",
         ),
         PresetRole(
             id = "researcher",
-            displayName = "研究员",
-            stance = "探究",
-            responsibility = "信息收集 + 深度分析 + 方案建议",
+            displayName = "Researcher",
+            stance = "Investigation",
+            responsibility = "Information Collection + Deep Analysis + Recommendations",
             systemPromptKey = "role_researcher",
             colorHex = "#388E3C",
         ),
         PresetRole(
             id = "reviewer",
-            displayName = "评审员",
-            stance = "审视",
-            responsibility = "方案审核 + 风险发现 + 改进建议",
+            displayName = "Reviewer",
+            stance = "Review",
+            responsibility = "Plan Review + Risk Discovery + Improvement Suggestions",
             systemPromptKey = "role_reviewer",
             colorHex = "#E64A19",
         ),
@@ -169,10 +169,10 @@ val GENERAL_MEETING_PRESET = MeetingPreset(
         "debate_rounds" to "2",
         "consensus_required" to "true",
         "supervisor_final_call" to "false",
-        "phase1_label" to "方案讨论",
-        "phase2_label" to "审核评估",
+        "phase1_label" to "Discussion",
+        "phase2_label" to "Review & Assessment",
     ),
-    ratingScale = listOf("通过", "有条件通过", "修改后重审", "不通过"),
+    ratingScale = listOf("Pass", "Conditional Pass", "Revise & Re-review", "Fail"),
 )
 
 /** 所有内置 preset 列表 */
@@ -284,7 +284,7 @@ class MeetingPresetConfig @Inject constructor(
     // ── 便捷访问方法 ─────────────────────────────────────────
 
     fun committeeLabel(): String = getActivePreset().committeeLabel
-    fun appTitle(): String = "${committeeLabel()}助手"
+    fun appTitle(): String = "${committeeLabel()} Assistant"
     fun activeRoles(): List<PresetRole> = getActivePreset().roles
     fun activeRatingScale(): List<String> = getActivePreset().ratingScale
     fun activeMandates(): Map<String, String> = getActivePreset().mandates

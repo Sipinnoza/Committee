@@ -103,7 +103,7 @@ class AgentRuntime(
         _board.value = Blackboard(subject = subject)
         _speeches.value = emptyList()
         _runtimeLog.value = emptyList()
-        log("[启动] traceId=$currentTraceId 标的=$subject")
+        log("[Start] traceId=$currentTraceId subject=$subject")
 
         scope.launch {
             repository.upsertSession(MeetingSessionEntity(
@@ -126,10 +126,10 @@ class AgentRuntime(
 
                 runLoop()
             } catch (e: CancellationException) {
-                log("[中断] 会议被取消")
+                log("[Interrupted] Meeting cancelled")
                 updateSessionFinished()
             } catch (e: Exception) {
-                log("[错误] ${e.javaClass.simpleName}: ${e.message}")
+                log("[Error] ${e.javaClass.simpleName}: ${e.message}")
                 updateSessionFinished()
             } finally {
                 _isRunning.value = false
@@ -143,7 +143,7 @@ class AgentRuntime(
             } catch (e: CancellationException) {
                 // 会议被取消时不反思
             } catch (e: Exception) {
-                log("[反思] 失败: ${e.message}")
+                log("[Reflect] Failed: ${e.message}")
             }
         }
     }
@@ -171,7 +171,7 @@ class AgentRuntime(
             finalRating = session.rating,
             phase = if (session.isCompleted) BoardPhase.DONE else BoardPhase.IDLE,
         )
-        log("[恢复] traceId=${session.traceId} speeches=${speeches.size}")
+        log("[Recover] traceId=${session.traceId} speeches=${speeches.size}")
     }
 
     fun confirmExecution() {
@@ -211,14 +211,14 @@ class AgentRuntime(
         try {
             val gapMemory = intelEvolver.getGapMemory()
             if (gapMemory.isEmpty()) {
-                log("[预搜索] 无历史信息缺口，跳过")
+                log("[PreSearch] No historical info gaps, skipping")
                 return
             }
 
             // 🔥 获取当前日期，确保搜索最新信息
             val today = java.time.LocalDate.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyy年M月d日", java.util.Locale.CHINA))
-            log("[预搜索] 发现 ${gapMemory.size} 个历史信息缺口，日期=$today，开始预搜索...")
+            log("[PreSearch] Found ${gapMemory.size} historical info gaps, date=$today, starting pre-search...")
 
             // 构造搜索查询：标的 + 日期 + 缺口
             val topGaps = gapMemory.take(3)
@@ -226,19 +226,19 @@ class AgentRuntime(
 
             for (gap in topGaps) {
                 val query = "$subject $today $gap"
-                log("[预搜索] 查询: $query")
+                log("[PreSearch] Query: $query")
                 try {
                     val results = toolRegistry.executeBuiltinTool("web_search",
                         """{"query":"$query"}"""
                     )
                     if (!results.startsWith("[error]") && !results.startsWith("[无")) {
                         searchResults.add("### 查询: $query\n$results")
-                        log("[预搜索] 成功，结果长度=${results.length}")
+                        log("[PreSearch] Success, result length=${results.length}")
                     } else {
-                        log("[预搜索] 查询 '$query' 无有效结果")
+                        log("[PreSearch] Query '$query' no valid results")
                     }
                 } catch (e: Exception) {
-                    log("[预搜索] 查询 '$query' 失败: ${e.message}")
+                    log("[PreSearch] Query '$query' failed: ${e.message}")
                 }
             }
 
@@ -252,10 +252,10 @@ class AgentRuntime(
                     searchResults.forEach { appendLine(it); appendLine() }
                 }
                 _board.value = _board.value.copy(preGatheredInfo = info)
-                log("[预搜索] 注入 ${searchResults.size} 条预搜索结果到 blackboard")
+                log("[PreSearch] Injected ${searchResults.size} pre-search results into blackboard")
             }
         } catch (e: Exception) {
-            log("[预搜索] 失败: ${e.message}")
+            log("[PreSearch] Failed: ${e.message}")
         }
     }
 
@@ -267,7 +267,7 @@ class AgentRuntime(
             val board = _board.value
 
             if (board.round > ABSOLUTE_MAX_ROUNDS) {
-                log("[安全阀] 超过 $ABSOLUTE_MAX_ROUNDS 轮")
+                log("[SafetyValve] Exceeded $ABSOLUTE_MAX_ROUNDS rounds")
                 finishWithRating("Hold")
                 break
             }
@@ -432,14 +432,14 @@ class AgentRuntime(
                                     round = _board.value.round,
                                 ))
                             )
-                            log("[Vote] ${picked.role} = ${if (response.voteBull) "看多" else "看空"}")
+                            log("[Vote] ${picked.role} = ${if (response.voteBull) "Bull" else "Bear"}")
                         }
 
                         // 共识
                         val b = _board.value
                         if (b.hasConsensus() && !b.consensus) {
                             _board.value = b.copy(consensus = true)
-                            log("[共识] 看多${(b.bullRatio() * 100).toInt()}%")
+                            log("[Consensus] Bull ${(b.bullRatio() * 100).toInt()}%")
                         }
 
                         updatePhase()
@@ -464,13 +464,13 @@ class AgentRuntime(
             } else {
                 consecutiveSilentRounds++
                 if (consecutiveSilentRounds >= CIRCUIT_BREAKER_THRESHOLD) {
-                    log("[熔断] 连续 $CIRCUIT_BREAKER_THRESHOLD 轮无人发言（可能网络故障），提前终止")
+                    log("[CircuitBreak] $CIRCUIT_BREAKER_THRESHOLD consecutive silent rounds (possible network issue), terminating early")
                     // 将错误信息展示给用户
-                    addBoardMessage("supervisor", "⚠️ 网络连接异常，无法获取AI响应。请检查网络后重试。", emptyList())
+                    addBoardMessage("supervisor", "⚠️ Network connection error, unable to get AI response. Please check network and retry.", emptyList())
                     finishWithRating("Hold")
                     break
                 }
-                log("[熔断] 连续静默 $consecutiveSilentRounds/$CIRCUIT_BREAKER_THRESHOLD 轮")
+                log("[CircuitBreak] Consecutive silent rounds $consecutiveSilentRounds/$CIRCUIT_BREAKER_THRESHOLD")
                 advanceRound()
             }
         }
@@ -521,7 +521,7 @@ class AgentRuntime(
         val prompt = supervisor.buildFinishPrompt(board)
         val response = systemLlm.quickCall(prompt)
         val r = response.trim().uppercase()
-        return r.startsWith("YES") || r.startsWith("Y") || r.startsWith("是")
+        return r.startsWith("YES") || r.startsWith("Y")
     }
 
     // ── Board 操作（不可变）───────────────────────────────────
@@ -563,7 +563,7 @@ class AgentRuntime(
             finalRating = rating,
             phase = BoardPhase.RATING,
         )
-        log("[评级] 最终评级: $rating")
+        log("[Rating] Final rating: $rating")
         if (agents.any { it.role == "executor" }) {
             _board.value = _board.value.copy(phase = BoardPhase.EXECUTION)
         }
@@ -571,7 +571,7 @@ class AgentRuntime(
     }
 
     private fun parseRating(content: String): String? {
-        val regex = Regex("""最终评级.*?(Buy|Overweight|Hold\+|Hold|Underweight|Sell)""")
+        val regex = Regex("""(?:Final Rating|最终评级).*?(Buy|Overweight|Hold\+|Hold|Underweight|Sell)""")
         return regex.find(content)?.groupValues?.getOrNull(1)
     }
 
@@ -619,7 +619,7 @@ class AgentRuntime(
         if (board.messages.isEmpty()) return
 
         val participatedRoles = board.messages.map { it.role }.distinct()
-        log("[反思] 参与者: $participatedRoles")
+        log("[Reflect] 参与者: $participatedRoles")
 
         val suggestions = mutableMapOf<String, String>()
 
@@ -633,11 +633,11 @@ class AgentRuntime(
                     try {
                         val reflection = evolver.reflect(board, currentTraceId)
                         if (reflection.isEmpty()) {
-                            log("[反思] ${evolver.displayName()}: 无反思结果")
+                            log("[Reflect] ${evolver.displayName()}: 无反思结果")
                             continue
                         }
 
-                        log("[反思] ${evolver.displayName()}: ${reflection.summary.take(80)}")
+                        log("[Reflect] ${evolver.displayName()}: ${reflection.summary.take(80)}")
 
                         // 记录建议
                         if (reflection.suggestion.isNotBlank()) {
@@ -722,9 +722,9 @@ class AgentRuntime(
                             log("[技能] ${evolver.displayName()} 提炼失败: ${e.message}")
                         }
 
-                        log("[反思] ${evolver.displayName()}: 完整进化闭环完成")
+                        log("[Reflect] ${evolver.displayName()}: 完整进化闭环完成")
                     } catch (e: Exception) {
-                        log("[反思] ${roleId} Evolver反思失败: ${e.message}")
+                        log("[Reflect] ${roleId} Evolver反思失败: ${e.message}")
                     }
                 } else {
                     // ── 无专属Evolver的Agent走通用反思路径 ──
@@ -732,16 +732,16 @@ class AgentRuntime(
                     val reflection = generateReflection(agent, board, myMessages)
                     if (reflection.isBlank()) continue
                     suggestions[roleId] = reflection
-                    log("[反思] ${agent.displayName}: 通用反思完成")
+                    log("[Reflect] ${agent.displayName}: 通用反思完成")
                 }
             } catch (e: Exception) {
-                log("[反思] $roleId 失败: ${e.message}")
+                log("[Reflect] $roleId 失败: ${e.message}")
             }
         }
 
         if (suggestions.isNotEmpty()) {
             _promptSuggestions.value = suggestions
-            log("[反思] ${suggestions.size} 条优化建议已就绪")
+            log("[Reflect] ${suggestions.size} 条优化建议已就绪")
         }
     }
 
@@ -782,7 +782,7 @@ class AgentRuntime(
         myMessages: List<BoardMessage>,
     ): String {
         val currentPrompt = agentPool.getSystemPromptText(
-            com.znliang.committee.domain.model.AgentRole.fromId(agent.role)
+            AgentRole.fromId(agent.role)
                 ?: return ""
         )
 
@@ -791,10 +791,10 @@ class AgentRuntime(
         }
 
         val outcome = buildString {
-            append("最终评级: ${board.finalRating ?: "无"}\n")
-            append("共识: ${if (board.consensus) "是" else "否"}\n")
-            append("总轮次: ${board.round}\n")
-            append("总发言: ${board.messages.size}条\n")
+            append("Final Rating: ${board.finalRating ?: "None"}\n")
+            append("Consensus: ${if (board.consensus) "Yes" else "No"}\n")
+            append("Total Rounds: ${board.round}\n")
+            append("Total Speeches: ${board.messages.size}\n")
         }
 
         val reflectPrompt = """你是一个AI Agent的自我反思系统。
