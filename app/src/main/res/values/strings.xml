@@ -268,4 +268,17 @@
     <string name="settings_about_desc_1">Super-agent self-evolution architecture</string>
     <string name="settings_about_desc_2">Multi-Agent Autonomous Discussion System</string>
     <string name="settings_about_desc_3">Powered by Claude / DeepSeek / Kimi / GLM</string>
+    <!-- Rating display names -->
+    <string name="rating_buy">Buy</string>
+    <string name="rating_overweight">Overweight</string>
+    <string name="rating_hold_plus">Hold+</string>
+    <string name="rating_hold">Hold</string>
+    <string name="rating_underweight">Underweight</string>
+    <string name="rating_sell">Sell</string>
+    <string name="settings_model_config">Model Configuration</string>
+    <string name="settings_model_config_desc">Configure AI model and API key</string>
+    <string name="settings_search_config">Search Configuration</string>
+    <string name="settings_search_config_desc">Configure web search API</string>
+    <string name="settings_meeting_config">Meeting Configuration</string>
+    <string name="settings_meeting_config_desc">Presets, rules and role management</string>
 </resources>

@@ -20,6 +20,8 @@ import com.znliang.committee.domain.model.AgentRole
 import com.znliang.committee.domain.model.MeetingState
 import com.znliang.committee.domain.model.Rating
 import com.znliang.committee.ui.theme.*
+import androidx.compose.ui.res.stringResource
+import com.znliang.committee.R
 
 // ── Agent Avatar + Name ───────────────────────────────────────────────────────
 
@@ -42,13 +44,13 @@ fun AgentChip(role: AgentRole, modifier: Modifier = Modifier) {
                 .background(color)
         )
         Text(
-            text = role.displayName,
+            text = stringResource(role.displayNameRes()),
             style = MaterialTheme.typography.labelLarge,
             color = color,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = role.stance,
+            text = stringResource(role.stanceRes()),
             style = MaterialTheme.typography.labelSmall,
             color = color.copy(alpha = 0.6f),
             fontSize = 10.sp,
@@ -99,7 +101,7 @@ fun StateBadge(state: MeetingState, modifier: Modifier = Modifier) {
             Modifier.size(8.dp).clip(CircleShape).background(color)
         )
         Text(
-            text = state.displayName,
+            text = stringResource(state.displayNameRes()),
             style = MaterialTheme.typography.labelLarge,
             color = color,
             fontWeight = FontWeight.Bold,
@@ -121,7 +123,7 @@ fun RatingBadge(rating: Rating, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = rating.displayName,
+            text = stringResource(rating.displayNameRes()),
             style = MaterialTheme.typography.titleMedium,
             color = color,
             fontWeight = FontWeight.ExtraBold,

@@ -268,4 +268,17 @@
     <string name="settings_about_desc_1">超智能体自进化架构</string>
     <string name="settings_about_desc_2">多智能体自主讨论系统</string>
     <string name="settings_about_desc_3">由 Claude / DeepSeek / Kimi / GLM 驱动</string>
+    <!-- Rating display names -->
+    <string name="rating_buy">买入</string>
+    <string name="rating_overweight">增持</string>
+    <string name="rating_hold_plus">谨慎持有</string>
+    <string name="rating_hold">持有</string>
+    <string name="rating_underweight">减持</string>
+    <string name="rating_sell">卖出</string>
+    <string name="settings_model_config">模型配置</string>
+    <string name="settings_model_config_desc">配置AI模型和API密钥</string>
+    <string name="settings_search_config">搜索配置</string>
+    <string name="settings_search_config_desc">配置网络搜索API</string>
+    <string name="settings_meeting_config">会议配置</string>
+    <string name="settings_meeting_config_desc">预设、规则和角色管理</string>
 </resources>

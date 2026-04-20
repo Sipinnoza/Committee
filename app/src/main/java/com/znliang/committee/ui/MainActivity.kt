@@ -45,6 +45,9 @@ import com.znliang.committee.ui.screen.AgentConfigChatScreen
 import com.znliang.committee.ui.screen.HistoryScreen
 import com.znliang.committee.ui.screen.HomeScreen
 import com.znliang.committee.ui.screen.LogScreen
+import com.znliang.committee.ui.screen.MeetingConfigScreen
+import com.znliang.committee.ui.screen.ModelConfigScreen
+import com.znliang.committee.ui.screen.SearchConfigScreen
 import com.znliang.committee.ui.screen.SessionDetailScreen
 import com.znliang.committee.ui.screen.SettingsScreen
 import com.znliang.committee.ui.screen.SkillManagementScreen
@@ -196,6 +199,30 @@ fun CommitteeApp(presetConfig: MeetingPresetConfig) {
                     presetConfig = presetConfig,
                     onManageSkills = { navController.navigate("skill_management") },
                     onRestartApp = { (context as MainActivity).restartSelf() },
+                    onNavigateToModelConfig = { navController.navigate("settings_model") },
+                    onNavigateToSearchConfig = { navController.navigate("settings_search") },
+                    onNavigateToMeetingConfig = { navController.navigate("settings_meeting") },
+                )
+            }
+
+            // Settings sub-pages
+            composable("settings_model") {
+                val context = LocalContext.current
+                ModelConfigScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable("settings_search") {
+                SearchConfigScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable("settings_meeting") {
+                MeetingConfigScreen(
+                    presetConfig = presetConfig,
+                    onBack = { navController.popBackStack() },
                 )
             }
 

@@ -160,7 +160,7 @@ fun HomeScreen(
                             color = CommitteeGold, fontWeight = FontWeight.ExtraBold)
                         if (isMeetingActive) {
                             Text("·", color = TextMuted, fontSize = 18.sp)
-                            Text(uiState.currentState.displayName,
+                            Text(stringResource(uiState.currentState.displayNameRes()),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = CommitteeGold.copy(alpha = 0.8f))
                         }
@@ -229,7 +229,7 @@ fun HomeScreen(
 
                 // ── Agent roster ──────────────────────────────────────────
                 item(key = "agents_header") {
-                    SectionHeader(stringResource(R.string.agents_members, activePreset.committeeLabel))
+                    SectionHeader(stringResource(R.string.agents_members, stringResource(activePreset.committeeLabelRes())))
                 }
                 items(activePreset.roles, key = { "agent_${it.id}" }) { presetRole ->
                     CompactAgentCard(
@@ -687,7 +687,7 @@ private fun CompactAgentCard(role: PresetRole, stats: AgentMemoryStats? = null, 
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "${role.displayName.first()}",
+                    text = "${stringResource(role.displayNameRes()).first()}",
                     color = agentColor,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
@@ -700,14 +700,14 @@ private fun CompactAgentCard(role: PresetRole, stats: AgentMemoryStats? = null, 
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        role.displayName,
+                        stringResource(role.displayNameRes()),
                         style = MaterialTheme.typography.titleSmall,
                         color = TextPrimary,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        role.stance,
+                        stringResource(role.stanceRes()),
                         style = MaterialTheme.typography.labelSmall,
                         color = agentColor,
                         modifier = Modifier

@@ -3,19 +3,26 @@ package com.znliang.committee.engine.runtime
 import android.content.Context
 import android.util.Log
 import com.znliang.committee.data.db.AgentEvolutionEntity
-import com.znliang.committee.data.db.AgentSkillEntity
 import com.znliang.committee.data.db.MeetingOutcomeEntity
 import com.znliang.committee.data.db.MeetingSessionEntity
 import com.znliang.committee.data.repository.EventRepository
 import com.znliang.committee.data.repository.EvolutionRepository
+import com.znliang.committee.domain.model.AgentRole
+import com.znliang.committee.domain.model.MeetingState
+import com.znliang.committee.domain.model.MicContext
+import com.znliang.committee.domain.model.SpeechRecord
 import com.znliang.committee.engine.AgentPool
 import com.znliang.committee.engine.LlmConfig
-import com.znliang.committee.domain.model.AgentRole
-import com.znliang.committee.domain.model.MicContext
-import com.znliang.committee.domain.model.MeetingState
-import com.znliang.committee.domain.model.SpeechRecord
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -125,7 +132,7 @@ class AgentRuntime(
                 preMeetingIntelSearch(subject)
 
                 runLoop()
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 log("[Interrupted] Meeting cancelled")
                 updateSessionFinished()
             } catch (e: Exception) {
@@ -140,7 +147,7 @@ class AgentRuntime(
                 if (_board.value.messages.isNotEmpty()) {
                     reflectOnMeeting()
                 }
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 // 会议被取消时不反思
             } catch (e: Exception) {
                 log("[Reflect] Failed: ${e.message}")

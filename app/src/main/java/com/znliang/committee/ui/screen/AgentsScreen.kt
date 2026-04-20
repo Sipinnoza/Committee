@@ -167,11 +167,11 @@ fun AgentConfigChatScreen(
                                     .background(agentColor.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text("${role.displayName.first()}", color = agentColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text("${stringResource(role.displayNameRes()).first()}", color = agentColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             }
-                            Text(role.displayName, color = TextPrimary, fontWeight = FontWeight.Bold)
+                            Text(stringResource(role.displayNameRes()), color = TextPrimary, fontWeight = FontWeight.Bold)
                             Text("·", color = TextMuted)
-                            Text(role.stance, style = MaterialTheme.typography.labelSmall, color = agentColor.copy(alpha = 0.7f))
+                            Text(stringResource(role.stanceRes()), style = MaterialTheme.typography.labelSmall, color = agentColor.copy(alpha = 0.7f))
                         }
                     },
                     navigationIcon = {
@@ -234,7 +234,7 @@ fun AgentConfigChatScreen(
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 42.dp, max = 120.dp),
-                        placeholder = { Text(stringResource(R.string.agents_send_message_to, role.displayName), color = TextMuted) },
+                        placeholder = { Text(stringResource(R.string.agents_send_message_to, stringResource(role.displayNameRes())), color = TextMuted) },
                         maxLines = 5,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = {
@@ -549,14 +549,14 @@ fun AgentConfigChatScreen(
                                 .border(1.dp, agentColor.copy(alpha = 0.4f), CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("${role.displayName.first()}", color = agentColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("${stringResource(role.displayNameRes()).first()}", color = agentColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
 
                         Spacer(Modifier.width(8.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                role.displayName,
+                                stringResource(role.displayNameRes()),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = agentColor,
                                 fontWeight = FontWeight.Bold,

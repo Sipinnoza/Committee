@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.sp
 import com.znliang.committee.domain.model.AgentRole
 import com.znliang.committee.domain.model.SpeechRecord
 import com.znliang.committee.ui.theme.*
+import androidx.compose.ui.res.stringResource
+import com.znliang.committee.R
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -39,7 +41,8 @@ fun ChatBubble(
     modifier: Modifier = Modifier,
 ) {
     val agentColor = speech.agent.color
-    val avatarLetter = speech.agent.displayName.first()
+    val agentName = stringResource(speech.agent.displayNameRes())
+    val avatarLetter = agentName.first()
 
     Row(
         modifier = modifier
@@ -77,14 +80,14 @@ fun ChatBubble(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    text = speech.agent.displayName,
+                    text = agentName,
                     style = MaterialTheme.typography.labelLarge,
                     color = agentColor,
                     fontWeight = FontWeight.Bold,
                 )
                 // Stance tag
                 Text(
-                    text = speech.agent.stance,
+                    text = stringResource(speech.agent.stanceRes()),
                     style = MaterialTheme.typography.labelSmall,
                     color = agentColor.copy(alpha = 0.6f),
                     fontSize = 10.sp,

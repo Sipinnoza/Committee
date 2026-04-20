@@ -2,13 +2,13 @@ package com.znliang.committee.domain.model
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import com.znliang.committee.R
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -29,7 +29,56 @@ data class PresetRole(
     val responsibility: String,
     val systemPromptKey: String,
     val colorHex: String,
-)
+) {
+    companion object {
+        /** Map role id → string resource IDs for i18n */
+        private val DISPLAY_NAME_RES: Map<String, Int> by lazy { mapOf(
+            "analyst" to R.string.role_analyst_display,
+            "risk_officer" to R.string.role_risk_display,
+            "strategy_validator" to R.string.role_strategist_display,
+            "executor" to R.string.role_executor_display,
+            "intel" to R.string.role_intel_display,
+            "supervisor" to R.string.role_supervisor_display,
+            "coordinator" to R.string.preset_gm_coordinator_name,
+            "researcher" to R.string.preset_gm_researcher_name,
+            "reviewer" to R.string.preset_gm_reviewer_name,
+        ) }
+        private val STANCE_RES: Map<String, Int> by lazy { mapOf(
+            "analyst" to R.string.role_analyst_stance,
+            "risk_officer" to R.string.role_risk_stance,
+            "strategy_validator" to R.string.role_strategist_stance,
+            "executor" to R.string.role_executor_stance,
+            "intel" to R.string.role_intel_stance,
+            "supervisor" to R.string.role_supervisor_stance,
+            "coordinator" to R.string.preset_gm_coordinator_stance,
+            "researcher" to R.string.preset_gm_researcher_stance,
+            "reviewer" to R.string.preset_gm_reviewer_stance,
+        ) }
+        private val RESPONSIBILITY_RES: Map<String, Int> by lazy { mapOf(
+            "analyst" to R.string.role_analyst_resp,
+            "risk_officer" to R.string.role_risk_resp,
+            "strategy_validator" to R.string.role_strategist_resp,
+            "executor" to R.string.role_executor_resp,
+            "intel" to R.string.role_intel_resp,
+            "supervisor" to R.string.role_supervisor_resp,
+            "coordinator" to R.string.preset_gm_coordinator_resp,
+            "researcher" to R.string.preset_gm_researcher_resp,
+            "reviewer" to R.string.preset_gm_reviewer_resp,
+        ) }
+    }
+
+    /** @return String resource ID for localized display name, or 0 for custom roles */
+    @androidx.annotation.StringRes
+    fun displayNameRes(): Int = DISPLAY_NAME_RES[id] ?: 0
+
+    /** @return String resource ID for localized stance, or 0 for custom roles */
+    @androidx.annotation.StringRes
+    fun stanceRes(): Int = STANCE_RES[id] ?: 0
+
+    /** @return String resource ID for localized responsibility, or 0 for custom roles */
+    @androidx.annotation.StringRes
+    fun responsibilityRes(): Int = RESPONSIBILITY_RES[id] ?: 0
+}
 
 /**
  * 会议预设模板
@@ -58,8 +107,31 @@ data class MeetingPreset(
     /** 通过 roleId 查找预设角色 */
     fun findRole(roleId: String): PresetRole? = roles.find { it.id == roleId }
 
+    /** @return String resource ID for localized committee label, or 0 for custom presets */
+    @androidx.annotation.StringRes
+    fun committeeLabelRes(): Int = Companion.committeeLabelRes(id)
+
+    /** @return String resource ID for localized preset name, or 0 for custom presets */
+    @androidx.annotation.StringRes
+    fun nameRes(): Int = Companion.nameRes(id)
+
     companion object {
         fun fromId(id: String): MeetingPreset? = ALL_PRESETS.find { it.id == id }
+
+        private val COMMITTEE_LABEL_RES: Map<String, Int> = mapOf(
+            "investment_committee" to R.string.preset_ic_label,
+            "general_meeting" to R.string.preset_gm_label,
+        )
+        private val NAME_RES: Map<String, Int> = mapOf(
+            "investment_committee" to R.string.preset_ic_name,
+            "general_meeting" to R.string.preset_gm_name,
+        )
+
+        @androidx.annotation.StringRes
+        fun committeeLabelRes(id: String): Int = COMMITTEE_LABEL_RES[id] ?: 0
+
+        @androidx.annotation.StringRes
+        fun nameRes(id: String): Int = NAME_RES[id] ?: 0
     }
 }
 
