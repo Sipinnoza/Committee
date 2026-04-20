@@ -154,6 +154,10 @@
     <string name="skill_edit_skill">编辑技能</string>
     <string name="skill_empty">暂无自定义技能</string>
     <string name="skill_empty_hint">点击 + 按钮添加你的第一个技能</string>
+    <string name="skill_builtin_title">内置工具</string>
+    <string name="skill_builtin_web_search_desc">搜索互联网获取实时信息。返回标题、URL 和摘要。</string>
+    <string name="skill_builtin_web_extract_desc">提取网页全文内容。输入 URL 列表，返回页面内容。</string>
+    <string name="skill_custom_title">自定义技能</string>
     <string name="skill_exec_config">执行配置 (JSON)</string>
     <string name="skill_exec_type">执行类型</string>
     <string name="skill_mgmt_title">技能管理</string>

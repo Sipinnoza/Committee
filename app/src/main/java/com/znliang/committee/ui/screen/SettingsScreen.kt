@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -35,7 +34,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -43,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.znliang.committee.R
 import com.znliang.committee.domain.model.AppLanguage
-import com.znliang.committee.domain.model.MeetingPresetConfig
 import com.znliang.committee.ui.component.SectionHeader
 import com.znliang.committee.ui.theme.BorderColor
 import com.znliang.committee.ui.theme.CommitteeGold
@@ -52,14 +49,11 @@ import com.znliang.committee.ui.theme.SurfaceDark
 import com.znliang.committee.ui.theme.TextMuted
 import com.znliang.committee.ui.theme.TextPrimary
 import com.znliang.committee.ui.theme.TextSecondary
-import com.znliang.committee.ui.viewmodel.MeetingViewModel
 import com.znliang.committee.ui.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    viewModel: MeetingViewModel,
-    presetConfig: MeetingPresetConfig,
     onManageSkills: () -> Unit = {},
     onRestartApp: () -> Unit = {},
     settingsViewModel: SettingsViewModel,

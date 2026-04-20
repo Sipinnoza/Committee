@@ -154,6 +154,10 @@
     <string name="skill_edit_skill">Edit Skill</string>
     <string name="skill_empty">No custom skills</string>
     <string name="skill_empty_hint">Tap + to add your first skill</string>
+    <string name="skill_builtin_title">Built-in Tools</string>
+    <string name="skill_builtin_web_search_desc">Search the internet for real-time information. Returns titles, URLs and summaries.</string>
+    <string name="skill_builtin_web_extract_desc">Extract full text content from web pages. Input URLs, return page content.</string>
+    <string name="skill_custom_title">Custom Skills</string>
     <string name="skill_exec_config">Execution Config (JSON)</string>
     <string name="skill_exec_type">Execution Type</string>
     <string name="skill_mgmt_title">Skill Management</string>

@@ -194,9 +194,7 @@ fun CommitteeApp(presetConfig: MeetingPresetConfig) {
                 val settingsViewModel: SettingsViewModel = hiltViewModel()
                 val context = LocalContext.current
                 SettingsScreen(
-                    viewModel = viewModel,
                     settingsViewModel = settingsViewModel,
-                    presetConfig = presetConfig,
                     onManageSkills = { navController.navigate("skill_management") },
                     onRestartApp = { (context as MainActivity).restartSelf() },
                     onNavigateToModelConfig = { navController.navigate("settings_model") },
@@ -207,7 +205,6 @@ fun CommitteeApp(presetConfig: MeetingPresetConfig) {
 
             // Settings sub-pages
             composable("settings_model") {
-                val context = LocalContext.current
                 ModelConfigScreen(
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() },

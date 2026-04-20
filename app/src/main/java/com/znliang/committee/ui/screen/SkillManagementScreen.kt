@@ -71,46 +71,47 @@ fun SkillManagementScreen(
             }
         },
     ) { padding ->
-        if (skills.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = padding.calculateTopPadding(), bottom = 6.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.Extension,
-                        null,
-                        modifier = Modifier.size(64.dp),
-                        tint = TextMuted,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        stringResource(R.string.skill_empty),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextSecondary,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.skill_empty_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextMuted,
-                    )
-                }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            // ── Built-in Tools ───────────────────────────────────────
+            item {
+                SectionHeader(stringResource(R.string.skill_builtin_title))
+                Spacer(Modifier.height(4.dp))
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            item { BuiltinToolCard("web_search", R.string.skill_builtin_web_search_desc) }
+            item { BuiltinToolCard("web_extract", R.string.skill_builtin_web_extract_desc) }
+
+            // ── Custom Skills ────────────────────────────────────────
+            item {
+                Spacer(Modifier.height(4.dp))
+                SectionHeader("${stringResource(R.string.skill_custom_title)} (${skills.size})")
+                Spacer(Modifier.height(4.dp))
+            }
+            if (skills.isEmpty()) {
                 item {
-                    SectionHeader("${stringResource(R.string.skill_registered_count)} (${skills.size})")
-                    Spacer(Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceCard.copy(alpha = 0.5f)),
+                        border = BorderStroke(1.dp, BorderColor),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(Icons.Default.Extension, null, modifier = Modifier.size(36.dp), tint = TextMuted)
+                            Text(stringResource(R.string.skill_empty), style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                            Text(stringResource(R.string.skill_empty_hint), style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                        }
+                    }
                 }
+            } else {
                 items(items = skills, key = { it.id }) { skill ->
                     SkillCard(
                         skill = skill,
@@ -473,6 +474,48 @@ private fun SkillEditDialog(
         containerColor = SurfaceCard,
         shape = RoundedCornerShape(14.dp),
     )
+}
+
+// ── Built-in Tool Card (read-only) ──────────────────────────────────────────
+
+@Composable
+private fun BuiltinToolCard(name: String, descRes: Int) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+        border = BorderStroke(1.dp, BorderColor),
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Default.CheckCircle, null,
+                tint = BuyColor,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(name, fontWeight = FontWeight.Bold, color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(descRes), style = MaterialTheme.typography.bodySmall, color = TextMuted, maxLines = 2)
+            }
+            Spacer(Modifier.width(10.dp))
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = CommitteeGold.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, CommitteeGold.copy(alpha = 0.3f)),
+            ) {
+                Text(
+                    text = "BUILT-IN",
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CommitteeGold,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
 }
 
 // ── Reusable TextField Colors ────────────────────────────────────────────────
