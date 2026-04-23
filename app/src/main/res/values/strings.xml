@@ -418,4 +418,8 @@
     <string name="action_pending">Pending</string>
     <string name="action_in_progress">In Progress</string>
     <string name="action_done">Done</string>
+
+    <!-- Quick Decision Mode -->
+    <string name="quick_decision_label">Quick Decision</string>
+    <string name="quick_decision_desc">Streamlined mode: 3–5 rounds, faster consensus, ideal for time-sensitive decisions</string>
 </resources>

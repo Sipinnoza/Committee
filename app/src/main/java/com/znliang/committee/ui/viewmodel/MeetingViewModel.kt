@@ -150,6 +150,32 @@ class MeetingViewModel @Inject constructor(
         runtime.startMeeting(subject, materials)
     }
 
+    /**
+     * 快速决策模式 — 精简版会议，3-5轮快速出结果
+     * 临时覆盖 preset 的 max_rounds 和 activation_k
+     */
+    fun requestQuickDecision(subject: String, materials: List<MaterialRef> = emptyList()) {
+        Log.i("MeetingVM", "requestQuickDecision: subject=$subject")
+        if (subject.isBlank()) {
+            _uiState.value = _uiState.value.copy(error = "Please enter a subject")
+            return
+        }
+        if (!apiKeyProvider.hasKey()) {
+            _uiState.value = _uiState.value.copy(error = "Please configure API Key in Settings")
+            return
+        }
+        // 临时重配 runtime 为快速模式
+        val quickPreset = presetConfig.getActivePreset().let { p ->
+            p.copy(mandates = p.mandates + mapOf(
+                "max_rounds" to "5",
+                "activation_k" to "1",
+                "summary_interval" to "3",
+            ))
+        }
+        runtime.reconfigure(quickPreset)
+        runtime.startMeeting(subject, materials)
+    }
+
     fun confirmExecution() {
         runtime.confirmExecution()
     }

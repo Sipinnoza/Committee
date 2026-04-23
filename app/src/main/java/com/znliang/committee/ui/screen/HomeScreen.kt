@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -67,6 +68,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -601,10 +604,50 @@ private fun MeetingInitCard(
                 }
             }
 
+            // ── Quick Decision Mode Toggle ──
+            var quickMode by remember { mutableStateOf(false) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.Speed,
+                    null,
+                    tint = if (quickMode) CommitteeGold else TextMuted,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    stringResource(R.string.quick_decision_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (quickMode) CommitteeGold else TextSecondary,
+                )
+                Spacer(Modifier.weight(1f))
+                Switch(
+                    checked = quickMode,
+                    onCheckedChange = { quickMode = it },
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = CommitteeGold,
+                        checkedThumbColor = SurfaceDark,
+                    ),
+                )
+            }
+            if (quickMode) {
+                Text(
+                    stringResource(R.string.quick_decision_desc),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted,
+                )
+            }
+
             Button(
                 onClick = {
                     keyboard?.hide()
-                    viewModel.requestMeeting(subjectInput, buildMaterialRefs())
+                    if (quickMode) {
+                        viewModel.requestQuickDecision(subjectInput, buildMaterialRefs())
+                    } else {
+                        viewModel.requestMeeting(subjectInput, buildMaterialRefs())
+                    }
                 },
                 enabled = subjectInput.isNotBlank() && (uiState.currentState == MeetingState.IDLE || isRejected),
                 modifier = Modifier.fillMaxWidth(),
