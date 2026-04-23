@@ -3,6 +3,8 @@ package com.znliang.committee.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.util.Log
+import com.znliang.committee.data.db.DecisionActionDao
+import com.znliang.committee.data.db.DecisionActionEntity
 import com.znliang.committee.data.db.MeetingSessionEntity
 import com.znliang.committee.data.repository.EventRepository
 import com.znliang.committee.di.DataStoreApiKeyProvider
@@ -43,6 +45,7 @@ data class MeetingUiState(
     val boardRating: String? = null,
     val boardSummary: String = "",
     val appConfig: AppConfig = AppConfig(),
+    val pendingActions: List<DecisionActionEntity> = emptyList(),
 )
 
 @HiltViewModel
@@ -51,6 +54,7 @@ class MeetingViewModel @Inject constructor(
     private val apiKeyProvider: DataStoreApiKeyProvider,
     private val repository: EventRepository,
     private val presetConfig: MeetingPresetConfig,
+    private val actionDao: DecisionActionDao,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -123,6 +127,13 @@ class MeetingViewModel @Inject constructor(
                 .collect { newPreset ->
                     runtime.reconfigure(newPreset)
                 }
+        }
+
+        // 监听待执行的决策 action items
+        viewModelScope.launch {
+            actionDao.observePending().collect { actions ->
+                _uiState.value = _uiState.value.copy(pendingActions = actions)
+            }
         }
     }
 
@@ -271,6 +282,38 @@ class MeetingViewModel @Inject constructor(
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, text)
             putExtra(Intent.EXTRA_SUBJECT, "[Agentra] ${_uiState.value.subject}")
+        }
+    }
+
+    // ── Decision Action Items ────────────────────────────────────
+
+    /** 添加 action item */
+    fun addActionItem(title: String, description: String = "", assignee: String = "") {
+        val state = _uiState.value
+        viewModelScope.launch {
+            actionDao.insert(
+                DecisionActionEntity(
+                    traceId = runtime.board.value.let { "mtg_${state.subject.hashCode()}_${System.currentTimeMillis()}" },
+                    subject = state.subject,
+                    title = title,
+                    description = description,
+                    assignee = assignee,
+                )
+            )
+        }
+    }
+
+    /** 更新 action item 状态 */
+    fun updateActionStatus(actionId: Long, newStatus: String) {
+        viewModelScope.launch {
+            actionDao.updateStatus(actionId, newStatus)
+        }
+    }
+
+    /** 删除 action item */
+    fun deleteAction(actionId: Long) {
+        viewModelScope.launch {
+            actionDao.delete(actionId)
         }
     }
 

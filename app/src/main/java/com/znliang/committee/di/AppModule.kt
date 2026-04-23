@@ -13,7 +13,9 @@ import com.znliang.committee.data.db.AgentEvolutionDao
 import com.znliang.committee.data.db.AgentSkillDao
 import com.znliang.committee.data.db.AppConfigDao
 import com.znliang.committee.data.db.CommitteeDatabase
+import com.znliang.committee.data.db.DecisionActionDao
 import com.znliang.committee.data.db.EventDao
+import com.znliang.committee.data.db.MeetingMaterialDao
 import com.znliang.committee.data.db.MeetingOutcomeDao
 import com.znliang.committee.data.db.MeetingSessionDao
 import com.znliang.committee.data.db.PromptChangelogDao
@@ -23,14 +25,12 @@ import com.znliang.committee.data.repository.AppConfigRepository
 import com.znliang.committee.data.repository.EventRepository
 import com.znliang.committee.data.repository.EvolutionRepository
 import com.znliang.committee.engine.AgentPool
+import com.znliang.committee.domain.model.MeetingPreset
+import com.znliang.committee.domain.model.MeetingPresetConfig
 import com.znliang.committee.engine.runtime.AgentRuntime
-import com.znliang.committee.engine.runtime.AnalystAgent
 import com.znliang.committee.engine.runtime.DynamicToolRegistry
-import com.znliang.committee.engine.runtime.ExecutorAgent
-import com.znliang.committee.engine.runtime.IntelAgent
-import com.znliang.committee.engine.runtime.RiskAgent
-import com.znliang.committee.engine.runtime.StrategistAgent
-import com.znliang.committee.engine.runtime.SupervisorAgent
+import com.znliang.committee.engine.runtime.GenericAgent
+import com.znliang.committee.engine.runtime.GenericSupervisor
 import com.znliang.committee.engine.runtime.WebSearchService
 import dagger.Module
 import dagger.Provides
@@ -152,6 +152,49 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+// ── Room 迁移：v7 → v8（多模态会议材料）─────────────────────────
+
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS meeting_materials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                meetingTraceId TEXT NOT NULL,
+                fileName TEXT NOT NULL,
+                mimeType TEXT NOT NULL,
+                localPath TEXT NOT NULL,
+                base64Cache TEXT NOT NULL DEFAULT '',
+                description TEXT NOT NULL DEFAULT '',
+                addedAt INTEGER NOT NULL DEFAULT 0
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_meeting_materials_meetingTraceId ON meeting_materials(meetingTraceId)")
+    }
+}
+
+// ── Room 迁移：v8 → v9（决策执行追踪）─────────────────────────
+
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS decision_actions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                traceId TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                assignee TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                createdAt INTEGER NOT NULL DEFAULT 0,
+                updatedAt INTEGER NOT NULL DEFAULT 0,
+                dueDate INTEGER
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_decision_actions_traceId ON decision_actions(traceId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_decision_actions_status ON decision_actions(status)")
+    }
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
@@ -160,7 +203,7 @@ object AppModule {
     fun provideDatabase(@ApplicationContext ctx: Context): CommitteeDatabase =
         Room.databaseBuilder(ctx, CommitteeDatabase::class.java, "committee.db")
             .fallbackToDestructiveMigrationFrom(1, 2, 3)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
             .build()
 
     @Provides fun provideEventDao(db: CommitteeDatabase): EventDao = db.eventDao()
@@ -173,6 +216,8 @@ object AppModule {
     @Provides fun provideOutcomeDao(db: CommitteeDatabase): MeetingOutcomeDao = db.outcomeDao()
     @Provides fun provideSkillDefinitionDao(db: CommitteeDatabase): SkillDefinitionDao = db.skillDefinitionDao()
     @Provides fun provideAppConfigDao(db: CommitteeDatabase): AppConfigDao = db.appConfigDao()
+    @Provides fun provideMaterialDao(db: CommitteeDatabase): MeetingMaterialDao = db.materialDao()
+    @Provides fun provideDecisionActionDao(db: CommitteeDatabase): DecisionActionDao = db.decisionActionDao()
     @Provides @Singleton fun provideGson(): Gson = Gson()
 
     @Provides @Singleton
@@ -222,7 +267,13 @@ object AppModule {
         toolRegistry: DynamicToolRegistry,
     ): AgentPool = AgentPool(apiKeyProvider, gson, streamingClient, appContext, toolRegistry)
 
-    // ── Agent Runtime（v7 — 自我进化） ─────────────────────────────
+    // ── MeetingPresetConfig ──────────────────────────────────────
+
+    @Provides @Singleton
+    fun provideMeetingPresetConfig(dataStore: DataStore<Preferences>): MeetingPresetConfig =
+        MeetingPresetConfig(dataStore)
+
+    // ── Agent Runtime（v8 — preset-driven dynamic agents） ────────
 
     @Provides @Singleton
     fun provideAgentRuntime(
@@ -231,16 +282,33 @@ object AppModule {
         repository: EventRepository,
         evolutionRepo: EvolutionRepository,
         toolRegistry: DynamicToolRegistry,
+        presetConfig: MeetingPresetConfig,
         @ApplicationContext appContext: Context,
     ): AgentRuntime {
-        val supervisor = SupervisorAgent()
-        val agents = listOf(
-            AnalystAgent(),
-            RiskAgent(),
-            StrategistAgent(),
-            IntelAgent(),
-            ExecutorAgent(),
+        val preset = presetConfig.getActivePreset()
+
+        // Find supervisor role (last role or role with id containing "supervisor"/"coordinator"/"judge"/"chair")
+        val supervisorRoleIds = setOf("supervisor", "coordinator", "judge", "area_chair")
+        val supervisorPresetRole = preset.roles.find { it.id in supervisorRoleIds }
+            ?: preset.roles.last()
+
+        val supervisor = GenericSupervisor(
+            presetRole = supervisorPresetRole,
+            ratingScale = preset.ratingScale,
+            committeeLabel = preset.committeeLabel,
         )
+
+        // Build agent list from non-supervisor roles
+        val agents = preset.roles
+            .filter { it.id != supervisorPresetRole.id }
+            .map { role ->
+                GenericAgent(
+                    presetRole = role,
+                    systemPrompt = "", // Will be built dynamically by buildUnifiedPrompt
+                    canUseTools = role.canUseTools,
+                )
+            }
+
         return AgentRuntime(
             agentPool = agentPool,
             supervisor = supervisor,
@@ -250,8 +318,14 @@ object AppModule {
             evolutionRepo = evolutionRepo,
             toolRegistry = toolRegistry,
             appContext = appContext,
+            preset = preset,
         )
     }
+
+    private val httpLogLevel: HttpLoggingInterceptor.Level
+        get() = if (com.znliang.committee.BuildConfig.DEBUG)
+            HttpLoggingInterceptor.Level.BODY
+        else HttpLoggingInterceptor.Level.BASIC
 
     @Provides @Singleton @Named("normal")
     fun provideNormalClient(): OkHttpClient =
@@ -259,7 +333,7 @@ object AppModule {
             .addInterceptor(HttpLoggingInterceptor { msg ->
                 android.util.Log.d("OkHttp", msg)
             }.apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                level = httpLogLevel
             })
             .build()
 
@@ -269,7 +343,7 @@ object AppModule {
             .addInterceptor(HttpLoggingInterceptor { msg ->
                 android.util.Log.d("OkHttp", msg)
             }.apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                level = httpLogLevel
             })
             .build()
 

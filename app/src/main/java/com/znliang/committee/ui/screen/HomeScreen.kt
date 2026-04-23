@@ -44,6 +44,8 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.HowToVote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -92,6 +94,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.znliang.committee.R
+import com.znliang.committee.data.db.DecisionActionEntity
 import com.znliang.committee.domain.model.MeetingPresetConfig
 import com.znliang.committee.domain.model.MeetingState
 import com.znliang.committee.domain.model.PresetRole
@@ -323,6 +326,45 @@ fun HomeScreen(
                             }
                         },
                     )
+                }
+            }
+
+            // ── Action Items (pending decisions to execute) ────────────
+            if (uiState.pendingActions.isNotEmpty()) {
+                item(key = "action_items") {
+                    ActionItemsCard(
+                        actions = uiState.pendingActions,
+                        onStatusChange = { id, status -> viewModel.updateActionStatus(id, status) },
+                        onDelete = { id -> viewModel.deleteAction(id) },
+                    )
+                }
+            }
+
+            // ── Add Action Item (when meeting finished) ───────────────
+            if (uiState.boardFinished) {
+                item(key = "add_action") {
+                    var showAddAction by remember { mutableStateOf(false) }
+                    OutlinedButton(
+                        onClick = { showAddAction = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                        border = BorderStroke(1.dp, BorderColor),
+                    ) {
+                        Icon(Icons.Default.PlaylistAdd, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.action_add))
+                    }
+                    if (showAddAction) {
+                        AddActionItemDialog(
+                            onDismiss = { showAddAction = false },
+                            onAdd = { title, desc ->
+                                viewModel.addActionItem(title, desc)
+                                showAddAction = false
+                            },
+                        )
+                    }
                 }
             }
 
@@ -1097,5 +1139,170 @@ private fun AgentBadge(text: String, color: Color) {
         modifier = Modifier
             .background(color.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
             .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
+// ── Action Items Card ─────────────────────────────────────────
+
+@Composable
+private fun ActionItemsCard(
+    actions: List<DecisionActionEntity>,
+    onStatusChange: (Long, String) -> Unit,
+    onDelete: (Long) -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+        border = BorderStroke(1.dp, BorderColor),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.PlaylistAdd,
+                    null,
+                    tint = CommitteeGold,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    stringResource(R.string.action_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = CommitteeGold,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "${actions.size}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+
+            actions.forEach { action ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Status toggle
+                    val isDone = action.status == "done"
+                    IconButton(
+                        onClick = {
+                            val next = when (action.status) {
+                                "pending" -> "in_progress"
+                                "in_progress" -> "done"
+                                else -> "pending"
+                            }
+                            onStatusChange(action.id, next)
+                        },
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(
+                            if (isDone) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            null,
+                            tint = when (action.status) {
+                                "done" -> BuyColor
+                                "in_progress" -> CommitteeGold
+                                else -> TextMuted
+                            },
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            action.title,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isDone) TextMuted else TextPrimary,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        if (action.assignee.isNotBlank()) {
+                            Text(
+                                action.assignee,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted,
+                            )
+                        }
+                    }
+                    // Status badge
+                    val statusLabel = when (action.status) {
+                        "pending" -> stringResource(R.string.action_pending)
+                        "in_progress" -> stringResource(R.string.action_in_progress)
+                        "done" -> stringResource(R.string.action_done)
+                        else -> action.status
+                    }
+                    val statusColor = when (action.status) {
+                        "done" -> BuyColor
+                        "in_progress" -> CommitteeGold
+                        else -> TextMuted
+                    }
+                    Text(
+                        statusLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = statusColor,
+                        modifier = Modifier
+                            .background(statusColor.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddActionItemDialog(
+    onDismiss: () -> Unit,
+    onAdd: (String, String) -> Unit,
+) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                stringResource(R.string.action_add),
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text(stringResource(R.string.action_title_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text(stringResource(R.string.action_desc_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 3,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (title.isNotBlank()) onAdd(title, description) },
+                enabled = title.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.skill_add_btn), color = CommitteeGold, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel), color = TextMuted)
+            }
+        },
+        containerColor = SurfaceCard,
     )
 }

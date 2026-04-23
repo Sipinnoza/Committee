@@ -409,4 +409,13 @@
     <string name="stats_avg_rounds">Avg Rounds</string>
     <string name="stats_rating_distribution">Rating Distribution</string>
     <string name="stats_recent_week">%d decisions in the last 7 days</string>
+
+    <!-- Action Items -->
+    <string name="action_title">Action Items</string>
+    <string name="action_add">Add Action</string>
+    <string name="action_title_hint">What needs to be done?</string>
+    <string name="action_desc_hint">Details (optional)</string>
+    <string name="action_pending">Pending</string>
+    <string name="action_in_progress">In Progress</string>
+    <string name="action_done">Done</string>
 </resources>

@@ -409,4 +409,13 @@
     <string name="stats_avg_rounds">平均轮次</string>
     <string name="stats_rating_distribution">评级分布</string>
     <string name="stats_recent_week">近7天 %d 次决策</string>
+
+    <!-- 执行追踪 -->
+    <string name="action_title">待办事项</string>
+    <string name="action_add">添加待办</string>
+    <string name="action_title_hint">需要做什么？</string>
+    <string name="action_desc_hint">详细描述（选填）</string>
+    <string name="action_pending">待处理</string>
+    <string name="action_in_progress">进行中</string>
+    <string name="action_done">已完成</string>
 </resources>

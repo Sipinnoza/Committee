@@ -18,8 +18,12 @@ import androidx.room.RoomDatabase
         SkillDefinitionEntity::class,
         // v7: app 设置
         AppConfigEntity::class,
+        // v8: 多模态会议材料
+        MeetingMaterialEntity::class,
+        // v9: 决策执行追踪
+        DecisionActionEntity::class,
     ],
-    version = 7 ,
+    version = 9,
     exportSchema = false,
 )
 abstract class CommitteeDatabase : RoomDatabase() {
@@ -39,4 +43,10 @@ abstract class CommitteeDatabase : RoomDatabase() {
 
     // v7: App设置 Dao
     abstract fun appConfigDao(): AppConfigDao
+
+    // v8: 多模态材料 Dao
+    abstract fun materialDao(): MeetingMaterialDao
+
+    // v9: 决策执行追踪 Dao
+    abstract fun decisionActionDao(): DecisionActionDao
 }
