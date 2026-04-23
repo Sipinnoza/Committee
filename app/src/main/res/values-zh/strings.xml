@@ -432,4 +432,8 @@
     <string name="history_filter_all">全部</string>
     <string name="history_filter_result">%d 条结果</string>
     <string name="history_filter_empty">没有匹配的决策记录</string>
+
+    <!-- 决策要点 -->
+    <string name="keypoints_title">决策要点</string>
+    <string name="keypoints_count">%d 条要点</string>
 </resources>

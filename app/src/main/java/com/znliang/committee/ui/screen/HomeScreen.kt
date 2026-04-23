@@ -34,6 +34,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
@@ -1080,14 +1081,11 @@ private fun MeetingSummaryCard(
                 Spacer(Modifier.height(12.dp))
             }
 
-            // 摘要
+            // 摘要 — 结构化决策要点
             if (summary.isNotBlank()) {
                 HorizontalDivider(color = BorderColor, modifier = Modifier.padding(vertical = 4.dp))
                 Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.home_discussion_summary), style = MaterialTheme.typography.labelMedium, color = TextSecondary)
-                Spacer(Modifier.height(4.dp))
-                Text(summary, style = MaterialTheme.typography.bodySmall, color = TextPrimary,
-                    lineHeight = 20.sp)
+                DecisionKeyPointsView(summary = summary)
             }
 
             Spacer(Modifier.height(16.dp))
@@ -1133,6 +1131,189 @@ private fun MeetingSummaryCard(
                 Icon(Icons.Default.Add, null, Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.home_new_meeting))
+            }
+        }
+    }
+}
+
+// ── Decision Key Points Structured View ──────────────────────────────────────
+
+/**
+ * 将会议摘要解析为结构化决策要点展示。
+ * 支持 Markdown 风格的分段（## 标题 / - 列表）和纯文本回退。
+ */
+@Composable
+private fun DecisionKeyPointsView(summary: String) {
+    val sections = remember(summary) { parseKeyPoints(summary) }
+
+    if (sections.isEmpty()) {
+        // Fallback: show raw summary
+        Text(
+            stringResource(R.string.home_discussion_summary),
+            style = MaterialTheme.typography.labelMedium,
+            color = TextSecondary,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(summary, style = MaterialTheme.typography.bodySmall, color = TextPrimary, lineHeight = 20.sp)
+    } else {
+        // Expandable key points
+        var expanded by remember { mutableStateOf(true) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.Assignment, null,
+                tint = CommitteeGold, modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                stringResource(R.string.keypoints_title),
+                style = MaterialTheme.typography.labelMedium,
+                color = CommitteeGold,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                stringResource(R.string.keypoints_count, sections.sumOf { it.points.size }),
+                style = MaterialTheme.typography.labelSmall,
+                color = TextMuted,
+            )
+            Icon(
+                if (expanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+                null,
+                tint = TextMuted,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+
+        AnimatedVisibility(visible = expanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Spacer(Modifier.height(4.dp))
+                sections.forEach { section ->
+                    KeyPointSection(section)
+                }
+            }
+        }
+    }
+}
+
+private data class KeySection(
+    val title: String,
+    val icon: String, // emoji or category
+    val points: List<String>,
+)
+
+/**
+ * Parse summary text into structured sections.
+ * Handles:
+ * - Markdown headers (## Title / **Title**)
+ * - Bullet points (- item / * item / • item)
+ * - Numbered lists (1. item)
+ * Falls back to splitting by newlines with heuristic grouping.
+ */
+private fun parseKeyPoints(summary: String): List<KeySection> {
+    val lines = summary.lines().map { it.trim() }.filter { it.isNotEmpty() }
+    if (lines.size < 2) return emptyList()
+
+    val sections = mutableListOf<KeySection>()
+    var currentTitle = ""
+    var currentPoints = mutableListOf<String>()
+
+    for (line in lines) {
+        when {
+            // Markdown headers
+            line.startsWith("##") || line.startsWith("**") && line.endsWith("**") -> {
+                if (currentPoints.isNotEmpty()) {
+                    sections.add(buildSection(currentTitle, currentPoints))
+                    currentPoints = mutableListOf()
+                }
+                currentTitle = line.removePrefix("##").removePrefix("**").removeSuffix("**")
+                    .removeSuffix(":").removeSuffix("：").trim()
+            }
+            // Bullet points
+            line.startsWith("- ") || line.startsWith("* ") || line.startsWith("• ") -> {
+                currentPoints.add(line.removePrefix("- ").removePrefix("* ").removePrefix("• ").trim())
+            }
+            // Numbered list
+            line.matches(Regex("^\\d+[.、)）]\\s*.*")) -> {
+                currentPoints.add(line.replace(Regex("^\\d+[.、)）]\\s*"), "").trim())
+            }
+            // Colon-delimited section header
+            (line.endsWith(":") || line.endsWith("：")) && line.length < 30 -> {
+                if (currentPoints.isNotEmpty()) {
+                    sections.add(buildSection(currentTitle, currentPoints))
+                    currentPoints = mutableListOf()
+                }
+                currentTitle = line.removeSuffix(":").removeSuffix("：").trim()
+            }
+            // Regular text → treat as a point under current section
+            else -> {
+                currentPoints.add(line)
+            }
+        }
+    }
+    if (currentPoints.isNotEmpty()) {
+        sections.add(buildSection(currentTitle, currentPoints))
+    }
+
+    return sections
+}
+
+private fun buildSection(title: String, points: List<String>): KeySection {
+    val lowerTitle = title.lowercase()
+    val icon = when {
+        lowerTitle.contains("结论") || lowerTitle.contains("conclusion") || lowerTitle.contains("决策") || lowerTitle.contains("decision") -> "verdict"
+        lowerTitle.contains("风险") || lowerTitle.contains("risk") || lowerTitle.contains("警告") || lowerTitle.contains("warning") -> "risk"
+        lowerTitle.contains("行动") || lowerTitle.contains("action") || lowerTitle.contains("建议") || lowerTitle.contains("recommend") -> "action"
+        lowerTitle.contains("论点") || lowerTitle.contains("argument") || lowerTitle.contains("分析") || lowerTitle.contains("analysis") -> "analysis"
+        lowerTitle.contains("共识") || lowerTitle.contains("consensus") || lowerTitle.contains("投票") || lowerTitle.contains("vote") -> "consensus"
+        else -> "point"
+    }
+    return KeySection(
+        title = title.ifBlank { "Key Points" },
+        icon = icon,
+        points = points,
+    )
+}
+
+@Composable
+private fun KeyPointSection(section: KeySection) {
+    val (iconVector, iconColor) = when (section.icon) {
+        "verdict" -> Icons.Default.CheckCircle to BuyColor
+        "risk" -> Icons.Default.Warning to SellColor
+        "action" -> Icons.Default.PlayArrow to CommitteeGold
+        "consensus" -> Icons.Default.HowToVote to BuyColor
+        "analysis" -> Icons.Default.Analytics to Color(0xFF2196F3)
+        else -> Icons.Default.ChevronRight to TextSecondary
+    }
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(iconVector, null, tint = iconColor, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                section.title,
+                style = MaterialTheme.typography.labelMedium,
+                color = TextPrimary,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        section.points.forEach { point ->
+            Row(
+                modifier = Modifier.padding(start = 20.dp, bottom = 2.dp),
+            ) {
+                Text("•", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    point,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextPrimary,
+                    lineHeight = 18.sp,
+                )
             }
         }
     }
