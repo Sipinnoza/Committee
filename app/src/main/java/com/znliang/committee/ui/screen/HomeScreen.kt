@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -312,6 +313,7 @@ fun HomeScreen(
                         rating = uiState.boardRating,
                         summary = uiState.boardSummary,
                         subject = uiState.subject,
+                        votes = uiState.boardVotes,
                         ratingScale = activePreset.ratingScale,
                         onNewMeeting = {
                             viewModel.resetToIdle()
@@ -1058,6 +1060,7 @@ private fun MeetingSummaryCard(
     rating: String?,
     summary: String,
     subject: String,
+    votes: Map<String, com.znliang.committee.engine.runtime.BoardVote> = emptyMap(),
     ratingScale: List<String> = emptyList(),
     onNewMeeting: () -> Unit,
     onShare: () -> Unit = {},
@@ -1100,6 +1103,12 @@ private fun MeetingSummaryCard(
                         color = ratingColor, fontWeight = FontWeight.ExtraBold)
                 }
                 Spacer(Modifier.height(12.dp))
+            }
+
+            // 投票结果可视化
+            if (votes.isNotEmpty()) {
+                VoteResultsBar(votes = votes)
+                Spacer(Modifier.height(4.dp))
             }
 
             // 摘要 — 结构化决策要点
@@ -1204,6 +1213,136 @@ private fun ParticipantAvatarRow(roles: List<PresetRole>) {
             color = TextMuted,
             maxLines = 1,
         )
+    }
+}
+
+// ── Vote Results Visualization ──────────────────────────────────────────────
+
+/**
+ * 投票结果可视化 — 水平堆叠条 + 各Agent投票详情
+ */
+@Composable
+private fun VoteResultsBar(votes: Map<String, com.znliang.committee.engine.runtime.BoardVote>) {
+    val agreeCount = votes.values.count { it.agree }
+    val disagreeCount = votes.size - agreeCount
+    val agreeRatio = if (votes.isNotEmpty()) agreeCount.toFloat() / votes.size else 0f
+
+    Column {
+        // Header
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.HowToVote, null, tint = CommitteeGold, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                stringResource(R.string.vote_results_title),
+                style = MaterialTheme.typography.labelMedium,
+                color = CommitteeGold,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                stringResource(R.string.vote_results_count, agreeCount, disagreeCount),
+                style = MaterialTheme.typography.labelSmall,
+                color = TextMuted,
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+
+        // Stacked horizontal bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(20.dp)
+                .clip(RoundedCornerShape(10.dp)),
+        ) {
+            if (agreeRatio > 0f) {
+                Box(
+                    modifier = Modifier
+                        .weight(agreeRatio.coerceAtLeast(0.05f))
+                        .fillMaxHeight()
+                        .background(BuyColor.copy(alpha = 0.7f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (agreeCount > 0) {
+                        Text(
+                            "$agreeCount",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                        )
+                    }
+                }
+            }
+            if (disagreeCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .weight((1f - agreeRatio).coerceAtLeast(0.05f))
+                        .fillMaxHeight()
+                        .background(SellColor.copy(alpha = 0.7f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "$disagreeCount",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(2.dp))
+        // Legend
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(stringResource(R.string.vote_agree_label), style = MaterialTheme.typography.labelSmall, color = BuyColor)
+            Text(stringResource(R.string.vote_disagree_label), style = MaterialTheme.typography.labelSmall, color = SellColor)
+        }
+
+        // Per-agent vote breakdown
+        Spacer(Modifier.height(6.dp))
+        votes.forEach { (role, vote) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 1.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            if (vote.agree) BuyColor.copy(alpha = 0.7f) else SellColor.copy(alpha = 0.7f),
+                            CircleShape,
+                        ),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    role,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextPrimary,
+                    modifier = Modifier.width(80.dp),
+                    maxLines = 1,
+                )
+                Text(
+                    if (vote.agree) stringResource(R.string.vote_agree_label) else stringResource(R.string.vote_disagree_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (vote.agree) BuyColor else SellColor,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (vote.reason.isNotBlank()) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        vote.reason.take(40),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
     }
 }
 

@@ -440,4 +440,10 @@
     <!-- Participants -->
     <string name="participants_label">%d Participants</string>
     <string name="history_rounds_label">%d rounds</string>
+
+    <!-- Vote Results -->
+    <string name="vote_results_title">Vote Results</string>
+    <string name="vote_results_count">%1$d Agree · %2$d Disagree</string>
+    <string name="vote_agree_label">Agree</string>
+    <string name="vote_disagree_label">Disagree</string>
 </resources>

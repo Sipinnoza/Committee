@@ -15,6 +15,7 @@ import com.znliang.committee.domain.model.SpeechRecord
 import com.znliang.committee.engine.LlmConfig
 import com.znliang.committee.engine.runtime.AgentRuntime
 import com.znliang.committee.engine.runtime.BoardPhase
+import com.znliang.committee.engine.runtime.BoardVote
 import com.znliang.committee.engine.runtime.MaterialRef
 import android.content.Context
 import android.content.Intent
@@ -44,6 +45,7 @@ data class MeetingUiState(
     val boardFinished: Boolean = false,
     val boardRating: String? = null,
     val boardSummary: String = "",
+    val boardVotes: Map<String, BoardVote> = emptyMap(),
     val appConfig: AppConfig = AppConfig(),
     val pendingActions: List<DecisionActionEntity> = emptyList(),
 )
@@ -88,6 +90,7 @@ class MeetingViewModel @Inject constructor(
                     boardFinished = board.finished,
                     boardRating = board.finalRating,
                     boardSummary = board.summary,
+                    boardVotes = board.votes,
                     currentState = when {
                         board.finished -> MeetingState.COMPLETED
                         board.phase == BoardPhase.IDLE -> MeetingState.IDLE
