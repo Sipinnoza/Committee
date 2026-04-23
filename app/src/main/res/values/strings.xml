@@ -422,4 +422,8 @@
     <!-- Quick Decision Mode -->
     <string name="quick_decision_label">Quick Decision</string>
     <string name="quick_decision_desc">Streamlined mode: 3–5 rounds, faster consensus, ideal for time-sensitive decisions</string>
+
+    <!-- Smart Preset Recommendation -->
+    <string name="recommend_preset_hint">Recommended template for your topic:</string>
+    <string name="recommend_switch">Switch</string>
 </resources>

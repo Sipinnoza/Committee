@@ -422,4 +422,8 @@
     <!-- 快速决策模式 -->
     <string name="quick_decision_label">快速决策</string>
     <string name="quick_decision_desc">精简模式：3–5轮快速达成共识，适合时间紧迫的决策场景</string>
+
+    <!-- 智能模板推荐 -->
+    <string name="recommend_preset_hint">为你的议题推荐：</string>
+    <string name="recommend_switch">切换</string>
 </resources>

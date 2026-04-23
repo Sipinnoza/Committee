@@ -100,6 +100,7 @@ import com.znliang.committee.R
 import com.znliang.committee.data.db.DecisionActionEntity
 import com.znliang.committee.domain.model.MeetingPresetConfig
 import com.znliang.committee.domain.model.MeetingState
+import com.znliang.committee.domain.model.PresetRecommender
 import com.znliang.committee.domain.model.PresetRole
 import com.znliang.committee.engine.runtime.BoardPhase
 import com.znliang.committee.engine.runtime.MaterialRef
@@ -252,6 +253,8 @@ fun HomeScreen(
                     MeetingInitCard(
                         uiState = uiState,
                         viewModel = viewModel,
+                        presetConfig = presetConfig,
+                        activePresetId = activePreset.id,
                         subjectInput = subjectInput,
                         onSubjectChange = { subjectInput = it },
                         attachedUris = attachedUris,
@@ -423,6 +426,8 @@ fun HomeScreen(
 private fun MeetingInitCard(
     uiState: MeetingUiState,
     viewModel: MeetingViewModel,
+    presetConfig: MeetingPresetConfig,
+    activePresetId: String,
     subjectInput: String,
     onSubjectChange: (String) -> Unit,
     attachedUris: MutableList<Uri>,
@@ -550,6 +555,59 @@ private fun MeetingInitCard(
                 }),
                 colors = committeeTextFieldColors(),
             )
+
+            // ── Smart Preset Recommendation ──
+            val recommendedId = remember(subjectInput) { PresetRecommender.recommend(subjectInput) }
+            val scope = rememberCoroutineScope()
+            if (recommendedId != null && recommendedId != activePresetId) {
+                val recPreset = remember(recommendedId) { presetConfig.findPreset(recommendedId) }
+                if (recPreset != null) {
+                    val presetName = if (recPreset.nameRes() != 0) stringResource(recPreset.nameRes()) else recPreset.name
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CommitteeGold.copy(alpha = 0.08f))
+                            .border(1.dp, CommitteeGold.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                            .clickable {
+                                scope.launch { presetConfig.setActivePreset(recommendedId) }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Assignment, null,
+                            tint = CommitteeGold,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.recommend_preset_hint),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted,
+                            )
+                            Text(
+                                presetName,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = CommitteeGold,
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.recommend_switch),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CommitteeGold,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Icon(
+                            Icons.Default.ChevronRight, null,
+                            tint = CommitteeGold,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+            }
 
             // ── Attachment area ──
             Row(
