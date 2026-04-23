@@ -400,4 +400,13 @@
     <string name="preset_rating_scale_hint">Rating Scale (comma-separated)</string>
     <string name="preset_confirm_delete">Delete Preset</string>
     <string name="preset_delete_msg">Delete preset \"%1$s\"? This cannot be undone.</string>
+
+    <!-- Decision Statistics -->
+    <string name="stats_title">Decision Insights</string>
+    <string name="stats_total">Total</string>
+    <string name="stats_completed">Completed</string>
+    <string name="stats_completion_rate">Rate</string>
+    <string name="stats_avg_rounds">Avg Rounds</string>
+    <string name="stats_rating_distribution">Rating Distribution</string>
+    <string name="stats_recent_week">%d decisions in the last 7 days</string>
 </resources>

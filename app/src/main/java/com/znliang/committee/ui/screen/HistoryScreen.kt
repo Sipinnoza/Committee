@@ -1,23 +1,29 @@
 package com.znliang.committee.ui.screen
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.znliang.committee.R
 import com.znliang.committee.data.db.MeetingSessionEntity
 import com.znliang.committee.domain.model.MeetingState
@@ -77,6 +83,11 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // ── Decision Statistics Dashboard ──────────────────
+                item(key = "stats_dashboard") {
+                    DecisionStatsDashboard(sessions = uiState.sessions)
+                }
+
                 items(uiState.sessions, key = { it.traceId }) { session ->
                     SessionCard(
                         session = session,
@@ -140,4 +151,192 @@ private fun SessionCard(
             }
         }
     }
+}
+
+// ── Decision Statistics Dashboard ─────────────────────────────
+
+@Composable
+private fun DecisionStatsDashboard(sessions: List<MeetingSessionEntity>) {
+    val stats = remember(sessions) { computeStats(sessions) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+        border = BorderStroke(1.dp, CommitteeGold.copy(alpha = 0.3f)),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            // Header
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Analytics, null, tint = CommitteeGold, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(R.string.stats_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = CommitteeGold,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+
+            // Key metrics row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                StatMetric(
+                    label = stringResource(R.string.stats_total),
+                    value = "${stats.total}",
+                    color = TextPrimary,
+                )
+                StatMetric(
+                    label = stringResource(R.string.stats_completed),
+                    value = "${stats.completed}",
+                    color = BuyColor,
+                )
+                StatMetric(
+                    label = stringResource(R.string.stats_completion_rate),
+                    value = "${stats.completionRate}%",
+                    color = CommitteeGold,
+                )
+                StatMetric(
+                    label = stringResource(R.string.stats_avg_rounds),
+                    value = "%.1f".format(stats.avgRounds),
+                    color = TextSecondary,
+                )
+            }
+
+            // Rating distribution
+            if (stats.ratingDistribution.isNotEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                HorizontalDivider(color = BorderColor)
+                Spacer(Modifier.height(10.dp))
+
+                Text(
+                    stringResource(R.string.stats_rating_distribution),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextSecondary,
+                )
+                Spacer(Modifier.height(8.dp))
+
+                // Horizontal bar chart
+                val maxCount = stats.ratingDistribution.values.maxOrNull() ?: 1
+                stats.ratingDistribution.forEach { (rating, count) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            rating,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextPrimary,
+                            modifier = Modifier.width(80.dp),
+                            maxLines = 1,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(14.dp)
+                                .clip(RoundedCornerShape(7.dp))
+                                .background(BorderColor),
+                        ) {
+                            val fraction = count.toFloat() / maxCount
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(fraction)
+                                    .clip(RoundedCornerShape(7.dp))
+                                    .background(CommitteeGold.copy(alpha = 0.7f)),
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "$count",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted,
+                            modifier = Modifier.width(24.dp),
+                        )
+                    }
+                }
+            }
+
+            // Recent activity indicator
+            if (stats.recentWeekCount > 0) {
+                Spacer(Modifier.height(10.dp))
+                HorizontalDivider(color = BorderColor)
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(BuyColor, CircleShape),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(R.string.stats_recent_week, stats.recentWeekCount),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatMetric(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            value,
+            style = MaterialTheme.typography.titleLarge,
+            color = color,
+            fontWeight = FontWeight.Bold,
+            fontSize = 22.sp,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = TextMuted,
+        )
+    }
+}
+
+private data class DecisionStats(
+    val total: Int,
+    val completed: Int,
+    val completionRate: Int,
+    val avgRounds: Float,
+    val ratingDistribution: Map<String, Int>,
+    val recentWeekCount: Int,
+)
+
+private fun computeStats(sessions: List<MeetingSessionEntity>): DecisionStats {
+    val total = sessions.size
+    val completed = sessions.count { it.isCompleted }
+    val completionRate = if (total > 0) (completed * 100) / total else 0
+    val avgRounds = if (sessions.isNotEmpty())
+        sessions.map { it.currentRound }.average().toFloat()
+    else 0f
+
+    val ratingDist = sessions
+        .mapNotNull { it.rating }
+        .groupingBy { it }
+        .eachCount()
+        .toSortedMap()
+
+    val oneWeekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
+    val recentWeek = sessions.count { it.startTime > oneWeekAgo }
+
+    return DecisionStats(
+        total = total,
+        completed = completed,
+        completionRate = completionRate,
+        avgRounds = avgRounds,
+        ratingDistribution = ratingDist,
+        recentWeekCount = recentWeek,
+    )
 }

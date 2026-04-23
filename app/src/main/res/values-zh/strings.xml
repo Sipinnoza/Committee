@@ -400,4 +400,13 @@
     <string name="preset_rating_scale_hint">评级选项（逗号分隔）</string>
     <string name="preset_confirm_delete">删除预设</string>
     <string name="preset_delete_msg">确定要删除预设「%1$s」吗？此操作不可撤销。</string>
+
+    <!-- 决策统计 -->
+    <string name="stats_title">决策洞察</string>
+    <string name="stats_total">总计</string>
+    <string name="stats_completed">已完成</string>
+    <string name="stats_completion_rate">完成率</string>
+    <string name="stats_avg_rounds">平均轮次</string>
+    <string name="stats_rating_distribution">评级分布</string>
+    <string name="stats_recent_week">近7天 %d 次决策</string>
 </resources>
