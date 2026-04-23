@@ -256,18 +256,46 @@ private fun SessionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(session.subject, style = MaterialTheme.typography.titleMedium,
                         color = TextPrimary, fontWeight = FontWeight.Bold)
-                    Text(session.traceId, style = MaterialTheme.typography.labelSmall, color = TextMuted)
                     Text(startTime, style = MaterialTheme.typography.labelSmall, color = TextMuted)
                 }
                 StateBadge(state)
             }
 
-            session.rating?.let { rating ->
-                Text("${stringResource(R.string.history_rating_label)}$rating", style = MaterialTheme.typography.bodyMedium,
-                    color = CommitteeGold, fontWeight = FontWeight.SemiBold)
+            // Meeting metadata chips
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Rounds chip
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = SurfaceDark,
+                ) {
+                    Text(
+                        stringResource(R.string.history_rounds_label, session.currentRound),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+                // Rating chip
+                session.rating?.let { rating ->
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = CommitteeGold.copy(alpha = 0.1f),
+                    ) {
+                        Text(
+                            rating,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CommitteeGold,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
             }
 
             if (!session.isCompleted) {

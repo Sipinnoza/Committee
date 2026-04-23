@@ -436,4 +436,8 @@
     <!-- 决策要点 -->
     <string name="keypoints_title">决策要点</string>
     <string name="keypoints_count">%d 条要点</string>
+
+    <!-- 参与者 -->
+    <string name="participants_label">%d 位参与者</string>
+    <string name="history_rounds_label">%d 轮</string>
 </resources>

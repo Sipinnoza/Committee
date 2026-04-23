@@ -436,4 +436,8 @@
     <!-- Decision Key Points -->
     <string name="keypoints_title">Decision Key Points</string>
     <string name="keypoints_count">%d points</string>
+
+    <!-- Participants -->
+    <string name="participants_label">%d Participants</string>
+    <string name="history_rounds_label">%d rounds</string>
 </resources>

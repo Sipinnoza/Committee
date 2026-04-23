@@ -244,6 +244,7 @@ fun HomeScreen(
                     item(key = "status_bar") {
                         MeetingStatusBar(
                             uiState = uiState,
+                            roles = activePreset.roles,
                         )
                     }
                 }
@@ -905,6 +906,7 @@ private fun VoteDialog(
 @Composable
 private fun MeetingStatusBar(
     uiState: MeetingUiState,
+    roles: List<PresetRole> = emptyList(),
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -1022,6 +1024,25 @@ private fun MeetingStatusBar(
                         style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary,
                     )
+
+                    // ── 参与者头像条 ──
+                    if (roles.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(color = BorderColor)
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.SmartToy, null, tint = TextMuted, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                stringResource(R.string.participants_label, roles.size),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted,
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        ParticipantAvatarRow(roles = roles)
+                    }
+
                     Spacer(Modifier.height(4.dp))
                 }
             }
@@ -1133,6 +1154,56 @@ private fun MeetingSummaryCard(
                 Text(stringResource(R.string.home_new_meeting))
             }
         }
+    }
+}
+
+// ── Participant Avatar Row ──────────────────────────────────────────────────
+
+/**
+ * 参与者头像条 — 显示会议参与的各Agent角色，以彩色首字母圆形徽章呈现
+ */
+@Composable
+private fun ParticipantAvatarRow(roles: List<PresetRole>) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy((-4).dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        roles.forEach { role ->
+            val roleColor = remember(role.colorHex) {
+                runCatching { Color(role.colorHex.toColorInt()) }
+                    .getOrDefault(Color(0xFF607D8B.toInt()))
+            }
+            val displayChar = if (role.displayNameRes() != 0) {
+                role.displayName.first().uppercaseChar()
+            } else {
+                role.displayName.firstOrNull()?.uppercaseChar() ?: '?'
+            }
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .background(roleColor.copy(alpha = 0.2f), CircleShape)
+                    .border(1.5f.dp, roleColor.copy(alpha = 0.5f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "$displayChar",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = roleColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        // Role names summary
+        val names = roles.take(4).joinToString(" · ") { it.displayName }
+        val suffix = if (roles.size > 4) " +${roles.size - 4}" else ""
+        Text(
+            names + suffix,
+            style = MaterialTheme.typography.labelSmall,
+            color = TextMuted,
+            maxLines = 1,
+        )
     }
 }
 
