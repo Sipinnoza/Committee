@@ -1,5 +1,11 @@
 package com.znliang.committee.ui.screen
 
+import android.content.Intent
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -18,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -27,15 +34,22 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.HowToVote
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -52,6 +66,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -67,6 +82,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -76,11 +92,11 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.znliang.committee.R
-import com.znliang.committee.domain.model.AgentRole
 import com.znliang.committee.domain.model.MeetingPresetConfig
 import com.znliang.committee.domain.model.MeetingState
 import com.znliang.committee.domain.model.PresetRole
 import com.znliang.committee.engine.runtime.BoardPhase
+import com.znliang.committee.engine.runtime.MaterialRef
 import com.znliang.committee.ui.component.ChatBubble
 import com.znliang.committee.ui.component.EventBubble
 import com.znliang.committee.ui.component.PulsingDot
@@ -104,6 +120,7 @@ import com.znliang.committee.ui.viewmodel.AgentMemoryViewModel
 import com.znliang.committee.ui.viewmodel.MeetingUiState
 import com.znliang.committee.ui.viewmodel.MeetingViewModel
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
 
 /**
  * 多Agent群聊对话主页
@@ -116,7 +133,7 @@ fun HomeScreen(
     viewModel: MeetingViewModel,
     presetConfig: MeetingPresetConfig,
     onNavigateToSettings: () -> Unit = {},
-    onAgentClick: (AgentRole) -> Unit = {},
+    onAgentClick: (String) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val activePreset by presetConfig.activePresetFlow()
@@ -127,6 +144,8 @@ fun HomeScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var subjectInput by remember { mutableStateOf("") }
+    val attachedUris = remember { mutableListOf<Uri>() }
+    var attachedCount by remember { mutableStateOf(0) } // trigger recomposition
     // Track expanded state per speech
     val expandedKeys = remember { mutableStateMapOf<String, Boolean>() }
 
@@ -196,6 +215,11 @@ fun HomeScreen(
         bottomBar = {
             if (uiState.currentState == MeetingState.APPROVED) {
                 ExecutionConfirmBar(viewModel = viewModel)
+            } else if (isMeetingActive && !uiState.boardFinished) {
+                HumanInputBar(
+                    viewModel = viewModel,
+                    isPaused = uiState.isPaused,
+                )
             }
         }
         ) { paddingValues ->
@@ -203,7 +227,7 @@ fun HomeScreen(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = paddingValues.calculateTopPadding(), bottom = 6.dp),
+                    .padding(top = paddingValues.calculateTopPadding(), bottom = paddingValues.calculateBottomPadding()),
                 contentPadding = PaddingValues(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -224,20 +248,22 @@ fun HomeScreen(
                         viewModel = viewModel,
                         subjectInput = subjectInput,
                         onSubjectChange = { subjectInput = it },
+                        attachedUris = attachedUris,
+                        attachedCount = attachedCount,
+                        onAttachedChanged = { attachedCount = attachedUris.size },
                     )
                 }
 
                 // ── Agent roster ──────────────────────────────────────────
                 item(key = "agents_header") {
-                    SectionHeader(stringResource(R.string.agents_members, stringResource(activePreset.committeeLabelRes())))
+                    SectionHeader(stringResource(R.string.agents_members, if (activePreset.committeeLabelRes() != 0) stringResource(activePreset.committeeLabelRes()) else activePreset.committeeLabel))
                 }
                 items(activePreset.roles, key = { "agent_${it.id}" }) { presetRole ->
                     CompactAgentCard(
                         role = presetRole,
                         stats = memoryStats[presetRole.id],
                         onClick = {
-                            // Try to find matching AgentRole for navigation
-                            AgentRole.entries.find { it.id == presetRole.id }?.let(onAgentClick)
+                            onAgentClick(presetRole.id)
                         },
                     )
                 }
@@ -256,24 +282,45 @@ fun HomeScreen(
 
             // ── Chat messages: speeches + system logs interleaved ─────────
             items(uiState.speeches, key = { it.id }) { speech ->
+                val presetRole = activePreset.findRole(speech.agent)
                 ChatBubble(
                     speech = speech,
                     isExpanded = expandedKeys[speech.id] == true,
                     onToggle = {
                         expandedKeys[speech.id] = expandedKeys[speech.id] != true
                     },
+                    presetRole = presetRole,
                 )
             }
 
             // ── Meeting Summary Card (when finished) ────────────────────
             if (uiState.boardFinished) {
                 item(key = "meeting_summary") {
+                    val context = LocalContext.current
                     MeetingSummaryCard(
                         rating = uiState.boardRating,
                         summary = uiState.boardSummary,
                         subject = uiState.subject,
+                        ratingScale = activePreset.ratingScale,
                         onNewMeeting = {
                             viewModel.resetToIdle()
+                        },
+                        onShare = {
+                            val intent = viewModel.createShareIntent()
+                            context.startActivity(Intent.createChooser(intent, context.getString(R.string.report_share)))
+                        },
+                        onExportReport = {
+                            val file = viewModel.generateReport()
+                            if (file != null) {
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/markdown"
+                                    putExtra(Intent.EXTRA_STREAM, androidx.core.content.FileProvider.getUriForFile(
+                                        context, "${context.packageName}.fileprovider", file
+                                    ))
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(intent, context.getString(R.string.report_export)))
+                            }
                         },
                     )
                 }
@@ -333,9 +380,61 @@ private fun MeetingInitCard(
     viewModel: MeetingViewModel,
     subjectInput: String,
     onSubjectChange: (String) -> Unit,
+    attachedUris: MutableList<Uri>,
+    attachedCount: Int,
+    onAttachedChanged: () -> Unit,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
     val isRejected = uiState.currentState == MeetingState.REJECTED
+
+    // Image picker launcher
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents(),
+    ) { uris: List<Uri> ->
+        attachedUris.addAll(uris)
+        onAttachedChanged()
+    }
+
+    /** Convert attached URIs to MaterialRef list with base64 data */
+    fun buildMaterialRefs(): List<MaterialRef> {
+        return attachedUris.mapIndexed { idx, uri ->
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri) ?: return@mapIndexed null
+                val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                val fileName = "attachment_${idx + 1}"
+
+                // Read and optionally compress
+                val bytes = inputStream.use { it.readBytes() }
+                val base64Str = if (mimeType.startsWith("image/") && bytes.size > 1024 * 1024) {
+                    // Compress large images
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    if (bitmap != null) {
+                        val scale = 1024f / maxOf(bitmap.width, bitmap.height)
+                        val w = (bitmap.width * scale).toInt()
+                        val h = (bitmap.height * scale).toInt()
+                        val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, w, h, true)
+                        val baos = ByteArrayOutputStream()
+                        scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, baos)
+                        if (scaled != bitmap) scaled.recycle()
+                        bitmap.recycle()
+                        Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+                    } else {
+                        Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    }
+                } else {
+                    Base64.encodeToString(bytes, Base64.NO_WRAP)
+                }
+
+                MaterialRef(
+                    id = idx.toLong(),
+                    fileName = fileName,
+                    mimeType = mimeType,
+                    base64 = base64Str,
+                )
+            } catch (_: Exception) { null }
+        }.filterNotNull()
+    }
 
     Card(
         modifier = Modifier
@@ -400,15 +499,70 @@ private fun MeetingInitCard(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = {
                     keyboard?.hide()
-                    if (subjectInput.isNotBlank()) viewModel.requestMeeting(subjectInput)
+                    if (subjectInput.isNotBlank()) {
+                        viewModel.requestMeeting(subjectInput, buildMaterialRefs())
+                    }
                 }),
                 colors = committeeTextFieldColors(),
             )
 
+            // ── Attachment area ──
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    border = BorderStroke(1.dp, BorderColor),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Icon(Icons.Default.AttachFile, null, Modifier.size(16.dp), tint = CommitteeGold)
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.home_attach_images), style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                }
+                if (attachedCount > 0) {
+                    Text(
+                        stringResource(R.string.home_materials_count, attachedCount),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted,
+                    )
+                }
+            }
+
+            // Attached file thumbnails
+            if (attachedCount > 0) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(attachedUris.size) { idx ->
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SurfaceDark)
+                                .border(1.dp, BorderColor, RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("${idx + 1}", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                            // Remove button
+                            IconButton(
+                                onClick = {
+                                    attachedUris.removeAt(idx)
+                                    onAttachedChanged()
+                                },
+                                modifier = Modifier.align(Alignment.TopEnd).size(20.dp),
+                            ) {
+                                Icon(Icons.Default.Close, null, Modifier.size(12.dp), tint = TextMuted)
+                            }
+                        }
+                    }
+                }
+            }
+
             Button(
                 onClick = {
                     keyboard?.hide()
-                    viewModel.requestMeeting(subjectInput)
+                    viewModel.requestMeeting(subjectInput, buildMaterialRefs())
                 },
                 enabled = subjectInput.isNotBlank() && (uiState.currentState == MeetingState.IDLE || isRejected),
                 modifier = Modifier.fillMaxWidth(),
@@ -450,6 +604,154 @@ private fun ExecutionConfirmBar(viewModel: MeetingViewModel) {
             }
         }
     }
+}
+
+/**
+ * 会议中底部输入栏 — 暂停/恢复 + 文本输入 + 发言 + 投票
+ */
+@Composable
+private fun HumanInputBar(
+    viewModel: MeetingViewModel,
+    isPaused: Boolean,
+) {
+    var inputText by remember { mutableStateOf("") }
+    var showVoteDialog by remember { mutableStateOf(false) }
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    Surface(
+        color = SurfaceCard,
+        tonalElevation = 4.dp,
+        border = BorderStroke(1.dp, BorderColor),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            // Pause / Resume button
+            IconButton(
+                onClick = { if (isPaused) viewModel.resumeMeeting() else viewModel.pauseMeeting() },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                    contentDescription = stringResource(if (isPaused) R.string.human_resume else R.string.human_pause),
+                    tint = if (isPaused) BuyColor else CommitteeGold,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+
+            // Text input
+            OutlinedTextField(
+                value = inputText,
+                onValueChange = { inputText = it },
+                placeholder = { Text(stringResource(R.string.human_input_hint), style = MaterialTheme.typography.bodySmall, color = TextMuted) },
+                singleLine = true,
+                modifier = Modifier.weight(1f).height(48.dp),
+                textStyle = MaterialTheme.typography.bodySmall,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = {
+                    if (inputText.isNotBlank()) {
+                        viewModel.injectHumanMessage(inputText.trim())
+                        inputText = ""
+                        keyboard?.hide()
+                    }
+                }),
+                colors = committeeTextFieldColors(),
+            )
+
+            // Send button
+            IconButton(
+                onClick = {
+                    if (inputText.isNotBlank()) {
+                        viewModel.injectHumanMessage(inputText.trim())
+                        inputText = ""
+                        keyboard?.hide()
+                    }
+                },
+                enabled = inputText.isNotBlank(),
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    Icons.Default.Send,
+                    contentDescription = stringResource(R.string.human_send),
+                    tint = if (inputText.isNotBlank()) CommitteeGold else TextMuted,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+
+            // Vote button
+            IconButton(
+                onClick = { showVoteDialog = true },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    Icons.Default.HowToVote,
+                    contentDescription = stringResource(R.string.human_vote),
+                    tint = CommitteeGold,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+
+    if (showVoteDialog) {
+        VoteDialog(
+            onDismiss = { showVoteDialog = false },
+            onVote = { agree, reason ->
+                viewModel.injectHumanVote(agree, reason)
+                showVoteDialog = false
+            },
+        )
+    }
+}
+
+/**
+ * 投票对话框 — AGREE / DISAGREE + 理由
+ */
+@Composable
+private fun VoteDialog(
+    onDismiss: () -> Unit,
+    onVote: (agree: Boolean, reason: String) -> Unit,
+) {
+    var reason by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.human_vote_title), color = TextPrimary) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    label = { Text(stringResource(R.string.human_vote_reason_hint)) },
+                    singleLine = false,
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = committeeTextFieldColors(),
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onVote(true, reason.trim()) },
+                colors = ButtonDefaults.buttonColors(containerColor = BuyColor, contentColor = SurfaceDark),
+            ) {
+                Text(stringResource(R.string.human_vote_agree), fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            Button(
+                onClick = { onVote(false, reason.trim()) },
+                colors = ButtonDefaults.buttonColors(containerColor = SellColor, contentColor = Color.White),
+            ) {
+                Text(stringResource(R.string.human_vote_disagree), fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = SurfaceCard,
+    )
 }
 
 /**
@@ -591,7 +893,10 @@ private fun MeetingSummaryCard(
     rating: String?,
     summary: String,
     subject: String,
+    ratingScale: List<String> = emptyList(),
     onNewMeeting: () -> Unit,
+    onShare: () -> Unit = {},
+    onExportReport: () -> Unit = {},
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -617,9 +922,11 @@ private fun MeetingSummaryCard(
 
             // 评级
             if (rating != null) {
-                val ratingColor = when (rating) {
-                    "Buy", "Overweight" -> BuyColor
-                    "Sell", "Underweight" -> SellColor
+                val ratingIdx = ratingScale.indexOf(rating)
+                val ratingColor = when {
+                    ratingScale.size < 3 -> CommitteeGold
+                    ratingIdx in 0..1 -> BuyColor
+                    ratingIdx >= ratingScale.size - 2 -> SellColor
                     else -> CommitteeGold
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -641,6 +948,37 @@ private fun MeetingSummaryCard(
             }
 
             Spacer(Modifier.height(16.dp))
+
+            // 决策报告操作按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // 分享按钮
+                OutlinedButton(
+                    onClick = onShare,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+                    border = BorderStroke(1.dp, BorderColor),
+                ) {
+                    Icon(Icons.Default.Share, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.report_share), fontSize = 12.sp)
+                }
+                // 导出报告按钮
+                OutlinedButton(
+                    onClick = onExportReport,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CommitteeGold),
+                    border = BorderStroke(1.dp, CommitteeGold.copy(alpha = 0.4f)),
+                ) {
+                    Icon(Icons.Default.Description, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.report_export), fontSize = 12.sp)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
 
             // 开始新会议按钮
             OutlinedButton(
@@ -687,7 +1025,7 @@ private fun CompactAgentCard(role: PresetRole, stats: AgentMemoryStats? = null, 
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "${stringResource(role.displayNameRes()).first()}",
+                    text = "${(if (role.displayNameRes() != 0) stringResource(role.displayNameRes()) else role.displayName).first()}",
                     color = agentColor,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
@@ -700,14 +1038,14 @@ private fun CompactAgentCard(role: PresetRole, stats: AgentMemoryStats? = null, 
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        stringResource(role.displayNameRes()),
+                        if (role.displayNameRes() != 0) stringResource(role.displayNameRes()) else role.displayName,
                         style = MaterialTheme.typography.titleSmall,
                         color = TextPrimary,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        stringResource(role.stanceRes()),
+                        if (role.stanceRes() != 0) stringResource(role.stanceRes()) else role.stance,
                         style = MaterialTheme.typography.labelSmall,
                         color = agentColor,
                         modifier = Modifier

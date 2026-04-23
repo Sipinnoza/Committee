@@ -81,6 +81,9 @@
     <string name="home_phase_vote">投票阶段</string>
     <string name="home_rating_approved">评级已批准</string>
     <string name="home_start_meeting">开始会议</string>
+    <string name="home_attach_evidence">附加证据</string>
+    <string name="home_attach_images">添加图片</string>
+    <string name="home_materials_count">已附加 %d 个文件</string>
     <string name="home_state_analysis">分析</string>
     <string name="home_state_approved">已批准</string>
     <string name="home_state_completed">完成</string>
@@ -144,7 +147,7 @@
     <string name="settings_tavily_desc">情报官使用 Tavily 进行互联网搜索。不配置时使用免费备用引擎。</string>
     <string name="settings_tavily_title">Tavily 搜索 API（可选）</string>
     <string name="settings_title">设置</string>
-    <string name="settings_version">群策 Agentra v1.2</string>
+    <string name="settings_version">群策 Agentra v1.2.0</string>
     <string name="skill_add">添加技能</string>
     <string name="skill_add_btn">添加</string>
     <string name="skill_confirm_delete">确认删除</string>
@@ -285,4 +288,107 @@
     <string name="settings_search_config_desc">配置网络搜索API</string>
     <string name="settings_meeting_config">会议配置</string>
     <string name="settings_meeting_config_desc">预设、规则和角色管理</string>
+
+    <!-- 新预设名称 -->
+    <string name="preset_pr_name">产品评审</string>
+    <string name="preset_pr_label">产品评审会</string>
+    <string name="preset_tr_name">技术评审</string>
+    <string name="preset_tr_label">技术方案评审会</string>
+    <string name="preset_db_name">辩论赛</string>
+    <string name="preset_db_label">辩论评审团</string>
+    <string name="preset_paper_name">论文审稿</string>
+    <string name="preset_paper_label">论文评审委员会</string>
+
+    <!-- 预设描述 -->
+    <string name="preset_pr_desc">产品评审会 — 跨职能团队评估产品就绪度</string>
+    <string name="preset_tr_desc">技术方案评审 — 架构、安全和性能评估</string>
+    <string name="preset_db_desc">结构化辩论 — 正方 vs 反方 + 裁判裁决</string>
+    <string name="preset_paper_desc">学术论文审稿 — 多审稿人评审 + 领域主席监督</string>
+
+    <!-- 产品评审角色 -->
+    <string name="role_pm_display">产品经理</string>
+    <string name="role_pm_stance">倡导</string>
+    <string name="role_pm_resp">产品愿景 + 功能论证 + 路线图对齐</string>
+    <string name="role_tech_lead_display">技术负责人</string>
+    <string name="role_tech_lead_stance">可行性</string>
+    <string name="role_tech_lead_resp">技术可行性 + 架构影响 + 工作量评估</string>
+    <string name="role_designer_display">设计师</string>
+    <string name="role_designer_stance">用户体验</string>
+    <string name="role_designer_resp">用户体验 + 设计一致性 + 无障碍</string>
+    <string name="role_qa_display">测试工程师</string>
+    <string name="role_qa_stance">质量</string>
+    <string name="role_qa_resp">测试覆盖 + 质量标准 + 风险识别</string>
+    <string name="role_user_advocate_display">用户代言人</string>
+    <string name="role_user_advocate_stance">用户视角</string>
+    <string name="role_user_advocate_resp">用户需求 + 市场契合 + 反馈整合</string>
+
+    <!-- 技术评审角色 -->
+    <string name="role_architect_display">架构师</string>
+    <string name="role_architect_stance">设计</string>
+    <string name="role_architect_resp">架构评估 + 设计模式 + 可扩展性</string>
+    <string name="role_security_display">安全专家</string>
+    <string name="role_security_stance">安全</string>
+    <string name="role_security_resp">安全评估 + 威胁建模 + 合规性</string>
+    <string name="role_perf_display">性能专家</string>
+    <string name="role_perf_stance">性能</string>
+    <string name="role_perf_resp">性能分析 + 瓶颈定位 + 优化方案</string>
+    <string name="role_stakeholder_display">业务干系人</string>
+    <string name="role_stakeholder_stance">需求</string>
+    <string name="role_stakeholder_resp">业务需求 + 优先级对齐 + 投入产出评估</string>
+
+    <!-- 辩论赛角色 -->
+    <string name="role_proponent_display">正方</string>
+    <string name="role_proponent_stance">赞成</string>
+    <string name="role_proponent_resp">论点构建 + 举证论述 + 反驳</string>
+    <string name="role_opponent_display">反方</string>
+    <string name="role_opponent_stance">反对</string>
+    <string name="role_opponent_resp">反驳论证 + 举证论述 + 反驳</string>
+    <string name="role_judge_display">裁判</string>
+    <string name="role_judge_stance">裁决</string>
+    <string name="role_judge_resp">公正评判 + 评分 + 最终裁定</string>
+
+    <!-- 论文审稿角色 -->
+    <string name="role_reviewer1_display">审稿人 1</string>
+    <string name="role_reviewer1_stance">方法论</string>
+    <string name="role_reviewer1_resp">方法论严谨性 + 实验设计 + 可复现性</string>
+    <string name="role_reviewer2_display">审稿人 2</string>
+    <string name="role_reviewer2_stance">创新性与影响力</string>
+    <string name="role_reviewer2_resp">创新性评估 + 影响力评价 + 文献覆盖</string>
+    <string name="role_area_chair_display">领域主席</string>
+    <string name="role_area_chair_stance">裁决</string>
+    <string name="role_area_chair_resp">元审稿 + 共识构建 + 最终推荐</string>
+
+    <!-- 新预设评级量表 -->
+    <string name="rating_ship">发布</string>
+    <string name="rating_ship_fixes">修复后发布</string>
+    <string name="rating_needs_revision">需要修改</string>
+    <string name="rating_reject">拒绝</string>
+    <string name="rating_approve">批准</string>
+    <string name="rating_approve_cond">有条件批准</string>
+    <string name="rating_major_revision">需要重大修改</string>
+    <string name="rating_proponent_wins">正方胜</string>
+    <string name="rating_opponent_wins">反方胜</string>
+    <string name="rating_draw">平局</string>
+    <string name="rating_strong_accept">强接受</string>
+    <string name="rating_accept">接受</string>
+    <string name="rating_weak_accept">弱接受</string>
+    <string name="rating_borderline">临界</string>
+
+    <!-- Human-in-the-Loop -->
+    <string name="human_input_hint">输入你的观点…</string>
+    <string name="human_send">发送</string>
+    <string name="human_vote">投票</string>
+    <string name="human_pause">暂停</string>
+    <string name="human_resume">继续</string>
+    <string name="human_vote_agree">赞成</string>
+    <string name="human_vote_disagree">反对</string>
+    <string name="human_vote_reason_hint">理由（选填）</string>
+    <string name="human_speaker_name">你</string>
+    <string name="human_vote_title">投出你的一票</string>
+
+    <!-- 决策报告 -->
+    <string name="report_share">分享</string>
+    <string name="report_export">导出报告</string>
+    <string name="report_share_chooser">分享决策</string>
+    <string name="report_export_chooser">导出决策报告</string>
 </resources>

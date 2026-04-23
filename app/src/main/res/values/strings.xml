@@ -81,6 +81,9 @@
     <string name="home_phase_vote">Voting</string>
     <string name="home_rating_approved">Rating Approved</string>
     <string name="home_start_meeting">Start Meeting</string>
+    <string name="home_attach_evidence">Attach Evidence</string>
+    <string name="home_attach_images">Add Images</string>
+    <string name="home_materials_count">%d file(s) attached</string>
     <string name="home_state_analysis">Analysis</string>
     <string name="home_state_approved">Approved</string>
     <string name="home_state_completed">Completed</string>
@@ -144,7 +147,7 @@
     <string name="settings_tavily_desc">Intel agent uses Tavily for web search. Falls back to free engine.</string>
     <string name="settings_tavily_title">Tavily Search API (optional)</string>
     <string name="settings_title">Settings</string>
-    <string name="settings_version">Agentra v1.2</string>
+    <string name="settings_version">Agentra v1.2.0</string>
     <string name="skill_add">Add Skill</string>
     <string name="skill_add_btn">Add</string>
     <string name="skill_confirm_delete">Confirm Delete</string>
@@ -285,4 +288,107 @@
     <string name="settings_search_config_desc">Configure web search API</string>
     <string name="settings_meeting_config">Meeting Configuration</string>
     <string name="settings_meeting_config_desc">Presets, rules and role management</string>
+
+    <!-- New preset names -->
+    <string name="preset_pr_name">Product Review</string>
+    <string name="preset_pr_label">Product Review Board</string>
+    <string name="preset_tr_name">Tech Review</string>
+    <string name="preset_tr_label">Technical Review Board</string>
+    <string name="preset_db_name">Debate</string>
+    <string name="preset_db_label">Debate Panel</string>
+    <string name="preset_paper_name">Paper Review</string>
+    <string name="preset_paper_label">Paper Review Committee</string>
+
+    <!-- Preset descriptions -->
+    <string name="preset_pr_desc">Product Review — Cross-functional team evaluates product readiness</string>
+    <string name="preset_tr_desc">Technical Design Review — Architecture, Security, and Performance evaluation</string>
+    <string name="preset_db_desc">Structured Debate — Proponent vs Opponent with Judge adjudication</string>
+    <string name="preset_paper_desc">Academic Paper Review — Multi-reviewer evaluation with Area Chair oversight</string>
+
+    <!-- Product Review roles -->
+    <string name="role_pm_display">Product Manager</string>
+    <string name="role_pm_stance">Advocate</string>
+    <string name="role_pm_resp">Product Vision + Feature Justification + Roadmap Alignment</string>
+    <string name="role_tech_lead_display">Tech Lead</string>
+    <string name="role_tech_lead_stance">Feasibility</string>
+    <string name="role_tech_lead_resp">Technical Feasibility + Architecture Impact + Effort Estimation</string>
+    <string name="role_designer_display">Designer</string>
+    <string name="role_designer_stance">UX</string>
+    <string name="role_designer_resp">User Experience + Design Consistency + Accessibility</string>
+    <string name="role_qa_display">QA Engineer</string>
+    <string name="role_qa_stance">Quality</string>
+    <string name="role_qa_resp">Test Coverage + Quality Standards + Risk Identification</string>
+    <string name="role_user_advocate_display">User Advocate</string>
+    <string name="role_user_advocate_stance">User Perspective</string>
+    <string name="role_user_advocate_resp">User Needs + Market Fit + Feedback Integration</string>
+
+    <!-- Tech Review roles -->
+    <string name="role_architect_display">Architect</string>
+    <string name="role_architect_stance">Design</string>
+    <string name="role_architect_resp">Architecture Evaluation + Design Patterns + Scalability</string>
+    <string name="role_security_display">Security Expert</string>
+    <string name="role_security_stance">Security</string>
+    <string name="role_security_resp">Security Assessment + Threat Modeling + Compliance</string>
+    <string name="role_perf_display">Performance Expert</string>
+    <string name="role_perf_stance">Performance</string>
+    <string name="role_perf_resp">Performance Analysis + Bottleneck Identification + Optimization</string>
+    <string name="role_stakeholder_display">Business Stakeholder</string>
+    <string name="role_stakeholder_stance">Requirements</string>
+    <string name="role_stakeholder_resp">Business Requirements + Priority Alignment + ROI Assessment</string>
+
+    <!-- Debate roles -->
+    <string name="role_proponent_display">Proponent</string>
+    <string name="role_proponent_stance">For</string>
+    <string name="role_proponent_resp">Argument Construction + Evidence Presentation + Rebuttal</string>
+    <string name="role_opponent_display">Opponent</string>
+    <string name="role_opponent_stance">Against</string>
+    <string name="role_opponent_resp">Counter-argument + Evidence Presentation + Rebuttal</string>
+    <string name="role_judge_display">Judge</string>
+    <string name="role_judge_stance">Adjudication</string>
+    <string name="role_judge_resp">Fair Evaluation + Scoring + Final Ruling</string>
+
+    <!-- Paper Review roles -->
+    <string name="role_reviewer1_display">Reviewer 1</string>
+    <string name="role_reviewer1_stance">Methodology</string>
+    <string name="role_reviewer1_resp">Methodology Rigor + Experimental Design + Reproducibility</string>
+    <string name="role_reviewer2_display">Reviewer 2</string>
+    <string name="role_reviewer2_stance">Novelty &amp; Impact</string>
+    <string name="role_reviewer2_resp">Novelty Assessment + Impact Evaluation + Literature Coverage</string>
+    <string name="role_area_chair_display">Area Chair</string>
+    <string name="role_area_chair_stance">Adjudication</string>
+    <string name="role_area_chair_resp">Meta-review + Consensus Building + Final Recommendation</string>
+
+    <!-- Rating scale display names for new presets -->
+    <string name="rating_ship">Ship</string>
+    <string name="rating_ship_fixes">Ship with fixes</string>
+    <string name="rating_needs_revision">Needs revision</string>
+    <string name="rating_reject">Reject</string>
+    <string name="rating_approve">Approve</string>
+    <string name="rating_approve_cond">Approve with conditions</string>
+    <string name="rating_major_revision">Major revision needed</string>
+    <string name="rating_proponent_wins">Proponent wins</string>
+    <string name="rating_opponent_wins">Opponent wins</string>
+    <string name="rating_draw">Draw</string>
+    <string name="rating_strong_accept">Strong Accept</string>
+    <string name="rating_accept">Accept</string>
+    <string name="rating_weak_accept">Weak Accept</string>
+    <string name="rating_borderline">Borderline</string>
+
+    <!-- Human-in-the-Loop -->
+    <string name="human_input_hint">Type your message…</string>
+    <string name="human_send">Send</string>
+    <string name="human_vote">Vote</string>
+    <string name="human_pause">Pause</string>
+    <string name="human_resume">Resume</string>
+    <string name="human_vote_agree">Agree</string>
+    <string name="human_vote_disagree">Disagree</string>
+    <string name="human_vote_reason_hint">Reason (optional)</string>
+    <string name="human_speaker_name">You</string>
+    <string name="human_vote_title">Cast Your Vote</string>
+
+    <!-- Decision Report -->
+    <string name="report_share">Share</string>
+    <string name="report_export">Export Report</string>
+    <string name="report_share_chooser">Share decision</string>
+    <string name="report_export_chooser">Export decision report</string>
 </resources>

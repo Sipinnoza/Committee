@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Monochrome icon for Android 13+ themed icons -->
+<!-- Simplified silhouette of the Agentra logo: hexagonal network with central diamond -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Central diamond (C for Committee) -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M54,38 L64,54 L54,70 L44,54 Z" />
+
+    <!-- Six agent nodes around the hexagon -->
+    <!-- Top -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M54,24 m-5,0 a5,5 0,1 1,10 0 a5,5 0,1 1,-10 0" />
+    <!-- Top-right -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M80,38 m-5,0 a5,5 0,1 1,10 0 a5,5 0,1 1,-10 0" />
+    <!-- Bottom-right -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M80,70 m-5,0 a5,5 0,1 1,10 0 a5,5 0,1 1,-10 0" />
+    <!-- Bottom -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M54,84 m-5,0 a5,5 0,1 1,10 0 a5,5 0,1 1,-10 0" />
+    <!-- Bottom-left -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M28,70 m-5,0 a5,5 0,1 1,10 0 a5,5 0,1 1,-10 0" />
+    <!-- Top-left -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M28,38 m-5,0 a5,5 0,1 1,10 0 a5,5 0,1 1,-10 0" />
+
+    <!-- Connecting lines (hexagon edges) -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M54,29 L75,38 M80,43 L80,65 M75,70 L54,79 M49,79 L33,70 M28,65 L28,43 M33,38 L49,29"
+        android:strokeWidth="2"
+        android:strokeColor="#000000" />
+
+    <!-- Lines from nodes to center diamond -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M54,29 L54,38 M75,40 L64,50 M75,68 L64,58 M54,79 L54,70 M33,68 L44,58 M33,40 L44,50"
+        android:strokeWidth="1.5"
+        android:strokeColor="#000000" />
+</vector>

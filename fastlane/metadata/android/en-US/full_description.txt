@@ -1,0 +1,15 @@
+Agentra is a multi-Agent autonomous discussion and decision-making app. Six professional AI agents — Analyst, Risk Officer, Strategist, Intel Agent, Executor, and Supervisor — conduct structured investment committee meetings around your chosen topics.
+
+Key Features:
+- Six autonomous AI Agents: Each agent has its own professional perspective and decision logic
+- Multi-round debate and voting: Agents challenge, supplement, and counter each other, producing weighted vote ratings
+- Multiple LLM support: Anthropic Claude, DeepSeek, Moonshot (Kimi), GLM (Zhipu)
+- Full meeting records: Complete discussion process, vote results, and final ratings are saved
+- Smart search integration: Optional web search lets agents access the latest market information
+- Self-evolution: Agents conduct post-meeting self-reflection to continuously improve decision quality
+- Blackboard collaboration: Agents exchange information through a shared blackboard system
+- Sparse activation: Intelligently selects the most relevant agents for each discussion
+
+Runs entirely on your device with data stored locally. Just configure your own LLM API keys to get started.
+
+Perfect for investment research, decision analysis, and developers/researchers interested in Multi-Agent systems.
