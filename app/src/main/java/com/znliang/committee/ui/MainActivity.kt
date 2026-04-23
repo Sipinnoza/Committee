@@ -39,7 +39,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.znliang.committee.domain.model.AgentRole
 import com.znliang.committee.domain.model.MeetingPresetConfig
 import com.znliang.committee.ui.screen.AgentConfigChatScreen
 import com.znliang.committee.ui.screen.HistoryScreen
@@ -86,6 +85,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Language must be applied before setContent; quick single-row Room read is acceptable
         val config = runBlocking { appConfigRepository.getConfig() }
         applyLanguage(config.selectedLanguage)
         enableEdgeToEdge()
@@ -177,7 +177,7 @@ fun CommitteeApp(presetConfig: MeetingPresetConfig) {
                         launchSingleTop = true
                         restoreState = true
                     } },
-                    onAgentClick = { role -> navController.navigate("agent_chat/${role.id}") },
+                    onAgentClick = { roleId -> navController.navigate("agent_chat/$roleId") },
                 )
             }
             composable(NavRoute.History.route)  {
@@ -253,9 +253,9 @@ fun CommitteeApp(presetConfig: MeetingPresetConfig) {
                 arguments = listOf(navArgument("agentId") { type = NavType.StringType }),
             ) { backStackEntry ->
                 val agentId = backStackEntry.arguments?.getString("agentId") ?: ""
-                val role = AgentRole.fromId(agentId) ?: AgentRole.ANALYST
                 AgentConfigChatScreen(
-                    role = role,
+                    roleId = agentId,
+                    presetConfig = presetConfig,
                     viewModel = agentChatViewModel,
                     onBack = { navController.popBackStack() },
                 )

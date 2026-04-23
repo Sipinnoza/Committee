@@ -3,7 +3,7 @@ package com.znliang.committee.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.znliang.committee.data.db.*
-import com.znliang.committee.domain.model.AgentRole
+import com.znliang.committee.domain.model.MeetingPresetConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -30,6 +30,7 @@ class AgentMemoryViewModel @Inject constructor(
     private val skillDao: AgentSkillDao,
     private val changelogDao: PromptChangelogDao,
     private val outcomeDao: MeetingOutcomeDao,
+    private val presetConfig: MeetingPresetConfig,
 ) : ViewModel() {
 
     private val _stats = MutableStateFlow<Map<String, AgentMemoryStats>>(emptyMap())
@@ -42,8 +43,8 @@ class AgentMemoryViewModel @Inject constructor(
 
     fun loadAllStats() {
         viewModelScope.launch(Dispatchers.IO) {
-            val map = AgentRole.entries.associate { role ->
-                val exps = evolutionDao.getByRole(role.id, 1)  // just count
+            val roles = presetConfig.activeRoles()
+            val map = roles.associate { role ->
                 val expCount = evolutionDao.getByRole(role.id, 100).size
                 val skills = skillDao.getByRole(role.id)
                 val changes = changelogDao.getByRole(role.id)
@@ -59,13 +60,13 @@ class AgentMemoryViewModel @Inject constructor(
         }
     }
 
-    fun loadDetail(role: AgentRole) {
+    fun loadDetail(roleId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             _detail.value = AgentMemoryDetail(
-                experiences = evolutionDao.getByRole(role.id, 50),
-                skills = skillDao.getByRole(role.id),
-                changelogs = changelogDao.getByRole(role.id),
-                outcomes = outcomeDao.getByRole(role.id, 20),
+                experiences = evolutionDao.getByRole(roleId, 50),
+                skills = skillDao.getByRole(roleId),
+                changelogs = changelogDao.getByRole(roleId),
+                outcomes = outcomeDao.getByRole(roleId, 20),
             )
         }
     }

@@ -1,7 +1,6 @@
 package com.znliang.committee.data.repository
 
 import com.znliang.committee.data.db.*
-import com.znliang.committee.domain.model.AgentRole
 import com.znliang.committee.domain.model.CommitteeEvent
 import com.znliang.committee.domain.model.SpeechRecord
 import com.google.gson.Gson
@@ -83,7 +82,7 @@ class EventRepository @Inject constructor(
     private fun SpeechRecord.toEntity(traceId: String) = SpeechEntity(
         speechId = id,
         traceId = traceId,
-        agentRole = agent.id,
+        agentRole = agent,
         round = round,
         summary = summary,
         content = content,
@@ -92,7 +91,7 @@ class EventRepository @Inject constructor(
 
     private fun SpeechEntity.toSpeechRecord() = SpeechRecord(
         id = speechId,
-        agent = AgentRole.fromId(agentRole) ?: AgentRole.SUPERVISOR,
+        agent = agentRole,
         round = round,
         summary = summary,
         content = content,

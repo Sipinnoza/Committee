@@ -7,7 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.znliang.committee.data.db.AgentChatDao
 import com.znliang.committee.data.db.AgentChatMessageEntity
 import com.znliang.committee.di.DataStoreApiKeyProvider
-import com.znliang.committee.domain.model.AgentRole
+import com.znliang.committee.domain.model.MeetingPresetConfig
 import com.znliang.committee.domain.model.MicContext
 import com.znliang.committee.domain.model.MeetingState
 import com.znliang.committee.engine.AgentPool
@@ -28,7 +28,9 @@ data class AgentChatMessage(
 )
 
 data class AgentChatUiState(
-    val agentRole: AgentRole = AgentRole.ANALYST,
+    val agentRoleId: String = "",
+    val agentDisplayName: String = "",
+    val agentSystemPromptKey: String = "",
     val systemPrompt: String = "",
     val messages: List<AgentChatMessage> = emptyList(),
     val isLoading: Boolean = false,
@@ -36,8 +38,8 @@ data class AgentChatUiState(
     val agentConfig: LlmConfig = LlmConfig(),
     val isUsingCustomConfig: Boolean = false,
     val isEditingPrompt: Boolean = false,
-    val promptSource: String = "",   // "内置" / "assets" / "本地文件"
-    val promptSuggestion: String = "",  // 自优化建议内容
+    val promptSource: String = "",
+    val promptSuggestion: String = "",
 )
 
 @HiltViewModel
@@ -46,6 +48,7 @@ class AgentChatViewModel @Inject constructor(
     private val apiKeyProvider: DataStoreApiKeyProvider,
     private val chatDao: AgentChatDao,
     private val runtime: com.znliang.committee.engine.runtime.AgentRuntime,
+    private val presetConfig: MeetingPresetConfig,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -54,19 +57,22 @@ class AgentChatViewModel @Inject constructor(
 
     private var currentRoleId: String = ""
 
-    fun setAgent(role: AgentRole) {
-        currentRoleId = role.id
-        val systemPrompt = agentPool.getSystemPromptText(role)
-        val agentConfig = apiKeyProvider.getAgentConfigCached(role.id)
+    fun setAgent(roleId: String, displayName: String = "", systemPromptKey: String = "") {
+        currentRoleId = roleId
+        val presetRole = presetConfig.getActivePreset().findRole(roleId)
+        val systemPrompt = agentPool.getSystemPromptTextByRoleId(roleId) ?: ""
+        val agentConfig = apiKeyProvider.getAgentConfigCached(roleId)
         val globalConfig = apiKeyProvider.getConfigCached()
         val isCustom = agentConfig != globalConfig
 
-        // Detect prompt source
-        val localFile = File(appContext.filesDir, "prompts/${role.systemPromptKey}.txt")
-        val promptSource = if (localFile.exists()) "本地文件" else "assets"
+        val promptKey = presetRole?.systemPromptKey ?: systemPromptKey
+        val localFile = File(appContext.filesDir, "prompts/${promptKey}.txt")
+        val promptSource = if (localFile.exists()) "local_file" else "assets"
 
         _uiState.value = _uiState.value.copy(
-            agentRole = role,
+            agentRoleId = roleId,
+            agentDisplayName = displayName,
+            agentSystemPromptKey = promptKey,
             systemPrompt = systemPrompt,
             agentConfig = agentConfig,
             isUsingCustomConfig = isCustom,
@@ -74,9 +80,8 @@ class AgentChatViewModel @Inject constructor(
             isEditingPrompt = false,
         )
 
-        // Load persisted chat from Room
         viewModelScope.launch {
-            chatDao.observeMessages(role.id).collect { entities ->
+            chatDao.observeMessages(roleId).collect { entities ->
                 _uiState.value = _uiState.value.copy(
                     messages = entities.map {
                         AgentChatMessage(id = it.id, role = it.role, content = it.content)
@@ -85,10 +90,9 @@ class AgentChatViewModel @Inject constructor(
             }
         }
 
-        // 监听该 agent 的 prompt 优化建议
         viewModelScope.launch {
             runtime.promptSuggestions.collect { suggestions ->
-                val mySuggestion = suggestions[role.id] ?: ""
+                val mySuggestion = suggestions[roleId] ?: ""
                 _uiState.value = _uiState.value.copy(promptSuggestion = mySuggestion)
             }
         }
@@ -125,19 +129,19 @@ class AgentChatViewModel @Inject constructor(
             ))
 
             try {
-                val role = _uiState.value.agentRole
+                val roleId = currentRoleId
                 val ctx = MicContext(
                     traceId = "chat_$now",
                     causedBy = "",
                     round = 1,
                     phase = MeetingState.IDLE,
                     subject = text,
-                    agentRole = role,
+                    agentRoleId = roleId,
                     task = "direct_chat",
                 )
 
                 var fullContent = ""
-                agentPool.callAgentStreaming(role, ctx).collect { delta ->
+                agentPool.callAgentStreamingByRoleId(roleId, ctx).collect { delta ->
                     fullContent += delta
                     // Update placeholder in memory state
                     _uiState.value = _uiState.value.copy(
@@ -190,29 +194,26 @@ class AgentChatViewModel @Inject constructor(
 
     /** Save custom prompt to filesDir/prompts/{key}.txt */
     fun savePrompt(newPrompt: String) {
-        val role = _uiState.value.agentRole
+        val promptKey = _uiState.value.agentSystemPromptKey
         val dir = File(appContext.filesDir, "prompts")
         dir.mkdirs()
-        val file = File(dir, "${role.systemPromptKey}.txt")
+        val file = File(dir, "${promptKey}.txt")
         file.writeText(newPrompt)
-
-        // No cache to clear — buildSystemPrompt reads file every time
 
         _uiState.value = _uiState.value.copy(
             systemPrompt = newPrompt,
             isEditingPrompt = false,
-            promptSource = "本地文件",
+            promptSource = "local_file",
         )
     }
 
     /** Reset prompt to asset default */
     fun resetPrompt() {
-        val role = _uiState.value.agentRole
-        val file = File(appContext.filesDir, "prompts/${role.systemPromptKey}.txt")
+        val promptKey = _uiState.value.agentSystemPromptKey
+        val file = File(appContext.filesDir, "prompts/${promptKey}.txt")
         if (file.exists()) file.delete()
 
-        // No cache to clear
-        val defaultPrompt = agentPool.getSystemPromptText(role)
+        val defaultPrompt = agentPool.getSystemPromptTextByRoleId(currentRoleId) ?: ""
 
         _uiState.value = _uiState.value.copy(
             systemPrompt = defaultPrompt,
@@ -229,7 +230,7 @@ class AgentChatViewModel @Inject constructor(
         val suggestion = _uiState.value.promptSuggestion
         if (suggestion.isBlank()) return
 
-        val role = _uiState.value.agentRole
+        val role = _uiState.value.agentRoleId
         val currentPrompt = _uiState.value.systemPrompt
 
         // 提取 SUGGESTION 行
@@ -258,14 +259,13 @@ class AgentChatViewModel @Inject constructor(
 
     /** 忽略建议 */
     fun dismissSuggestion() {
-        val role = _uiState.value.agentRole
-        runtime.clearSuggestion(role.id)
+        runtime.clearSuggestion(currentRoleId)
         _uiState.value = _uiState.value.copy(promptSuggestion = "")
     }
 
     fun saveAgentConfig(config: LlmConfig) {
         viewModelScope.launch {
-            apiKeyProvider.saveAgentConfig(_uiState.value.agentRole.id, config)
+            apiKeyProvider.saveAgentConfig(currentRoleId, config)
             _uiState.value = _uiState.value.copy(agentConfig = config, isUsingCustomConfig = true)
         }
     }
@@ -273,7 +273,7 @@ class AgentChatViewModel @Inject constructor(
     fun resetAgentConfig() {
         viewModelScope.launch {
             val globalConfig = apiKeyProvider.getConfig()
-            apiKeyProvider.clearAgentConfig(_uiState.value.agentRole.id)
+            apiKeyProvider.clearAgentConfig(currentRoleId)
             _uiState.value = _uiState.value.copy(agentConfig = globalConfig, isUsingCustomConfig = false)
         }
     }

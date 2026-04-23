@@ -106,7 +106,7 @@ interface EvolvableAgent : Agent {
         val insights = evolutionDao.getByRoleAndCategory(role, "INSIGHT", 2)
         return (mistakes + strategies + insights)
             .map { AgentExperience.fromEntity(it) }
-            .sortedByDescending { it.priority.ordinal }
+            .sortedBy { it.priority.ordinal }
             .take(5)
     }
 

@@ -446,4 +446,11 @@
     <string name="vote_results_count">%1$d 赞成 · %2$d 反对</string>
     <string name="vote_agree_label">赞成</string>
     <string name="vote_disagree_label">反对</string>
+
+    <!-- 紧急度与时长 -->
+    <string name="urgency_label">紧急度：</string>
+    <string name="urgency_normal">普通</string>
+    <string name="urgency_urgent">紧急</string>
+    <string name="urgency_critical">特急</string>
+    <string name="estimated_duration">预估 ~%d 分钟</string>
 </resources>

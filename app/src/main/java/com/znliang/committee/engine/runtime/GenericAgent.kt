@@ -155,7 +155,7 @@ ${presetRole.responsibility}
 输出格式（严格遵守）：
 SPEAK: YES 或 NO
 CONTENT: （如果SPEAK为YES）你的分析和观点，200字以内
-VOTE: BULL 或 BEAR
-TAGS: 用逗号分隔（如 BULL,RISK,STRATEGY）"""
+VOTE: AGREE 或 DISAGREE
+TAGS: 用逗号分隔（如 PRO,RISK,STRATEGY）"""
     }
 }

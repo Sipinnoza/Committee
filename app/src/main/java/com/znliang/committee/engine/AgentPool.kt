@@ -84,6 +84,17 @@ class AgentPool @Inject constructor(
 
     // ── 流式调用 ────────────────────────────────────────────────────────
 
+    /** Role-ID based streaming — delegates to AgentRole-based version */
+    fun callAgentStreamingByRoleId(
+        roleId: String,
+        context: MicContext,
+        systemPromptOverride: String? = null,
+        materials: List<MaterialData> = emptyList(),
+    ): Flow<String> {
+        val agentRole = AgentRole.fromId(roleId) ?: AgentRole.SUPERVISOR
+        return callAgentStreaming(agentRole, context, systemPromptOverride, materials)
+    }
+
     // ── 带 Tool Calling 的流式调用 ───────────────────────────────
 
     /**
@@ -91,7 +102,7 @@ class AgentPool @Inject constructor(
      * 如果有 → 执行 tool → 结果加入 messages → 再请求（可能多轮）。
      * 最后无 tool_calls 时 → 发流式请求拿最终文本。
      */
-    fun callAgentStreaming(role: AgentRole, context: MicContext, systemPromptOverride: String? = null): Flow<String> = channelFlow {
+    fun callAgentStreaming(role: AgentRole, context: MicContext, systemPromptOverride: String? = null, materials: List<MaterialData> = emptyList()): Flow<String> = channelFlow {
         val config = apiKeyProvider.getAgentConfig(role.id)
         val systemPrompt = systemPromptOverride ?: buildSystemPrompt(role, context)
         val userMessage = if (systemPromptOverride != null) {
@@ -116,8 +127,8 @@ class AgentPool @Inject constructor(
             launch(Dispatchers.IO) {
                 try {
                     when (config.provider) {
-                        LlmProvider.ANTHROPIC -> collectAnthropicStream(channel, config, systemPrompt, userMessage)
-                        else -> collectOpenAiStream(channel, config.baseUrl, config, systemPrompt, userMessage, allTools)
+                        LlmProvider.ANTHROPIC -> collectAnthropicStream(channel, config, systemPrompt, userMessage, materials)
+                        else -> collectOpenAiStream(channel, config.baseUrl, config, systemPrompt, userMessage, allTools, materials)
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "[STREAM] 错误: ${e.javaClass.simpleName}: ${e.message}")
@@ -345,15 +356,17 @@ class AgentPool @Inject constructor(
         config: LlmConfig,
         system: String,
         user: String,
+        materials: List<MaterialData> = emptyList(),
     ) {
         val url = "${config.baseUrl.trimEnd('/')}/${LlmProvider.ANTHROPIC.chatEndpoint}"
         Log.d(TAG, "[SSE-Anthropic] 开始请求 $url model=${config.model}")
 
+        val userContent = LlmContentBuilder.buildContent(user, materials, LlmProvider.ANTHROPIC)
         val bodyJson = gson.toJson(mapOf(
             "model"     to config.model,
             "max_tokens" to 2048,
             "system"    to system,
-            "messages"  to listOf(mapOf("role" to "user", "content" to user)),
+            "messages"  to listOf(mapOf("role" to "user", "content" to userContent)),
             "stream"    to true,
         ))
 
@@ -434,14 +447,16 @@ class AgentPool @Inject constructor(
         system: String,
         user: String,
         tools: List<Map<String, Any>> = emptyList(),
+        materials: List<MaterialData> = emptyList(),
     ) {
         val url = "${baseUrl}${config.provider.chatEndpoint}"
         Log.d(TAG, "[SSE] 开始请求 $url model=${config.model}")
+        val userContent = LlmContentBuilder.buildContent(user, materials, config.provider)
         val bodyMap = mutableMapOf<String, Any>(
             "model"      to config.model,
             "messages"   to listOf(
                 mapOf("role" to "system", "content" to system),
-                mapOf("role" to "user",   "content" to user),
+                mapOf("role" to "user",   "content" to userContent),
             ),
             "max_tokens" to 2048,
             "stream"     to true,
@@ -510,10 +525,16 @@ class AgentPool @Inject constructor(
 
     fun getSystemPromptText(role: AgentRole): String = buildSystemPrompt(role, EMPTY_CONTEXT)
 
+    /** Get system prompt by role ID string (for generic presets) */
+    fun getSystemPromptTextByRoleId(roleId: String): String? {
+        val agentRole = AgentRole.fromId(roleId) ?: return null
+        return buildSystemPrompt(agentRole, EMPTY_CONTEXT)
+    }
+
     private val EMPTY_CONTEXT = MicContext(
         traceId = "", causedBy = "", round = 0,
         phase = MeetingState.IDLE, subject = "",
-        agentRole = AgentRole.ANALYST, task = "",
+        agentRoleId = "", task = "",
     )
 
     private fun buildSystemPrompt(role: AgentRole, ctx: MicContext): String {

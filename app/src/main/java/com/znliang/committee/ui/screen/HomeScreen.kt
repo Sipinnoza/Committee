@@ -702,6 +702,67 @@ private fun MeetingInitCard(
                 )
             }
 
+            // ── Urgency & Duration Estimate ──
+            var urgencyLevel by remember { mutableStateOf(0) } // 0=normal, 1=urgent, 2=critical
+            val urgencyLabels = listOf(
+                stringResource(R.string.urgency_normal),
+                stringResource(R.string.urgency_urgent),
+                stringResource(R.string.urgency_critical),
+            )
+            val urgencyColors = listOf(TextMuted, StateWarningColor, SellColor)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    stringResource(R.string.urgency_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted,
+                )
+                urgencyLabels.forEachIndexed { idx, label ->
+                    val isSelected = urgencyLevel == idx
+                    Surface(
+                        modifier = Modifier.clickable { urgencyLevel = idx },
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isSelected) urgencyColors[idx].copy(alpha = 0.15f) else Color.Transparent,
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) urgencyColors[idx].copy(alpha = 0.5f) else BorderColor,
+                        ),
+                    ) {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) urgencyColors[idx] else TextMuted,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+            }
+
+            // Estimated duration
+            val estimatedMinutes = remember(quickMode, urgencyLevel) {
+                val baseMinutes = if (quickMode) 2 else 5
+                val urgencyMultiplier = when (urgencyLevel) {
+                    2 -> 0.5f  // critical: fastest
+                    1 -> 0.7f  // urgent: faster
+                    else -> 1.0f
+                }
+                (baseMinutes * urgencyMultiplier).toInt().coerceAtLeast(1)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Speed, null, tint = TextMuted, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    stringResource(R.string.estimated_duration, estimatedMinutes),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted,
+                )
+            }
+
             Button(
                 onClick = {
                     keyboard?.hide()

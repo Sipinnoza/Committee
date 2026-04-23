@@ -19,7 +19,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.znliang.committee.domain.model.AgentRole
+import com.znliang.committee.domain.model.MeetingPresetConfig
+import com.znliang.committee.domain.model.PresetRole
 import com.znliang.committee.domain.model.SpeechRecord
 import com.znliang.committee.ui.theme.*
 import androidx.compose.ui.res.stringResource
@@ -38,10 +39,27 @@ fun ChatBubble(
     speech: SpeechRecord,
     isExpanded: Boolean,
     onToggle: () -> Unit,
+    presetRole: PresetRole? = null,
     modifier: Modifier = Modifier,
 ) {
-    val agentColor = speech.agent.color
-    val agentName = stringResource(speech.agent.displayNameRes())
+    val isHuman = speech.agent == "human"
+    val agentColor = remember(presetRole?.colorHex, isHuman) {
+        if (isHuman) Color(0xFF4FC3F7.toInt()) // Light blue for human
+        else presetRole?.let { runCatching { Color(android.graphics.Color.parseColor(it.colorHex)) }.getOrNull() }
+            ?: SupervisorColor
+    }
+    val agentName = if (isHuman) {
+        stringResource(R.string.human_speaker_name)
+    } else if (presetRole != null) {
+        val resId = presetRole.displayNameRes()
+        if (resId != 0) stringResource(resId) else presetRole.displayName
+    } else {
+        speech.agent
+    }
+    val stanceText = if (isHuman) "" else if (presetRole != null) {
+        val resId = presetRole.stanceRes()
+        if (resId != 0) stringResource(resId) else presetRole.stance
+    } else ""
     val avatarLetter = agentName.first()
 
     Row(
@@ -86,12 +104,14 @@ fun ChatBubble(
                     fontWeight = FontWeight.Bold,
                 )
                 // Stance tag
-                Text(
-                    text = stringResource(speech.agent.stanceRes()),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = agentColor.copy(alpha = 0.6f),
-                    fontSize = 10.sp,
-                )
+                if (stanceText.isNotBlank()) {
+                    Text(
+                        text = stanceText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = agentColor.copy(alpha = 0.6f),
+                        fontSize = 10.sp,
+                    )
+                }
                 Text(
                     text = "R${speech.round}",
                     style = MaterialTheme.typography.labelSmall,

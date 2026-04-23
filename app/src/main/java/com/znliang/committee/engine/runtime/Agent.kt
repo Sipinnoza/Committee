@@ -74,27 +74,30 @@ interface Agent {
         }
         score += relevantCount * 2.0
 
-        // ③ 当前有分歧（看多看空票数接近）→ 策略师/风险官加分
+        // ③ 当前有分歧（投票接近）→ 有相关 attention tags 的角色加分
         val bullCount = board.votes.values.count { it.agree }
         val bearCount = board.votes.size - bullCount
         val hasDivergence = board.votes.size >= 2 && kotlin.math.abs(bullCount - bearCount) <= 1
         if (hasDivergence) {
-            when (role) {
-                "strategy_validator" -> score += 3.0
-                "risk_officer" -> score += 2.0
-                "analyst" -> score += 2.0
-            }
+            // Agents with divergence-relevant tags (RISK, STRATEGY) get boosted
+            val divergenceTags = setOf(MsgTag.RISK, MsgTag.STRATEGY)
+            val tagOverlap = attentionTags.count { it in divergenceTags }
+            score += tagOverlap * 2.0
+            // Any agent with attention tags benefits somewhat in divergence
+            if (attentionTags.isNotEmpty()) score += 1.0
         }
 
         // ④ 本轮已发言 → 降分
         val spokenThisRound = board.messages.count { it.role == role && it.round == board.round }
         score -= spokenThisRound * 3.0
 
-        // ⑤ 第一轮 → Intel/Analyst 加分
+        // ⑤ 第一轮 → 信息/研究型角色加分（有 NEWS 或 QUALITY 标签）
         if (board.round == 1) {
-            when (role) {
-                "intel" -> score += 3.0
-                "analyst" -> score += 2.0
+            val researchTags = setOf(MsgTag.NEWS, MsgTag.QUALITY, MsgTag.FEASIBILITY)
+            val researchOverlap = attentionTags.count { it in researchTags }
+            score += researchOverlap * 2.0
+            if (attentionTags.isNotEmpty() && board.messages.none { it.role == role }) {
+                score += 1.5  // Never-spoken agents get boost in round 1
             }
         }
 
@@ -112,4 +115,5 @@ interface SupervisorCapability : Agent {
     fun buildFinishPrompt(board: Blackboard): String
     fun buildSupervisionPrompt(board: Blackboard): String
     fun buildRatingPrompt(board: Blackboard): String
+    fun buildSummaryPrompt(board: Blackboard): String
 }

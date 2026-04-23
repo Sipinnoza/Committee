@@ -87,12 +87,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.znliang.committee.R
-import com.znliang.committee.domain.model.AgentRole
+import com.znliang.committee.domain.model.MeetingPresetConfig
+import com.znliang.committee.domain.model.PresetRole
 import com.znliang.committee.engine.LlmConfig
 import com.znliang.committee.engine.LlmProvider
 import com.znliang.committee.ui.component.MarkdownText
 import com.znliang.committee.ui.component.SectionHeader
-import com.znliang.committee.ui.component.color
 import com.znliang.committee.ui.theme.BorderColor
 import com.znliang.committee.ui.theme.CommitteeGold
 import com.znliang.committee.ui.theme.SellColor
@@ -113,7 +113,8 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgentConfigChatScreen(
-    role: AgentRole,
+    roleId: String,
+    presetConfig: MeetingPresetConfig,
     viewModel: AgentChatViewModel,
     onBack: () -> Unit,
     memoryViewModel: AgentMemoryViewModel = hiltViewModel(),
@@ -132,9 +133,9 @@ fun AgentConfigChatScreen(
     )
     val localFileLabel = stringResource(R.string.agents_local_file)
 
-    LaunchedEffect(role) {
-        viewModel.setAgent(role)
-        memoryViewModel.loadDetail(role)
+    LaunchedEffect(roleId) {
+        viewModel.setAgent(roleId)
+        memoryViewModel.loadDetail(roleId)
     }
 
     // Auto-scroll on new messages
@@ -146,7 +147,19 @@ fun AgentConfigChatScreen(
         }
     }
 
-    val agentColor = role.color
+    val presetRole = remember(roleId) { presetConfig.getActivePreset().findRole(roleId) }
+    val agentColor = remember(presetRole?.colorHex) {
+        presetRole?.let { runCatching { Color(android.graphics.Color.parseColor(it.colorHex)) }.getOrNull() }
+            ?: com.znliang.committee.ui.theme.SupervisorColor
+    }
+    val agentName: String = if (presetRole != null) {
+        val resId = presetRole.displayNameRes()
+        if (resId != 0) stringResource(resId) else presetRole.displayName
+    } else roleId
+    val agentStance: String = if (presetRole != null) {
+        val resId = presetRole.stanceRes()
+        if (resId != 0) stringResource(resId) else presetRole.stance
+    } else ""
 
     Scaffold(
         modifier = Modifier.imePadding(),
@@ -167,11 +180,11 @@ fun AgentConfigChatScreen(
                                     .background(agentColor.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text("${stringResource(role.displayNameRes()).first()}", color = agentColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text("${agentName.first()}", color = agentColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             }
-                            Text(stringResource(role.displayNameRes()), color = TextPrimary, fontWeight = FontWeight.Bold)
+                            Text(agentName, color = TextPrimary, fontWeight = FontWeight.Bold)
                             Text("·", color = TextMuted)
-                            Text(stringResource(role.stanceRes()), style = MaterialTheme.typography.labelSmall, color = agentColor.copy(alpha = 0.7f))
+                            Text(agentStance, style = MaterialTheme.typography.labelSmall, color = agentColor.copy(alpha = 0.7f))
                         }
                     },
                     navigationIcon = {
@@ -234,7 +247,7 @@ fun AgentConfigChatScreen(
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 42.dp, max = 120.dp),
-                        placeholder = { Text(stringResource(R.string.agents_send_message_to, stringResource(role.displayNameRes())), color = TextMuted) },
+                        placeholder = { Text(stringResource(R.string.agents_send_message_to, agentName), color = TextMuted) },
                         maxLines = 5,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = {
@@ -549,14 +562,14 @@ fun AgentConfigChatScreen(
                                 .border(1.dp, agentColor.copy(alpha = 0.4f), CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("${stringResource(role.displayNameRes()).first()}", color = agentColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("${agentName.first()}", color = agentColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
 
                         Spacer(Modifier.width(8.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                stringResource(role.displayNameRes()),
+                                agentName,
                                 style = MaterialTheme.typography.labelLarge,
                                 color = agentColor,
                                 fontWeight = FontWeight.Bold,

@@ -91,7 +91,7 @@ fun LogScreen(viewModel: MeetingViewModel) {
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    itemsIndexed(items = uiState.looperLogs, key = { idx, _ -> "log_$idx" }) { _, line ->
+                    itemsIndexed(items = uiState.looperLogs, key = { idx, line -> "log_${idx}_${line.hashCode()}" }) { _, line ->
                         val color = when {
                             line.contains(stringResource(R.string.log_tag_transition)) -> CommitteeGold
                             line.contains(stringResource(R.string.log_tag_event))    -> AnalystColor

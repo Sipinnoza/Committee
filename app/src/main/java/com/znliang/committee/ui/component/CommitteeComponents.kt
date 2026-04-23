@@ -18,12 +18,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.znliang.committee.domain.model.AgentRole
 import com.znliang.committee.domain.model.MeetingState
+import com.znliang.committee.domain.model.PresetRole
 import com.znliang.committee.domain.model.Rating
 import com.znliang.committee.ui.theme.*
 import androidx.compose.ui.res.stringResource
 import com.znliang.committee.R
 
 // ── Agent Avatar + Name ───────────────────────────────────────────────────────
+
+/** Resolve color from PresetRole.colorHex with fallback */
+fun resolveRoleColor(presetRole: PresetRole?): Color {
+    return presetRole?.let {
+        runCatching { Color(android.graphics.Color.parseColor(it.colorHex)) }.getOrNull()
+    } ?: SupervisorColor
+}
 
 @Composable
 fun AgentChip(role: AgentRole, modifier: Modifier = Modifier) {

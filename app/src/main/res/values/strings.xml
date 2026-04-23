@@ -446,4 +446,11 @@
     <string name="vote_results_count">%1$d Agree · %2$d Disagree</string>
     <string name="vote_agree_label">Agree</string>
     <string name="vote_disagree_label">Disagree</string>
+
+    <!-- Urgency & Duration -->
+    <string name="urgency_label">Priority:</string>
+    <string name="urgency_normal">Normal</string>
+    <string name="urgency_urgent">Urgent</string>
+    <string name="urgency_critical">Critical</string>
+    <string name="estimated_duration">Est. ~%d min</string>
 </resources>

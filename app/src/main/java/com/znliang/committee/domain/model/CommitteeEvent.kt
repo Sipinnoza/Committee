@@ -25,12 +25,12 @@ data class MicContext(
     val round: Int,
     val phase: MeetingState,
     val subject: String,
-    val agentRole: AgentRole,
+    val agentRoleId: String,
     val task: String = "",
 )
 
 data class SpeechRecord(
-    val agent: AgentRole,
+    val agent: String,
     val round: Int,
     val summary: String,
     val content: String,

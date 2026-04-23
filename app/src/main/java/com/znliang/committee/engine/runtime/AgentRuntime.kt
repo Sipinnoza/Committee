@@ -7,12 +7,13 @@ import com.znliang.committee.data.db.MeetingOutcomeEntity
 import com.znliang.committee.data.db.MeetingSessionEntity
 import com.znliang.committee.data.repository.EventRepository
 import com.znliang.committee.data.repository.EvolutionRepository
-import com.znliang.committee.domain.model.AgentRole
+import com.znliang.committee.domain.model.MeetingPreset
 import com.znliang.committee.domain.model.MeetingState
 import com.znliang.committee.domain.model.MicContext
 import com.znliang.committee.domain.model.SpeechRecord
 import com.znliang.committee.engine.AgentPool
 import com.znliang.committee.engine.LlmConfig
+import com.znliang.committee.engine.MaterialData
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,20 +41,22 @@ import kotlinx.coroutines.launch
  */
 class AgentRuntime(
     private val agentPool: AgentPool,
-    private val supervisor: SupervisorAgent,
-    private val agents: List<Agent>,
+    private var supervisor: SupervisorCapability,
+    private var agents: List<Agent>,
     private val configProvider: suspend () -> LlmConfig,
     private val repository: EventRepository,
     private val evolutionRepo: EvolutionRepository,
     private val toolRegistry: DynamicToolRegistry,
     private val appContext: Context,
+    private var preset: MeetingPreset,
 ) {
     companion object {
         private const val TAG = "AgentRuntime"
-        private const val ABSOLUTE_MAX_ROUNDS = 20
-        private const val ACTIVATION_K = 2
-        private const val SUMMARY_INTERVAL = 2
     }
+
+    private var maxRounds = preset.mandateInt("max_rounds", 20)
+    private var activationK = preset.mandateInt("activation_k", 2)
+    private var summaryInterval = preset.mandateInt("summary_interval", 2)
 
     /** 系统级 LLM 服务（无 Agent 身份），用于 Supervisor/反思等 */
     private val systemLlm = SystemLlmService(
@@ -67,19 +70,11 @@ class AgentRuntime(
     /** 策略技能库 */
     private val skillLibrary = SkillLibrary(systemLlm, evolutionRepo)
 
-    /** 🔥 超级智能体进化引擎注册表 — 每个Agent都有专属Evolver */
-    private val evolverRegistry: Map<String, AgentSelfEvolver> = mapOf(
-        "intel" to IntelSelfEvolver(systemLlm, evolutionRepo),
-        "analyst" to AnalystSelfEvolver(systemLlm, evolutionRepo),
-        "risk_officer" to RiskSelfEvolver(systemLlm, evolutionRepo),
-        "strategy_validator" to StrategistSelfEvolver(systemLlm, evolutionRepo),
-        "executor" to ExecutorSelfEvolver(systemLlm, evolutionRepo),
-        "supervisor" to SupervisorSelfEvolver(systemLlm, evolutionRepo),
-    )
+    /** Dynamic evolver registry — creates GenericSelfEvolver for each agent */
+    private var evolverRegistry: Map<String, AgentSelfEvolver> = buildEvolverRegistry()
 
-    /** 兼容：直接取情报官 evolver（预搜索等场景） */
-    private val intelEvolver: IntelSelfEvolver
-        get() = evolverRegistry["intel"] as IntelSelfEvolver
+    /** Find the tool-capable agent's role ID (for pre-meeting search) */
+    private var toolAgentRoleId: String? = findToolAgentRoleId()
 
     private val _board = MutableStateFlow(Blackboard())
     val board: StateFlow<Blackboard> = _board.asStateFlow()
@@ -89,6 +84,9 @@ class AgentRuntime(
 
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
+
+    private val _isPaused = MutableStateFlow(false)
+    val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
 
     private val _runtimeLog = MutableStateFlow<List<String>>(emptyList())
     val runtimeLog: StateFlow<List<String>> = _runtimeLog.asStateFlow()
@@ -103,14 +101,14 @@ class AgentRuntime(
 
     // ── 公开接口 ─────────────────────────────────────────────────
 
-    fun startMeeting(subject: String) {
-        Log.i(TAG, "startMeeting called: isRunning=${_isRunning.value} subject=$subject")
+    fun startMeeting(subject: String, materials: List<MaterialRef> = emptyList()) {
+        Log.i(TAG, "startMeeting called: isRunning=${_isRunning.value} subject=$subject materials=${materials.size}")
         if (_isRunning.value) return
         currentTraceId = "mtg_${System.currentTimeMillis()}"
-        _board.value = Blackboard(subject = subject)
+        _board.value = Blackboard(subject = subject, materials = materials)
         _speeches.value = emptyList()
         _runtimeLog.value = emptyList()
-        log("[Start] traceId=$currentTraceId subject=$subject")
+        log("[Start] traceId=$currentTraceId subject=$subject materials=${materials.size}")
 
         scope.launch {
             repository.upsertSession(MeetingSessionEntity(
@@ -159,6 +157,61 @@ class AgentRuntime(
         runJob?.cancel()
         _board.value = _board.value.copy(finished = true, phase = BoardPhase.IDLE)
         _isRunning.value = false
+        _isPaused.value = false
+    }
+
+    // ── Human-in-the-Loop ─────────────────────────────────────
+
+    fun pauseMeeting() {
+        _isPaused.value = true
+        log("[Human] Meeting paused")
+    }
+
+    fun resumeMeeting() {
+        _isPaused.value = false
+        log("[Human] Meeting resumed")
+    }
+
+    fun injectHumanMessage(content: String) {
+        if (content.isBlank()) return
+        val tags = inferHumanTags(content)
+        addBoardMessage("human", content, tags)
+        _speeches.value = _speeches.value + SpeechRecord(
+            id = "human_${System.currentTimeMillis()}",
+            agent = "human",
+            content = content,
+            summary = "",
+            round = _board.value.round,
+        )
+        log("[Human] Injected message: ${content.take(60)}...")
+    }
+
+    fun injectHumanVote(agree: Boolean, reason: String) {
+        _board.value = _board.value.copy(
+            votes = _board.value.votes + ("human" to BoardVote(
+                role = "human",
+                agree = agree,
+                reason = reason,
+                round = _board.value.round,
+            ))
+        )
+        // Check consensus after human vote
+        val b = _board.value
+        if (b.hasConsensus() && !b.consensus) {
+            _board.value = b.copy(consensus = true)
+            log("[Consensus] Bull ${(b.bullRatio() * 100).toInt()}%")
+        }
+        log("[Human] Vote: ${if (agree) "Agree" else "Disagree"} reason=$reason")
+    }
+
+    private fun inferHumanTags(content: String): List<String> {
+        val result = mutableListOf<String>()
+        val c = content.uppercase()
+        if (c.contains("风险") || c.contains("RISK")) result.add("RISK")
+        if (c.contains("看多") || c.contains("BULL") || c.contains("赞成")) result.add("PRO")
+        if (c.contains("看空") || c.contains("BEAR") || c.contains("反对")) result.add("CON")
+        if (c.contains("问题") || c.contains("QUESTION")) result.add("QUESTION")
+        return result.ifEmpty { listOf("GENERAL") }
     }
 
     /** 恢复历史 speeches 到 UI（用于 recoverSession） */
@@ -193,6 +246,7 @@ class AgentRuntime(
         _board.value = Blackboard()
         _speeches.value = emptyList()
         _isRunning.value = false
+        _isPaused.value = false
         _runtimeLog.value = emptyList()
         currentTraceId = ""
     }
@@ -208,7 +262,7 @@ class AgentRuntime(
      * 🔥 情报官预搜索（参考 Hermes 的 proactive info gathering）
      *
      * 在会议正式开始前，根据历史信息缺口记忆自动搜索补充信息：
-     * 1. 从 IntelSelfEvolver 加载历史缺口
+     * 1. 从 tool-capable agent 的 evolver 加载历史缺口
      * 2. 基于标的 + 缺口构造搜索查询
      * 3. 通过 WebSearchService 执行搜索
      * 4. 搜索结果注入 blackboard 的 preGatheredInfo
@@ -216,7 +270,8 @@ class AgentRuntime(
      */
     private suspend fun preMeetingIntelSearch(subject: String) {
         try {
-            val gapMemory = intelEvolver.getGapMemory()
+            val toolEvolver = toolAgentRoleId?.let { evolverRegistry[it] }
+            val gapMemory = toolEvolver?.getPreMeetingMemory() ?: emptyList()
             if (gapMemory.isEmpty()) {
                 log("[PreSearch] No historical info gaps, skipping")
                 return
@@ -271,18 +326,23 @@ class AgentRuntime(
         val CIRCUIT_BREAKER_THRESHOLD = 3 // 连续3轮无人发言即熔断
 
         while (!_board.value.finished) {
+            // ── Human-in-the-Loop: 暂停检查 ──
+            while (_isPaused.value && !_board.value.finished) {
+                kotlinx.coroutines.delay(200)
+            }
+
             val board = _board.value
 
-            if (board.round > ABSOLUTE_MAX_ROUNDS) {
-                log("[SafetyValve] Exceeded $ABSOLUTE_MAX_ROUNDS rounds")
-                finishWithRating("Hold")
+            if (board.round > maxRounds) {
+                log("[SafetyValve] Exceeded $maxRounds rounds")
+                finishWithRating(defaultRating())
                 break
             }
 
             log("[Round ${board.round}] ────────────────────────────")
 
             // ── ① Summary Memory ──────────────────────────────────────
-            if (board.round > 1 && board.round - board.lastSummaryRound >= SUMMARY_INTERVAL) {
+            if (board.round > 1 && board.round - board.lastSummaryRound >= summaryInterval) {
                 updateSummary()
             }
 
@@ -293,7 +353,7 @@ class AgentRuntime(
                 log("[Supervisor] shouldFinish=$shouldFinish (msgs=$nonSupervisorMsgs)")
                 if (shouldFinish) {
                     val rating = doRating()
-                    finishWithRating(rating ?: "Hold")
+                    finishWithRating(rating ?: defaultRating())
                     break
                 }
             }
@@ -323,7 +383,7 @@ class AgentRuntime(
             }
 
             // ── ⑤ 取 top-2 并行发言（SPEAK=NO 不消耗轮次） ────
-            val topK = scored.take(ACTIVATION_K)
+            val topK = scored.take(activationK)
             var anySpoke = false
 
             for ((picked, _) in topK) {
@@ -374,14 +434,14 @@ class AgentRuntime(
                         continue
                     }
 
-                    val agentRole = AgentRole.fromId(picked.role) ?: AgentRole.SUPERVISOR
+                    val roleId = picked.role
                     val round = _board.value.round
                     val recordId = "sp_${System.currentTimeMillis()}"
 
                     // 创建流式占位记录
                     _speeches.value = _speeches.value + SpeechRecord(
                         id = recordId,
-                        agent = agentRole,
+                        agent = roleId,
                         content = "",
                         summary = "",
                         round = round,
@@ -390,18 +450,23 @@ class AgentRuntime(
 
                     // 真流式：delta 逐条推送到 UI
                     val sb = StringBuilder()
-                    agentPool.callAgentStreaming(
-                        agentRole,
+                    // 将 MaterialRef 转换为 MaterialData 传给 AgentPool
+                    val materialData = _board.value.materials
+                        .filter { it.mimeType.startsWith("image/") && it.base64.isNotBlank() }
+                        .map { MaterialData(mimeType = it.mimeType, base64 = it.base64, fileName = it.fileName) }
+                    agentPool.callAgentStreamingByRoleId(
+                        roleId,
                         MicContext(
                             traceId = "ag_${System.currentTimeMillis()}",
                             causedBy = "system",
                             round = round,
                             phase = MeetingState.PHASE1_DEBATE,
                             subject = _board.value.subject,
-                            agentRole = agentRole,
+                            agentRoleId = roleId,
                             task = "decision",
                         ),
                         systemPromptOverride = prompt,
+                        materials = materialData,
                     ).collect { delta ->
                         sb.append(delta)
                         val accumulated = sb.toString()
@@ -439,7 +504,7 @@ class AgentRuntime(
                                     round = _board.value.round,
                                 ))
                             )
-                            log("[Vote] ${picked.role} = ${if (response.voteBull) "Bull" else "Bear"}")
+                            log("[Vote] ${picked.role} = ${if (response.voteBull) "Agree" else "Disagree"}")
                         }
 
                         // 共识
@@ -474,28 +539,13 @@ class AgentRuntime(
                     log("[CircuitBreak] $CIRCUIT_BREAKER_THRESHOLD consecutive silent rounds (possible network issue), terminating early")
                     // 将错误信息展示给用户
                     addBoardMessage("supervisor", "⚠️ Network connection error, unable to get AI response. Please check network and retry.", emptyList())
-                    finishWithRating("Hold")
+                    finishWithRating(defaultRating())
                     break
                 }
                 log("[CircuitBreak] Consecutive silent rounds $consecutiveSilentRounds/$CIRCUIT_BREAKER_THRESHOLD")
                 advanceRound()
             }
         }
-    }
-
-    // ── 加权随机 ─────────────────────────────────────────────
-
-    private fun weightedRandom(scored: List<Pair<Agent, Double>>): Agent {
-        if (scored.size == 1) return scored[0].first
-        val minScore = scored.minOf { it.second }
-        val adjusted = scored.map { it.first to (it.second - minScore + 0.1) }
-        val total = adjusted.sumOf { it.second }
-        var rand = kotlin.random.Random.nextDouble() * total
-        for ((agent, weight) in adjusted) {
-            rand -= weight
-            if (rand <= 0) return agent
-        }
-        return adjusted.last().first
     }
 
     // ── Summary Memory ───────────────────────────────────────
@@ -564,6 +614,8 @@ class AgentRuntime(
         return parseRating(content)
     }
 
+    private fun defaultRating(): String = preset.ratingScale.getOrElse(preset.ratingScale.size / 2) { "Hold" }
+
     private fun finishWithRating(rating: String) {
         _board.value = _board.value.copy(
             finished = true,
@@ -578,7 +630,8 @@ class AgentRuntime(
     }
 
     private fun parseRating(content: String): String? {
-        val regex = Regex("""(?:Final Rating|最终评级).*?(Buy|Overweight|Hold\+|Hold|Underweight|Sell)""")
+        val scalePattern = preset.ratingScale.joinToString("|") { Regex.escape(it) }
+        val regex = Regex("""(?:Final Rating|最终评级|最终结论|结论).*?($scalePattern)""", RegexOption.IGNORE_CASE)
         return regex.find(content)?.groupValues?.getOrNull(1)
     }
 
@@ -655,46 +708,17 @@ class AgentRuntime(
                             }
                         }
 
-                        // ── 情报官额外持久化 ──
-                        if (roleId == "intel" && reflection is IntelReflection) {
-                            intelEvolver.persistReflection(reflection)
-                        }
-
-                        // ── 通用经验持久化（非情报官的反射结果） ──
-                        if (roleId != "intel") {
-                            val category = when {
-                                reflection.suggestion.contains("无需修改") -> "INSIGHT"
-                                reflection.suggestion.contains("风险") || reflection.suggestion.contains("错误") -> "MISTAKE"
-                                reflection.suggestion.contains("策略") || reflection.suggestion.contains("框架") -> "STRATEGY"
-                                else -> "PROMPT_FIX"
-                            }
-                            val agentVote = board.votes[roleId]
-                            val ratingBullish = board.finalRating in listOf("Buy", "Overweight")
-                            val outcome = if (agentVote != null) {
-                                if ((agentVote.agree && ratingBullish) || (!agentVote.agree && !ratingBullish)) "POSITIVE" else "NEGATIVE"
-                            } else "NEUTRAL"
-
-                            evolutionRepo.saveExperience(AgentEvolutionEntity(
-                                agentRole = roleId,
-                                meetingTraceId = currentTraceId,
-                                category = category,
-                                content = reflection.summary.take(300),
-                                outcome = outcome,
-                                priority = reflection.priority,
-                            ))
-                        }
-
                         // ── 追踪：记录会议结果 ──
                         val agentVote = board.votes[roleId]
-                        val ratingBullish = board.finalRating in listOf("Buy", "Overweight")
+                        val ratingPositive = preset.ratingScale.indexOf(board.finalRating ?: "").let { it in 0..1 }
                         evolutionRepo.saveOutcome(MeetingOutcomeEntity(
                             meetingTraceId = currentTraceId,
                             agentRole = roleId,
                             subject = board.subject,
                             finalRating = board.finalRating,
-                            agentVote = if (agentVote != null) { if (agentVote.agree) "BULL" else "BEAR" } else null,
+                            agentVote = if (agentVote != null) { if (agentVote.agree) "AGREE" else "DISAGREE" } else null,
                             voteCorrect = if (agentVote != null) {
-                                (agentVote.agree && ratingBullish) || (!agentVote.agree && !ratingBullish)
+                                (agentVote.agree && ratingPositive) || (!agentVote.agree && !ratingPositive)
                             } else null,
                             selfScore = 0f,
                             lessonsLearned = reflection.summary.take(200),
@@ -703,9 +727,9 @@ class AgentRuntime(
                         // ── 自动进化：高优先级建议触发 PromptEvolver ──
                         if (reflection.priority == "HIGH" && reflection.suggestion.isNotBlank() && reflection.suggestion != "无需修改") {
                             try {
-                                val currentPrompt = agentPool.getSystemPromptText(
-                                    AgentRole.fromId(roleId) ?: continue
-                                )
+                                val currentPrompt = agentPool.getSystemPromptTextByRoleId(roleId)
+                                    ?: preset.findRole(roleId)?.responsibility
+                                    ?: "Generic agent"
                                 val evolved = promptEvolver.tryAutoEvolve(
                                     roleId, currentPrompt, reflection.suggestion, currentTraceId
                                 )
@@ -788,10 +812,8 @@ class AgentRuntime(
         board: Blackboard,
         myMessages: List<BoardMessage>,
     ): String {
-        val currentPrompt = agentPool.getSystemPromptText(
-            AgentRole.fromId(agent.role)
+        val currentPrompt = agentPool.getSystemPromptTextByRoleId(agent.role)
                 ?: return ""
-        )
 
         val mySpeeches = myMessages.joinToString("\n") { msg ->
             "[第${msg.round}轮] ${msg.content.take(300)}"
@@ -842,5 +864,72 @@ PRIORITY: HIGH / MEDIUM / LOW
     /** 清除所有建议 */
     fun clearAllSuggestions() {
         _promptSuggestions.value = emptyMap()
+    }
+
+    // ── Reconfiguration ─────────────────────────────────────────
+
+    private fun buildEvolverRegistry(): Map<String, AgentSelfEvolver> = buildMap {
+        for (agent in agents) {
+            val presetRole = preset.findRole(agent.role)
+            put(agent.role, GenericSelfEvolver(
+                systemLlm = systemLlm,
+                evolutionRepo = evolutionRepo,
+                roleId = agent.role,
+                roleDisplayName = agent.displayName,
+                roleResponsibility = presetRole?.responsibility ?: agent.displayName,
+            ))
+        }
+        val supervisorRole = preset.findRole(supervisor.role)
+        put(supervisor.role, GenericSelfEvolver(
+            systemLlm = systemLlm,
+            evolutionRepo = evolutionRepo,
+            roleId = supervisor.role,
+            roleDisplayName = supervisor.displayName,
+            roleResponsibility = supervisorRole?.responsibility ?: supervisor.displayName,
+        ))
+    }
+
+    private fun findToolAgentRoleId(): String? =
+        agents.filterIsInstance<GenericAgent>()
+            .firstOrNull { it.canUseTools }?.role
+            ?: agents.find { it.role.contains("intel") || it.role.contains("researcher") }?.role
+
+    /**
+     * Reconfigure the runtime with a new preset (e.g. when user switches presets in Settings).
+     * Must only be called when no meeting is running.
+     */
+    fun reconfigure(newPreset: MeetingPreset) {
+        if (_isRunning.value) {
+            Log.w(TAG, "Cannot reconfigure while meeting is running")
+            return
+        }
+        preset = newPreset
+        maxRounds = newPreset.mandateInt("max_rounds", 20)
+        activationK = newPreset.mandateInt("activation_k", 2)
+        summaryInterval = newPreset.mandateInt("summary_interval", 2)
+
+        val supervisorRoleIds = setOf("supervisor", "coordinator", "judge", "area_chair")
+        val supervisorPresetRole = newPreset.roles.find { it.id in supervisorRoleIds }
+            ?: newPreset.roles.last()
+
+        supervisor = GenericSupervisor(
+            presetRole = supervisorPresetRole,
+            ratingScale = newPreset.ratingScale,
+            committeeLabel = newPreset.committeeLabel,
+        )
+
+        agents = newPreset.roles
+            .filter { it.id != supervisorPresetRole.id }
+            .map { role ->
+                GenericAgent(
+                    presetRole = role,
+                    systemPrompt = "",
+                    canUseTools = role.canUseTools,
+                )
+            }
+
+        evolverRegistry = buildEvolverRegistry()
+        toolAgentRoleId = findToolAgentRoleId()
+        Log.i(TAG, "Reconfigured to preset: ${newPreset.id} with ${agents.size} agents")
     }
 }
