@@ -426,4 +426,10 @@
     <!-- 智能模板推荐 -->
     <string name="recommend_preset_hint">为你的议题推荐：</string>
     <string name="recommend_switch">切换</string>
+
+    <!-- 历史搜索与筛选 -->
+    <string name="history_search_hint">搜索决策记录…</string>
+    <string name="history_filter_all">全部</string>
+    <string name="history_filter_result">%d 条结果</string>
+    <string name="history_filter_empty">没有匹配的决策记录</string>
 </resources>

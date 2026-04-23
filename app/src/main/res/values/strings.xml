@@ -426,4 +426,10 @@
     <!-- Smart Preset Recommendation -->
     <string name="recommend_preset_hint">Recommended template for your topic:</string>
     <string name="recommend_switch">Switch</string>
+
+    <!-- History Search & Filter -->
+    <string name="history_search_hint">Search decisions…</string>
+    <string name="history_filter_all">All</string>
+    <string name="history_filter_result">%d result(s)</string>
+    <string name="history_filter_empty">No decisions match your filter</string>
 </resources>

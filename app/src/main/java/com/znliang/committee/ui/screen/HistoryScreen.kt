@@ -5,18 +5,24 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +50,24 @@ fun HistoryScreen(
     onSessionClick: (MeetingSessionEntity) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedRating by remember { mutableStateOf<String?>(null) } // null = All
+
+    // Collect distinct ratings for filter chips
+    val allRatings = remember(uiState.sessions) {
+        uiState.sessions.mapNotNull { it.rating }.distinct().sorted()
+    }
+
+    // Filter sessions
+    val filteredSessions = remember(uiState.sessions, searchQuery, selectedRating) {
+        uiState.sessions.filter { session ->
+            val matchesSearch = searchQuery.isBlank() ||
+                session.subject.contains(searchQuery, ignoreCase = true) ||
+                (session.rating?.contains(searchQuery, ignoreCase = true) == true)
+            val matchesRating = selectedRating == null || session.rating == selectedRating
+            matchesSearch && matchesRating
+        }
+    }
 
     Scaffold(
         containerColor = SurfaceDark,
@@ -56,6 +80,13 @@ fun HistoryScreen(
                     ) {
                         Icon(Icons.Default.History, null, tint = CommitteeGold)
                         Text(stringResource(R.string.history_title), color = TextPrimary, fontWeight = FontWeight.Bold)
+                        if (uiState.sessions.isNotEmpty()) {
+                            Text(
+                                "(${uiState.sessions.size})",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TextMuted,
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceCard),
@@ -88,12 +119,114 @@ fun HistoryScreen(
                     DecisionStatsDashboard(sessions = uiState.sessions)
                 }
 
-                items(uiState.sessions, key = { it.traceId }) { session ->
+                // ── Search & Filter ──────────────────────────────
+                item(key = "search_filter") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Search bar
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text(stringResource(R.string.history_search_hint)) },
+                            leadingIcon = { Icon(Icons.Default.Search, null, tint = TextMuted, modifier = Modifier.size(20.dp)) },
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { searchQuery = "" }) {
+                                        Icon(Icons.Default.Clear, null, tint = TextMuted, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = committeeTextFieldColors(),
+                            shape = RoundedCornerShape(10.dp),
+                        )
+
+                        // Rating filter chips
+                        if (allRatings.isNotEmpty()) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                // "All" chip
+                                item {
+                                    FilterChip(
+                                        selected = selectedRating == null,
+                                        onClick = { selectedRating = null },
+                                        label = { Text(stringResource(R.string.history_filter_all)) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = CommitteeGold.copy(alpha = 0.15f),
+                                            selectedLabelColor = CommitteeGold,
+                                            containerColor = SurfaceCard,
+                                            labelColor = TextSecondary,
+                                        ),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            borderColor = BorderColor,
+                                            selectedBorderColor = CommitteeGold.copy(alpha = 0.4f),
+                                            enabled = true,
+                                            selected = selectedRating == null,
+                                        ),
+                                    )
+                                }
+                                items(allRatings) { rating ->
+                                    FilterChip(
+                                        selected = selectedRating == rating,
+                                        onClick = { selectedRating = if (selectedRating == rating) null else rating },
+                                        label = { Text(rating) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = CommitteeGold.copy(alpha = 0.15f),
+                                            selectedLabelColor = CommitteeGold,
+                                            containerColor = SurfaceCard,
+                                            labelColor = TextSecondary,
+                                        ),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            borderColor = BorderColor,
+                                            selectedBorderColor = CommitteeGold.copy(alpha = 0.4f),
+                                            enabled = true,
+                                            selected = selectedRating == rating,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+
+                        // Result count
+                        if (searchQuery.isNotEmpty() || selectedRating != null) {
+                            Text(
+                                stringResource(R.string.history_filter_result, filteredSessions.size),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted,
+                            )
+                        }
+                    }
+                }
+
+                items(filteredSessions, key = { it.traceId }) { session ->
                     SessionCard(
                         session = session,
                         onRecover = { viewModel.recoverSession(it) },
                         onClick = { onSessionClick(session) },
                     )
+                }
+
+                // Empty filter result
+                if (filteredSessions.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.FilterList, null, tint = TextMuted, modifier = Modifier.size(36.dp))
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    stringResource(R.string.history_filter_empty),
+                                    color = TextMuted,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
