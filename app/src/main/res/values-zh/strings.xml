@@ -391,4 +391,13 @@
     <string name="report_export">导出报告</string>
     <string name="report_share_chooser">分享决策</string>
     <string name="report_export_chooser">导出决策报告</string>
+
+    <!-- 自定义预设 -->
+    <string name="preset_create_new">创建预设</string>
+    <string name="preset_custom_section">自定义预设</string>
+    <string name="preset_name_label">预设名称</string>
+    <string name="preset_committee_label">委员会名称</string>
+    <string name="preset_rating_scale_hint">评级选项（逗号分隔）</string>
+    <string name="preset_confirm_delete">删除预设</string>
+    <string name="preset_delete_msg">确定要删除预设「%1$s」吗？此操作不可撤销。</string>
 </resources>

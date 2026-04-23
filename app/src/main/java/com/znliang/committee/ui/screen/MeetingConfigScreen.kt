@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import com.znliang.committee.R
 import com.znliang.committee.domain.model.ALL_PRESETS
+import com.znliang.committee.domain.model.MeetingPreset
 import com.znliang.committee.domain.model.MeetingPresetConfig
 import com.znliang.committee.domain.model.PresetRole
 import com.znliang.committee.ui.component.SectionHeader
@@ -90,6 +91,9 @@ fun MeetingConfigScreen(
     var showAgentDialog by remember { mutableStateOf(false) }
     var editingRole by remember { mutableStateOf<PresetRole?>(null) }
     var customRoles by remember { mutableStateOf(presetConfig.getActivePreset().roles) }
+    var showCreatePresetDialog by remember { mutableStateOf(false) }
+    var customPresets by remember { mutableStateOf(presetConfig.getCustomPresets()) }
+    var showDeletePresetDialog by remember { mutableStateOf<String?>(null) }
 
     // Refresh custom roles when preset changes
     LaunchedEffect(activePreset) {
@@ -140,71 +144,92 @@ fun MeetingConfigScreen(
                         )
 
                         ALL_PRESETS.forEach { preset ->
-                            val isSelected = activePreset.id == preset.id
-                            Card(
-                                onClick = {
-                                    if (!isSelected) {
-                                        scope.launch {
-                                            presetConfig.setActivePreset(preset.id)
+                            PresetCard(preset, activePreset, scope, presetConfig)
+                        }
+
+                        // ── Custom Presets ──
+                        if (customPresets.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                stringResource(R.string.preset_custom_section),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = CommitteeGold,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            customPresets.forEach { preset ->
+                                val isSelected = activePreset.id == preset.id
+                                Card(
+                                    onClick = {
+                                        if (!isSelected) {
+                                            scope.launch { presetConfig.setActivePreset(preset.id) }
                                         }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) CommitteeGold.copy(alpha = 0.12f)
-                                        else SurfaceDark,
-                                ),
-                                border = BorderStroke(
-                                    width = if (isSelected) 1.5.dp else 1.dp,
-                                    color = if (isSelected) CommitteeGold else BorderColor,
-                                ),
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected) CommitteeGold.copy(alpha = 0.12f)
+                                            else SurfaceDark,
+                                    ),
+                                    border = BorderStroke(
+                                        width = if (isSelected) 1.5.dp else 1.dp,
+                                        color = if (isSelected) CommitteeGold else BorderColor,
+                                    ),
                                 ) {
-                                    Icon(
-                                        imageVector = when (preset.iconName) {
-                                            "account_balance" -> Icons.Default.AccountBalance
-                                            "groups" -> Icons.Default.Groups
-                                            else -> Icons.Default.MeetingRoom
-                                        },
-                                        contentDescription = null,
-                                        tint = if (isSelected) CommitteeGold else TextSecondary,
-                                        modifier = Modifier.size(24.dp),
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            stringResource(preset.nameRes()),
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) CommitteeGold else TextPrimary,
-                                        )
-                                        Text(
-                                            stringResource(
-                                                R.string.settings_roles_format,
-                                                preset.roles.size,
-                                                preset.roles.joinToString(", ") { role ->
-                                                    role.displayName
-                                                }
-                                            ),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = TextMuted,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                    if (isSelected) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
                                         Icon(
-                                            Icons.Default.CheckCircle,
-                                            null,
-                                            tint = CommitteeGold,
-                                            modifier = Modifier.size(20.dp),
+                                            Icons.Default.MeetingRoom,
+                                            contentDescription = null,
+                                            tint = if (isSelected) CommitteeGold else TextSecondary,
+                                            modifier = Modifier.size(24.dp),
                                         )
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                preset.name,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) CommitteeGold else TextPrimary,
+                                            )
+                                            Text(
+                                                stringResource(
+                                                    R.string.settings_roles_format,
+                                                    preset.roles.size,
+                                                    preset.roles.joinToString(", ") { it.displayName },
+                                                ),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = TextMuted,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                        if (isSelected) {
+                                            Icon(Icons.Default.CheckCircle, null, tint = CommitteeGold, modifier = Modifier.size(20.dp))
+                                        }
+                                        // Delete custom preset
+                                        IconButton(
+                                            onClick = { showDeletePresetDialog = preset.id },
+                                            modifier = Modifier.size(32.dp),
+                                        ) {
+                                            Icon(Icons.Default.Delete, null, tint = TextMuted, modifier = Modifier.size(18.dp))
+                                        }
                                     }
                                 }
                             }
+                        }
+
+                        // ── Create Preset Button ──
+                        Spacer(Modifier.height(4.dp))
+                        OutlinedButton(
+                            onClick = { showCreatePresetDialog = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, CommitteeGold.copy(alpha = 0.5f)),
+                        ) {
+                            Icon(Icons.Default.Add, null, tint = CommitteeGold, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.preset_create_new), color = CommitteeGold, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -221,7 +246,11 @@ fun MeetingConfigScreen(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SectionHeader(stringResource(R.string.settings_mandate_title))
                         Text(
-                            "${stringResource(activePreset.committeeLabelRes())} · ${stringResource(activePreset.nameRes())}",
+                            if (activePreset.committeeLabelRes() != 0 && activePreset.nameRes() != 0) {
+                                "${stringResource(activePreset.committeeLabelRes())} · ${stringResource(activePreset.nameRes())}"
+                            } else {
+                                "${activePreset.committeeLabel} · ${activePreset.name}"
+                            },
                             style = MaterialTheme.typography.labelLarge,
                             color = CommitteeGold,
                         )
@@ -278,7 +307,7 @@ fun MeetingConfigScreen(
                             }
                         }
                         Text(
-                            stringResource(R.string.settings_current_mode, stringResource(activePreset.nameRes()), customRoles.size),
+                            stringResource(R.string.settings_current_mode, if (activePreset.nameRes() != 0) stringResource(activePreset.nameRes()) else activePreset.name, customRoles.size),
                             style = MaterialTheme.typography.bodySmall,
                             color = TextMuted,
                         )
@@ -371,6 +400,50 @@ fun MeetingConfigScreen(
                     showAgentDialog = false
                 },
             )
+        }
+
+        // Create Preset dialog
+        if (showCreatePresetDialog) {
+            CreatePresetDialog(
+                onDismiss = { showCreatePresetDialog = false },
+                onSave = { newPreset ->
+                    scope.launch {
+                        presetConfig.saveCustomPreset(newPreset)
+                        customPresets = presetConfig.getCustomPresets()
+                        presetConfig.setActivePreset(newPreset.id)
+                    }
+                    showCreatePresetDialog = false
+                },
+            )
+        }
+
+        // Delete Preset confirmation
+        showDeletePresetDialog?.let { presetId ->
+            val presetToDelete = customPresets.find { it.id == presetId }
+            if (presetToDelete != null) {
+                AlertDialog(
+                    onDismissRequest = { showDeletePresetDialog = null },
+                    title = { Text(stringResource(R.string.preset_confirm_delete), fontWeight = FontWeight.Bold, color = TextPrimary) },
+                    text = { Text(stringResource(R.string.preset_delete_msg, presetToDelete.name), color = TextSecondary) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            scope.launch {
+                                presetConfig.deleteCustomPreset(presetId)
+                                customPresets = presetConfig.getCustomPresets()
+                            }
+                            showDeletePresetDialog = null
+                        }) {
+                            Text(stringResource(R.string.skill_delete), color = CommitteeGold, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeletePresetDialog = null }) {
+                            Text(stringResource(R.string.cancel), color = TextMuted)
+                        }
+                    },
+                    containerColor = SurfaceCard,
+                )
+            }
         }
     }
 }
@@ -487,4 +560,236 @@ private fun AgentEditDialog(
         },
         containerColor = SurfaceCard,
     )
+}
+
+@Composable
+private fun PresetCard(
+    preset: MeetingPreset,
+    activePreset: MeetingPreset,
+    scope: kotlinx.coroutines.CoroutineScope,
+    presetConfig: MeetingPresetConfig,
+) {
+    val isSelected = activePreset.id == preset.id
+    Card(
+        onClick = {
+            if (!isSelected) {
+                scope.launch { presetConfig.setActivePreset(preset.id) }
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) CommitteeGold.copy(alpha = 0.12f)
+                else SurfaceDark,
+        ),
+        border = BorderStroke(
+            width = if (isSelected) 1.5.dp else 1.dp,
+            color = if (isSelected) CommitteeGold else BorderColor,
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = when (preset.iconName) {
+                    "account_balance" -> Icons.Default.AccountBalance
+                    "groups" -> Icons.Default.Groups
+                    else -> Icons.Default.MeetingRoom
+                },
+                contentDescription = null,
+                tint = if (isSelected) CommitteeGold else TextSecondary,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    if (preset.nameRes() != 0) stringResource(preset.nameRes()) else preset.name,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected) CommitteeGold else TextPrimary,
+                )
+                Text(
+                    stringResource(
+                        R.string.settings_roles_format,
+                        preset.roles.size,
+                        preset.roles.joinToString(", ") { it.displayName },
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (isSelected) {
+                Icon(Icons.Default.CheckCircle, null, tint = CommitteeGold, modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+/**
+ * 创建自定义决策预设对话框
+ */
+@Composable
+private fun CreatePresetDialog(
+    onDismiss: () -> Unit,
+    onSave: (MeetingPreset) -> Unit,
+) {
+    var presetName by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var committeeLabel by remember { mutableStateOf("") }
+    var ratingScaleText by remember { mutableStateOf("") }
+
+    // Role management within dialog
+    var roles by remember { mutableStateOf(listOf<PresetRole>()) }
+    var showRoleDialog by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                stringResource(R.string.preset_create_new),
+                fontWeight = FontWeight.Bold,
+                color = CommitteeGold,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                OutlinedTextField(
+                    value = presetName,
+                    onValueChange = { presetName = it },
+                    label = { Text(stringResource(R.string.preset_name_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = committeeLabel,
+                    onValueChange = { committeeLabel = it },
+                    label = { Text(stringResource(R.string.preset_committee_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text(stringResource(R.string.skill_description)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 3,
+                )
+                OutlinedTextField(
+                    value = ratingScaleText,
+                    onValueChange = { ratingScaleText = it },
+                    label = { Text(stringResource(R.string.preset_rating_scale_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                // Roles preview
+                if (roles.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.settings_role_management) + " (${roles.size})",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary,
+                    )
+                    roles.forEach { role ->
+                        val roleColor = runCatching {
+                            androidx.compose.ui.graphics.Color(role.colorHex.toColorInt())
+                        }.getOrDefault(TextSecondary)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(roleColor, RoundedCornerShape(4.dp)),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "${role.displayName} · ${role.stance}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(
+                                onClick = { roles = roles.filter { it.id != role.id } },
+                                modifier = Modifier.size(24.dp),
+                            ) {
+                                Icon(Icons.Default.Delete, null, tint = TextMuted, modifier = Modifier.size(14.dp))
+                            }
+                        }
+                    }
+                }
+
+                // Add role button
+                OutlinedButton(
+                    onClick = { showRoleDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, BorderColor),
+                ) {
+                    Icon(Icons.Default.Add, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.settings_add_role), style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val ratingScale = ratingScaleText.split(",", "，", "/", "|")
+                        .map { it.trim() }
+                        .filter { it.isNotBlank() }
+                        .ifEmpty { listOf("Approve", "Reject") }
+
+                    val presetId = "user_${System.currentTimeMillis()}"
+                    val newPreset = MeetingPreset(
+                        id = presetId,
+                        name = presetName,
+                        description = description,
+                        iconName = "meeting_room",
+                        committeeLabel = committeeLabel.ifBlank { presetName },
+                        roles = roles.ifEmpty {
+                            listOf(
+                                PresetRole("coordinator_$presetId", "Coordinator", "Neutral", "Facilitation", "role_custom", "#607D8B"),
+                                PresetRole("member_$presetId", "Member", "Discussion", "Analysis & Recommendation", "role_custom", "#4CAF50"),
+                            )
+                        },
+                        mandates = mapOf(
+                            "activation_k" to "2",
+                            "max_rounds" to "15",
+                            "output_type" to "decision",
+                        ),
+                        ratingScale = ratingScale,
+                    )
+                    onSave(newPreset)
+                },
+                enabled = presetName.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.save), color = CommitteeGold, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel), color = TextMuted)
+            }
+        },
+        containerColor = SurfaceCard,
+    )
+
+    // Nested role dialog
+    if (showRoleDialog) {
+        AgentEditDialog(
+            existingRole = null,
+            onDismiss = { showRoleDialog = false },
+            onSave = { role ->
+                roles = roles + role
+                showRoleDialog = false
+            },
+        )
+    }
 }

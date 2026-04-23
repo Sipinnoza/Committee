@@ -391,4 +391,13 @@
     <string name="report_export">Export Report</string>
     <string name="report_share_chooser">Share decision</string>
     <string name="report_export_chooser">Export decision report</string>
+
+    <!-- Custom Presets -->
+    <string name="preset_create_new">Create Preset</string>
+    <string name="preset_custom_section">Custom Presets</string>
+    <string name="preset_name_label">Preset Name</string>
+    <string name="preset_committee_label">Committee Name</string>
+    <string name="preset_rating_scale_hint">Rating Scale (comma-separated)</string>
+    <string name="preset_confirm_delete">Delete Preset</string>
+    <string name="preset_delete_msg">Delete preset \"%1$s\"? This cannot be undone.</string>
 </resources>
