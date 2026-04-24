@@ -3,8 +3,8 @@ package com.znliang.committee.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.znliang.committee.engine.runtime.AgentRuntime
-import com.znliang.committee.engine.runtime.Blackboard
 import com.znliang.committee.engine.runtime.BoardPhase
+import com.znliang.committee.ui.model.UiPhase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +17,7 @@ data class FlowVizState(
     val states: List<VizState> = emptyList(),
     val edges: List<VizEdge> = emptyList(),
     val currentState: String = "",
-    val currentPhase: BoardPhase = BoardPhase.IDLE,
+    val currentPhase: UiPhase = UiPhase.IDLE,
     val transitionHistory: List<TransitionRecord> = emptyList(),
 )
 
@@ -99,7 +99,7 @@ class FlowVizViewModel @Inject constructor(
                         VizEdge(from = from.name, to = to.name, event = "")
                     },
                     currentState = board.phase.name,
-                    currentPhase = board.phase,
+                    currentPhase = board.phase.toUiPhase(),
                     transitionHistory = history,
                 )
             }

@@ -570,4 +570,6 @@
     <string name="rating_promising">有前景方向</string>
     <string name="rating_needs_iteration">需要迭代</string>
     <string name="rating_pivot">转向</string>
+    <string name="meeting_error_title">会议异常终止</string>
+    <string name="meeting_error_retry">返回首页</string>
 </resources>

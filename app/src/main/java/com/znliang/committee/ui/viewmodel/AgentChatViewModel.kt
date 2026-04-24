@@ -148,14 +148,22 @@ class AgentChatViewModel @Inject constructor(
                 )
 
                 var fullContent = ""
-                agentPool.callAgentStreamingByRoleId(roleId, ctx).collect { delta ->
-                    fullContent += delta
-                    // Update placeholder in memory state
-                    _uiState.value = _uiState.value.copy(
-                        messages = _uiState.value.messages.map {
-                            if (it.id == placeholderId) it.copy(content = fullContent, isStreaming = true) else it
+                agentPool.callAgentStreamingByRoleId(roleId, ctx).collect { result ->
+                    when (result) {
+                        is com.znliang.committee.engine.StreamResult.Token -> {
+                            fullContent += result.text
+                            // Update placeholder in memory state
+                            _uiState.value = _uiState.value.copy(
+                                messages = _uiState.value.messages.map {
+                                    if (it.id == placeholderId) it.copy(content = fullContent, isStreaming = true) else it
+                                }
+                            )
                         }
-                    )
+                        is com.znliang.committee.engine.StreamResult.Error -> {
+                            fullContent += "\n⚠️ ${result.message}"
+                        }
+                        is com.znliang.committee.engine.StreamResult.Done -> { /* no-op */ }
+                    }
                 }
 
                 // Persist final content

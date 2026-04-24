@@ -1,191 +1,246 @@
 # 多Agent会议 App
 
-> 多 Agent 自主讨论决策系统。  
+> 多 Agent 自主讨论决策系统。
 > Agent 通过 LLM 自行判断是否发言、何时发言，对抗性辩论产出决策建议。
+> Preset 驱动的动态委员会 — 10+ 内置场景，支持自定义角色与工具。
 
 ---
 
-## 架构总览（v6）
+## 架构总览（v7 — Clean Architecture 多模块）
 
 ```
 InvestmentCommittee/
-├── app/src/main/java/com/committee/investing/
-│   ├── engine/                          ← 核心引擎层
-│   │   ├── AgentPool.kt                 ← LLM 调用池（真流式 SSE，多提供商）
-│   │   ├── LlmProvider.kt              ← LLM 提供商配置（Anthropic/DeepSeek/Kimi）
-│   │   └── runtime/                     ← v6 自主决策运行时
-│   │       ├── AgentRuntime.kt          ← 主循环：加权选择 → respond → 真流式输出
-│   │       ├── Agent.kt                 ← Agent 接口 + scoring() 加权评分
-│   │       ├── Agents.kt                ← 5 个具体 Agent 实现
-│   │       ├── Blackboard.kt            ← 共享黑板（不可变 data class）+ BoardPhase + MsgTag
-│   │       ├── SupervisorAgent.kt       ← 监督员：结束判断/点评/评级/摘要
-│   │       └── SystemLlmService.kt      ← 系统级 LLM 调用（Supervisor/反思专用）
-│   ├── domain/model/                    ← 领域模型
-│   │   ├── MeetingState.kt              ← UI 层会议状态（10 个枚举值）
-│   │   ├── AgentRole.kt                 ← 6 大角色定义
-│   │   ├── CommitteeEvent.kt            ← 事件 + 会话模型
-│   │   └── Rating.kt                    ← 6 级评级体系
-│   ├── data/
-│   │   ├── db/                          ← Room v4 SQLite
-│   │   │   ├── CommitteeDatabase.kt     ← DB 定义（4 Entity）
-│   │   │   ├── EventEntity.kt           ← 事件 / 会话 / 发言 / 聊天
-│   │   │   └── EventDao.kt              ← DAO
-│   │   ├── remote/LlmApiService.kt      ← API 接口
-│   │   └── repository/EventRepository.kt← 持久化 + 恢复
-│   ├── di/                              ← Hilt 依赖注入
-│   │   ├── AppModule.kt                 ← Agent 实例化 + 依赖提供
-│   │   └── DataStoreApiKeyProvider.kt   ← Per-agent LLM 配置（DataStore）
-│   ├── CommitteeApplication.kt          ← @HiltAndroidApp 入口
-│   └── ui/
-│       ├── MainActivity.kt              ← 5 Tab 导航 + 路由
-│       ├── screen/                      ← 6 个页面
-│       │   ├── HomeScreen.kt            ← 首页（发起会议）
-│       │   ├── AgentsScreen.kt          ← Agent 管理 + per-agent 聊天
-│       │   ├── HistoryScreen.kt         ← 会议历史
-│       │   ├── SessionDetailScreen.kt   ← 历史详情
-│       │   ├── LogScreen.kt             ← 运行日志
-│       │   └── SettingsScreen.kt        ← LLM 配置
-│       ├── component/                   ← Compose 组件
-│       │   ├── CommitteeComponents.kt   ← 通用组件（AgentChip/RatingBadge/StateBadge 等）
-│       │   ├── FlowVizComponents.kt     ← 会议流程可视化
-│       │   ├── SpeechCard.kt            ← 发言卡片（流式打字效果）
-│       │   └── MarkdownText.kt          ← Markdown 渲染
-│       ├── theme/                       ← 深色主题 + 委员会金色
-│       └── viewmodel/                   ← ViewModel
-│           ├── MeetingViewModel.kt      ← 会议主 VM
-│           ├── FlowVizViewModel.kt      ← 流程可视化 VM
-│           └── AgentChatViewModel.kt    ← per-agent 聊天 VM
+├── :core                              ← 纯 Kotlin JVM 模块（零 Android 依赖）
+│   └── core/src/main/kotlin/
+│       ├── ExperienceStore.kt          ← 经验存储接口
+│       └── PresetLoader.kt            ← JSON 预设加载器
+│
+├── :data                              ← Android Library 模块（数据层骨架）
+│   └── data/build.gradle.kts          ← Room / Hilt / DataStore 依赖
+│
+├── :app                               ← Android Application 主模块
+│   └── app/src/main/java/com/znliang/committee/
+│       ├── engine/                     ← 核心引擎层
+│       │   ├── AgentPool.kt            ← LLM 调用池（实现 LlmClient 接口）
+│       │   ├── LlmClient.kt           ← LLM 调用抽象接口
+│       │   ├── StreamResult.kt         ← 类型安全的流式结果（sealed interface）
+│       │   ├── LlmProvider.kt          ← 多提供商配置
+│       │   ├── LlmContentBuilder.kt    ← 多模态内容构建
+│       │   ├── sse/
+│       │   │   └── SseParser.kt        ← SSE 解析器（Anthropic + OpenAI 共享）
+│       │   ├── report/
+│       │   │   └── DecisionReportGenerator.kt
+│       │   └── runtime/                ← 会议运行时（v7 协作者模式）
+│       │       ├── AgentRuntime.kt      ← 门面 + 状态持有（505 行）
+│       │       ├── RuntimeContext.kt    ← 协作者共享接口
+│       │       ├── MeetingOrchestrator.kt ← 主循环 + 评分 + 投票 + 评级
+│       │       ├── HumanInteraction.kt  ← 人机交互（暂停/注入/跟进）
+│       │       ├── PostMeetingReflector.kt ← 会后反思 + 进化
+│       │       ├── Agent.kt / GenericAgent.kt ← Agent 接口 + Preset 驱动实现
+│       │       ├── GenericSupervisor.kt ← 动态监督员
+│       │       ├── EvolvableAgent.kt    ← 可进化 Agent 基类
+│       │       ├── Blackboard.kt        ← 不可变共享黑板
+│       │       ├── BoardTypes.kt        ← UnifiedResponse 解析
+│       │       ├── ToolExecutor.kt      ← 工具执行抽象接口
+│       │       ├── DynamicToolRegistry.kt ← Tool 注册 + 路由（实现 ToolExecutor）
+│       │       ├── tools/
+│       │       │   ├── BuiltinToolExecutor.kt ← web_search / web_extract
+│       │       │   └── CustomToolExecutor.kt  ← http/llm/js/intent/db_query/chain/regex
+│       │       ├── PromptEvolver.kt / SkillLibrary.kt / AgentSelfEvolver.kt
+│       │       ├── SystemLlmService.kt  ← 系统级 LLM 调用
+│       │       └── WebSearchService.kt
+│       ├── domain/model/               ← 领域模型
+│       │   ├── MeetingPreset.kt         ← 10+ 内置预设定义
+│       │   ├── PresetRole.kt            ← 动态角色（取代硬编码 AgentRole 枚举）
+│       │   ├── MeetingPresetConfig.kt   ← 预设配置管理
+│       │   ├── PresetSkillCatalog.kt    ← 30 个推荐 Skill
+│       │   ├── PresetRecommender.kt     ← 智能预设推荐
+│       │   ├── MeetingState.kt          ← UI 层会议状态
+│       │   └── Rating.kt / CommitteeEvent.kt / AppConfig.kt
+│       ├── data/                       ← 数据持久化
+│       │   ├── db/                      ← Room v4 SQLite（8 Entity）
+│       │   │   ├── CommitteeDatabase.kt
+│       │   │   ├── EventEntity.kt / EventDao.kt
+│       │   │   ├── EvolutionEntities.kt / EvolutionDao.kt
+│       │   │   ├── SkillDefinitionEntity.kt
+│       │   │   ├── DecisionActionEntity.kt
+│       │   │   ├── MeetingMaterialEntity.kt
+│       │   │   └── AppConfigDao.kt
+│       │   └── repository/              ← Repository 层
+│       │       ├── EventRepository.kt
+│       │       ├── EvolutionRepository.kt
+│       │       ├── SkillRepository.kt
+│       │       ├── ActionRepository.kt
+│       │       └── AppConfigRepository.kt
+│       ├── di/                         ← Hilt 依赖注入
+│       │   ├── AppModule.kt
+│       │   ├── DataStoreApiKeyProvider.kt ← Per-agent LLM 配置
+│       │   └── KeystoreCipher.kt       ← API Key 加密
+│       ├── ui/
+│       │   ├── MainActivity.kt          ← 导航 + 路由
+│       │   ├── model/
+│       │   │   └── UiTypes.kt           ← UI 层值类型（VoteInfo/MaterialItem/ContributionInfo/UiPhase）
+│       │   ├── screen/
+│       │   │   ├── HomeScreen.kt        ← 首页编排层（416 行）
+│       │   │   ├── home/                ← HomeScreen 拆分组件
+│       │   │   │   ├── MeetingInitSection.kt    ← 会议发起区
+│       │   │   │   ├── MeetingActiveSection.kt  ← 会议进行区
+│       │   │   │   ├── MeetingSummarySection.kt ← 总结展示区
+│       │   │   │   ├── VoteSection.kt           ← 投票区
+│       │   │   │   └── ActionItemsSection.kt    ← 执行项区
+│       │   │   ├── AgentsScreen.kt / HistoryScreen.kt / SessionDetailScreen.kt
+│       │   │   ├── LogScreen.kt / SettingsScreen.kt
+│       │   │   ├── MeetingConfigScreen.kt / ModelConfigScreen.kt
+│       │   │   ├── SearchConfigScreen.kt / SkillManagementScreen.kt
+│       │   ├── component/               ← 通用 Compose 组件
+│       │   │   ├── CommitteeComponents.kt / FlowVizComponents.kt
+│       │   │   ├── SpeechCard.kt / MarkdownText.kt
+│       │   ├── viewmodel/
+│       │   │   ├── MeetingViewModel.kt  ← 会议主 VM（Split State 架构）
+│       │   │   ├── UiTypeMappers.kt     ← 引擎类型 → UI 类型映射
+│       │   │   ├── FlowVizViewModel.kt / AgentChatViewModel.kt
+│       │   │   ├── SettingsViewModel.kt / SkillManagementViewModel.kt
+│       │   │   └── AgentMemoryViewModel.kt
+│       │   └── theme/
+│       └── assets/presets/              ← JSON 预设数据
+│           ├── all_presets.json          ← 10 个预设定义
+│           └── skill_catalog.json       ← 30 个推荐 Skill
+│
+├── app/src/test/                       ← 单元测试（141 tests）
+│   ├── engine/runtime/
+│   │   ├── GenericAgentTest.kt          ← 37 tests
+│   │   ├── GenericSupervisorTest.kt     ← 27 tests
+│   │   ├── MeetingOrchestratorTest.kt   ← 28 tests
+│   │   ├── BlackboardTest.kt           ← 测试共识/阶段推断
+│   │   └── UnifiedResponseParseTest.kt ← 测试响应解析
+│   └── engine/sse/
+│       └── SseParserTest.kt            ← SSE 解析测试
+│
+├── build.gradle.kts                    ← 根构建脚本
+├── settings.gradle.kts                 ← include(:app, :core, :data)
+└── gradle/libs.versions.toml           ← 版本目录
 ```
+
+### 模块依赖关系
+
+```
+:app  →  :core, :data
+:data →  :core
+:core →  (无项目依赖，仅 kotlinx-coroutines, okhttp, gson)
+```
+
+### 层边界规则
+
+- **UI 屏幕层** (`ui/screen/`, `ui/component/`) — 零 `engine.runtime` 导入
+- **ViewModel 层** (`ui/viewmodel/`) — 通过 `UiTypeMappers` 将引擎类型转换为 UI 类型
+- **引擎层** (`engine/`) — 通过 `LlmClient` / `ToolExecutor` 接口解耦，可纯 JVM 测试
 
 ---
 
 ## 核心机制
 
-### 1. 自主决策（非规则调度）
+### 1. Preset 驱动的动态委员会
+
+10+ 内置预设，每个预设定义角色、立场、职责、投票规则：
+
+| 预设 | 角色数 | 投票类型 | 场景 |
+|------|--------|----------|------|
+| 投资委员会 | 6 | 6级评级 | 股票/基金投资决策 |
+| 产品评审 | 5 | BINARY | 产品上线评审 |
+| 技术方案评审 | 5 | SCALE | 架构方案决策 |
+| 辩论赛 | 4 | MULTI_STANCE | 正反方辩论 |
+| 合规审查 | 4 | BINARY | 法规合规检查 |
+| 用户体验评审 | 4 | SCALE | UX 设计评审 |
+| 安全评估 | 4 | BINARY | 安全风险评估 |
+| 科研评审 | 5 | SCALE | 论文/实验评审 |
+| 创业评估 | 4 | SCALE | 创业项目评估 |
+| 招聘评估 | 4 | BINARY | 候选人评估 |
+
+支持自定义预设：自定义角色、立场、prompt、工具、投票类型。
+
+### 2. 自主决策（非规则调度）
 
 Agent 通过 LLM 判断是否发言，不由系统强制调度。每轮流程：
 
 ```
-eligible() 过滤 → scoring() 加权评分 → weightedRandom(topK=2) 选中
+eligible() 过滤 → scoring() 加权评分 → weightedRandom(topK) 选中
 → respond() 一次 LLM 调用返回 SPEAK/CONTENT/VOTE/TAGS
 → SPEAK=YES → 真流式输出（LLM delta 直通 UI）+ 写入 Blackboard
 → SPEAK=NO  → 跳过，advanceRound()
 ```
 
-### 2. UnifiedResponse（shouldAct + act + vote 合一）
+### 3. UnifiedResponse（shouldAct + act + vote 合一）
 
 一次 LLM 调用同时返回：
 - `SPEAK: YES/NO` — 是否发言
-- `CONTENT: ...` — 发言内容（200 字以内）
-- `VOTE: BULL/BEAR` — 投票
-- `TAGS: ...` — 语义标签（自动归一化为 MsgTag 枚举）
+- `REASONING: ...` — 思考过程
+- `CONTENT: ...` — 发言内容
+- `VOTE: BULL/BEAR` 或 `VOTE: 7/10` 或 `VOTE: Approve` — 按投票类型
+- `TAGS: ...` — 语义标签
 
 LLM 调用次数 = 讨论轮次数，无额外开销。
 
-### 3. Blackboard（不可变共享状态）
+### 4. Blackboard（不可变共享状态）
 
 所有 Agent 共享一个 `Blackboard`（data class），包含：
 - `messages` — 所有发言（不可变 List）
 - `votes` — 投票记录（`Map<role, BoardVote>`，同 Agent 只保留最新票）
-- `summary` — 每 2 轮由监督员生成的讨论摘要
+- `summary` — 定期由监督员生成的讨论摘要
 - `contextForAgent()` — 按 Agent 的 attentionTags 过滤相关消息
 
 每次更新创建新实例 → StateFlow 自动检测变化 → UI 更新。
 
-**双状态系统**：
+**双阶段系统**：
 - `BoardPhase`（引擎层，7 值）：`IDLE → ANALYSIS → DEBATE → VOTE → RATING → EXECUTION → DONE`
-- `MeetingState`（UI 层，10 值）：更细粒度的阶段（含 VALIDATING/REJECTED/PREPPING/ADJUDICATING/ASSESSMENT）
+- `UiPhase`（UI 层镜像）：通过 `UiTypeMappers` 从引擎类型转换
 
-### 4. MsgTag 语义标签
+### 5. 类型安全的流式管道
 
-消息标签枚举，用于 attentionTags 匹配和加权评分：
-`BULL, BEAR, RISK, VALUATION, GROWTH, NEWS, STRATEGY, EXECUTION, TECHNICAL, GENERAL`
-
-### 5. 加权选择（Weighted Selection）
-
-每个 Agent 有 `scoring()` 评分函数，考虑：
-- 距上次发言的轮数（越久没说分越高）
-- 最近消息与 attentionTags 的匹配度
-- 是否存在分歧（多空接近）
-- 本轮是否已发言（降分 -3）
-
-取 top-K=2，加权随机选择，避免固定顺序。
-
-### 6. 稀疏激活
-
-每轮只激活 K=2 个 Agent（非全员调用），降低 LLM 成本。
-
-### 7. 监督员降频
-
-- **结束判断**：每 2 轮或第 4 轮起，问监督员是否可以评级
-- **点评**：共识未达成 + 非 supervisor 发言 ≥ 3 条时触发
-- **摘要**：每 2 轮生成一次 Summary Memory，后续 Agent 可引用摘要
-
-### 8. SystemLlmService
-
-系统级 LLM 调用服务，与 Agent 调用分离。用于监督员的结束判断、点评、评级、摘要，以及会后反思。通过 `AgentPool.callSystemStreaming()` 调用，无 Agent 身份。
-
-### 9. 会后自反思
-
-会议结束后，每个参与过的 Agent 通过 LLM 反思自己的 prompt 效果，生成优化建议（不自动修改，供用户审批）。
-
----
-
-## 6 大角色
-
-| 角色 | 立场 | 职责 | 首轮行为 |
-|------|------|------|----------|
-| 分析师 | 看多 Bull | Bull Case + 估值框架 + 前次预测回顾 | 强制发言 |
-| 风险官 | 看空 Bear | Bear Case + 风险日历 + 质疑 | 强制发言 |
-| 策略师 | 中立/框架 | Top-down 策略框架 + 入场评估 + 跨会议一致性 | 入场评估 |
-| 情报员 | 事实 | 基础情报 + 增量推送 | 强制发言 |
-| 执行员 | 方案 | 执行方案 + 评级 + 执行追踪 | 有评级后参与 |
-| 监督员 | 评判 | 仲裁 + 纪要 + 执行纪律追踪 | 降频参与 |
-
----
-
-## 会议流程
-
-```
-IDLE ──[发起]──▶ VALIDATING（策略师入场评估）
-                    │
-                    ├─ REJECTED（不适格，会议终止）
-                    ▼
-                PREPPING（四路并行准备）
-                    │
-                    ▼
-                PHASE1_DEBATE（最多 20 轮循环）
-                    │
-                    ├─ 每 2 轮：监督员结束判断
-                    ├─ 每 2 轮：Summary Memory 更新
-                    ├─ 每轮：加权选择 K=2 个 Agent
-                    │    └─ Agent 自主决定 SPEAK YES/NO
-                    │    └─ YES → 真流式输出 + 投票 + 标签
-                    │
-                    ├─ 达成共识或监督员判结 ──▶ FINAL_RATING
-                    └─ 轮次用尽 ──▶ PHASE1_ADJUDICATING（监督员仲裁）──▶ FINAL_RATING
-                                                                       │
-                                                               PHASE2_ASSESSMENT（风险评估）
-                                                                       │
-                                                                    APPROVED
-                                                                       │
-                                                                    COMPLETED
+```kotlin
+sealed interface StreamResult {
+    data class Token(val text: String) : StreamResult
+    data class Error(val type: ErrorType, val message: String) : StreamResult
+    data object Done : StreamResult
+}
 ```
 
-### MeetingState 完整枚举
+全链路类型安全，无魔法字符串。`ErrorType` 枚举：`BILLING`, `NETWORK`, `RATE_LIMIT`, `UNKNOWN`。
 
-| 枚举 | 显示名 | 说明 |
-|------|--------|------|
-| `IDLE` | 待机 | 等待发起新会议 |
-| `VALIDATING` | 入场评估 | 策略师检查标的适格性 |
-| `REJECTED` | 已拒绝 | 入场评估未通过 |
-| `PREPPING` | 并行准备 | 四路并行准备中 |
-| `PHASE1_DEBATE` | 多方辩论 | Bull vs Bear 辩论 |
-| `PHASE1_ADJUDICATING` | 监督员仲裁 | 轮次用尽，监督员裁决 |
-| `PHASE2_ASSESSMENT` | 风险评估 | 执行员提方案，风险官挑战 |
-| `FINAL_RATING` | 发布评级 | 发布最终评级与执行方案 |
-| `APPROVED` | 已批准 | 等待用户确认执行 |
-| `COMPLETED` | 会议完成 | 会议结束 |
+### 6. AgentRuntime 协作者架构
+
+AgentRuntime（505 行门面）将职责委托给三个协作者：
+
+| 协作者 | 职责 | 行数 |
+|--------|------|------|
+| `MeetingOrchestrator` | 主循环、Agent 选择、流式收集、投票、评级 | ~790 |
+| `HumanInteraction` | 暂停/恢复、注入消息/投票、跟进问题、覆盖决策 | ~220 |
+| `PostMeetingReflector` | 会后反思、经验提取、Skill 学习、Prompt 进化 | ~220 |
+
+三者通过 `RuntimeContext` 接口访问 AgentRuntime 的状态，无 inner class 耦合。
+
+### 7. 动态工具系统
+
+`DynamicToolRegistry` 管理两类工具：
+- **内置工具**：`web_search`、`web_extract`（由 `BuiltinToolExecutor` 执行）
+- **自定义工具**：用户通过 DB 定义的 http/llm/js/intent/db_query/chain/regex 工具（由 `CustomToolExecutor` 执行，含 SSRF/JS 沙箱/SQL 注入防护）
+
+### 8. Split State UI 架构
+
+ViewModel 将状态拆分为 4 个独立 StateFlow，减少不必要的重组：
+
+| State | 内容 |
+|-------|------|
+| `StreamingState` | speeches, isRunning, isPaused, logs |
+| `BoardState` | phase, votes, rating, summary, contributions, confidence |
+| `ConfigState` | llmConfig, hasApiKey, error |
+| `ActionState` | pendingActions, sessions |
+
+### 9. 进化系统
+
+- **会后反思**：每个参与过的 Agent 通过 LLM 反思 prompt 效果，生成优化建议
+- **经验记忆**：`EvolvableAgent` 积累跨会议经验，影响后续决策
+- **Skill 学习**：`SkillLibrary` 从讨论中提取可复用技能
+- **Prompt 进化**：`PromptEvolver` 基于反思结果优化 prompt（不自动修改，供用户审批）
 
 ---
 
@@ -196,8 +251,9 @@ IDLE ──[发起]──▶ VALIDATING（策略师入场评估）
 | Anthropic | claude-sonnet-4-20250514 | 原生 SSE |
 | DeepSeek | deepseek-chat / deepseek-reasoner | OpenAI 兼容 |
 | Kimi (Moonshot) | moonshot-v1-8k / kimi-k2.5 | OpenAI 兼容 |
+| 自定义 | 任意 OpenAI 兼容 API | 自定义 baseUrl |
 
-每个 Agent 可独立配置 provider/model/apiKey/baseUrl（DataStore 存储）。
+每个 Agent 可独立配置 provider/model/apiKey/baseUrl（DataStore 加密存储）。
 
 ---
 
@@ -205,16 +261,18 @@ IDLE ──[发起]──▶ VALIDATING（策略师入场评估）
 
 | 层 | 技术 |
 |----|------|
+| 架构 | Clean Architecture 多模块（:app / :core / :data） |
 | UI | Jetpack Compose + Material3 (BOM 2024.08.00) |
 | 导航 | Navigation Compose 2.7.7 |
-| 状态 | StateFlow（不可变 data class） |
+| 状态 | StateFlow（Split State：4 个独立流） |
 | DI | Hilt 2.51.1 |
-| 数据库 | Room 2.6.1 SQLite v4（4 Entity） |
-| 网络 | OkHttp 4.12.0 SSE + Retrofit 2.11.0 |
+| 数据库 | Room 2.6.1 SQLite（8 Entity） |
+| 网络 | OkHttp 4.12.0 SSE（共享 SseParser） |
 | 序列化 | Gson 2.11.0 |
 | 异步 | Coroutines 1.8.1 |
-| 配置 | DataStore Preferences 1.1.1 |
-| 构建 | AGP 8.5.2 + Kotlin 2.0 + KSP 2.0.0-1.0.22 + Java 17 |
+| 配置 | DataStore Preferences 1.1.1 + Keystore 加密 |
+| 测试 | JUnit 4 + MockK + kotlinx-coroutines-test（141 tests） |
+| 构建 | AGP 8.5.2 + Kotlin 2.0 + KSP 2.0.0-1.0.22 + JVM 17 |
 
 ---
 
@@ -223,32 +281,43 @@ IDLE ──[发起]──▶ VALIDATING（策略师入场评估）
 ### 1. 构建安装
 
 ```bash
-JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home \
-  ./gradlew assembleDebug
+./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### 2. 配置 LLM
+> 需要 JDK 17。若系统默认非 17，可前置 `JAVA_HOME=...`。
+
+### 2. 运行测试
+
+```bash
+./gradlew :app:testDebugUnitTest :core:test
+```
+
+### 3. 配置 LLM
 
 进入 **设置** 页面：
 - 选择 LLM 提供商
 - 填入 API Key
 - 选择模型
 
-API Key 仅存储在设备本地 DataStore，不上传。
+API Key 经 Keystore 加密后存储在设备本地 DataStore，不上传。
 
-### 3. 发起会议
+### 4. 发起会议
 
-首页输入标的代码（如 `600028`），点击 **召开会议**。
+首页选择预设类型（投资委员会、产品评审、技术方案评审...），输入讨论主题，点击 **召开会议**。
 
 ---
 
 ## 数据持久化
 
-Room v4 数据库，4 张表：
+Room v4 数据库，8 张表：
 - `EventEntity` — 事件记录
 - `MeetingSessionEntity` — 会议会话（含评级、状态）
 - `SpeechEntity` — 发言记录（含 round、agent role）
 - `AgentChatMessageEntity` — per-agent 聊天消息
+- `AgentEvolutionEntity` / `AgentExperienceEntity` — Agent 进化与经验
+- `SkillDefinitionEntity` — 自定义工具/技能
+- `DecisionActionEntity` — 决策执行项
+- `MeetingMaterialEntity` — 会议材料附件
 
 支持会话恢复：App 重启后自动加载历史会议。

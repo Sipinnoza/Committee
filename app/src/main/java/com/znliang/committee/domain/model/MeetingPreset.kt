@@ -94,7 +94,7 @@ data class MeetingPreset(
 
 // ── Default Presets ──────────────────────────────────────────
 
-/** Investment Committee preset — corresponds to the 6 AgentRole enum roles */
+/** Investment Committee preset — 6 roles covering bull/bear debate + risk + execution */
 val INVESTMENT_COMMITTEE_PRESET = MeetingPreset(
     id = "investment_committee",
     name = "Investment Committee",

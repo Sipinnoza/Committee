@@ -1,0 +1,653 @@
+[
+  {
+    "id": "investment_committee",
+    "name": "Investment Committee",
+    "description": "Investment Decision Committee \u2014 Bull/Bear debate + Risk Assessment + 6-tier Rating System",
+    "iconName": "account_balance",
+    "committeeLabel": "Investment Committee",
+    "roles": [
+      {
+        "id": "analyst",
+        "displayName": "Analyst",
+        "stance": "Bull",
+        "responsibility": "Bull Case + Valuation Framework + Prior Forecast Review",
+        "systemPromptKey": "role_analyst",
+        "colorHex": "#4CAF50",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "risk_officer",
+        "displayName": "Risk Officer",
+        "stance": "Bear",
+        "responsibility": "Bear Case + Risk Calendar + Challenge",
+        "systemPromptKey": "role_risk_officer",
+        "colorHex": "#F44336",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "strategy_validator",
+        "displayName": "Strategist",
+        "stance": "Neutral / Framework",
+        "responsibility": "Top-down Strategy Framework + Entry Assessment + Cross-meeting Consistency",
+        "systemPromptKey": "role_strategist",
+        "colorHex": "#2196F3",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "executor",
+        "displayName": "Executor",
+        "stance": "Execution",
+        "responsibility": "Execution Plan + Rating + Execution Tracking",
+        "systemPromptKey": "role_executor",
+        "colorHex": "#FF9800",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "intel",
+        "displayName": "Intel Agent",
+        "stance": "Facts",
+        "responsibility": "Base Intelligence + Incremental Updates",
+        "systemPromptKey": "role_intel",
+        "colorHex": "#9C27B0",
+        "canUseTools": true,
+        "isSupervisor": false
+      },
+      {
+        "id": "supervisor",
+        "displayName": "Supervisor",
+        "stance": "Adjudication",
+        "responsibility": "Arbitration + Minutes + Execution Discipline Tracking",
+        "systemPromptKey": "role_supervisor",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      }
+    ],
+    "mandates": {
+      "debate_rounds": "3",
+      "max_rounds": "15",
+      "consensus_required": "false",
+      "supervisor_final_call": "true",
+      "has_supervisor": "true",
+      "output_type": "rating",
+      "summary_template": "binary",
+      "prompt_style": "debate",
+      "phase1_label": "Debate",
+      "phase2_label": "Risk Assessment"
+    },
+    "ratingScale": ["Buy", "Overweight", "Hold+", "Hold", "Underweight", "Sell"]
+  },
+  {
+    "id": "general_meeting",
+    "name": "General Meeting",
+    "description": "General Review Meeting \u2014 Coordinator / Researcher / Reviewer",
+    "iconName": "groups",
+    "committeeLabel": "Review Committee",
+    "roles": [
+      {
+        "id": "coordinator",
+        "displayName": "Coordinator",
+        "stance": "Neutral / Facilitation",
+        "responsibility": "Process Facilitation + Agenda Management + Summary",
+        "systemPromptKey": "role_coordinator",
+        "colorHex": "#1976D2",
+        "canUseTools": false,
+        "isSupervisor": true
+      },
+      {
+        "id": "researcher",
+        "displayName": "Researcher",
+        "stance": "Investigation",
+        "responsibility": "Information Collection + Deep Analysis + Recommendations",
+        "systemPromptKey": "role_researcher",
+        "colorHex": "#388E3C",
+        "canUseTools": true,
+        "isSupervisor": false
+      },
+      {
+        "id": "reviewer",
+        "displayName": "Reviewer",
+        "stance": "Review",
+        "responsibility": "Plan Review + Risk Discovery + Improvement Suggestions",
+        "systemPromptKey": "role_reviewer",
+        "colorHex": "#E64A19",
+        "canUseTools": false,
+        "isSupervisor": false
+      }
+    ],
+    "mandates": {
+      "debate_rounds": "3",
+      "max_rounds": "10",
+      "consensus_required": "true",
+      "supervisor_final_call": "false",
+      "output_type": "decision",
+      "summary_template": "convergent",
+      "prompt_style": "collaborative",
+      "phase1_label": "Discussion",
+      "phase2_label": "Review & Assessment"
+    },
+    "ratingScale": ["Pass", "Conditional Pass", "Revise & Re-review", "Fail"]
+  },
+  {
+    "id": "product_review",
+    "name": "Product Review",
+    "description": "Product Review Meeting \u2014 Cross-functional team evaluates product readiness",
+    "iconName": "inventory",
+    "committeeLabel": "Product Review Board",
+    "roles": [
+      {
+        "id": "product_manager",
+        "displayName": "Product Manager",
+        "stance": "Advocate",
+        "responsibility": "Product Vision + Feature Justification + Roadmap Alignment",
+        "systemPromptKey": "role_product_manager",
+        "colorHex": "#4CAF50",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "tech_lead",
+        "displayName": "Tech Lead",
+        "stance": "Feasibility",
+        "responsibility": "Technical Feasibility + Architecture Impact + Effort Estimation",
+        "systemPromptKey": "role_tech_lead",
+        "colorHex": "#2196F3",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "designer",
+        "displayName": "Designer",
+        "stance": "UX",
+        "responsibility": "User Experience + Design Consistency + Accessibility",
+        "systemPromptKey": "role_designer",
+        "colorHex": "#E91E63",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "qa_engineer",
+        "displayName": "QA Engineer",
+        "stance": "Quality",
+        "responsibility": "Test Coverage + Quality Standards + Risk Identification",
+        "systemPromptKey": "role_qa_engineer",
+        "colorHex": "#FF9800",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "user_advocate",
+        "displayName": "User Advocate",
+        "stance": "User Perspective",
+        "responsibility": "User Needs + Market Fit + Feedback Integration",
+        "systemPromptKey": "role_user_advocate",
+        "colorHex": "#9C27B0",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "coordinator",
+        "displayName": "Coordinator",
+        "stance": "Neutral / Facilitation",
+        "responsibility": "Process Facilitation + Decision Tracking + Summary",
+        "systemPromptKey": "role_coordinator",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      }
+    ],
+    "mandates": {
+      "activation_k": "3",
+      "max_rounds": "15",
+      "output_type": "decision",
+      "summary_template": "multi_dimension",
+      "has_supervisor": "true",
+      "supervisor_final_call": "false",
+      "consensus_required": "false",
+      "vote_type": "binary",
+      "prompt_style": "review"
+    },
+    "ratingScale": ["Ship", "Ship with fixes", "Needs revision", "Reject"]
+  },
+  {
+    "id": "tech_review",
+    "name": "Tech Review",
+    "description": "Technical Design Review \u2014 Architecture, Security, and Performance evaluation",
+    "iconName": "engineering",
+    "committeeLabel": "Tech Review Board",
+    "roles": [
+      {
+        "id": "architect",
+        "displayName": "Architect",
+        "stance": "Design",
+        "responsibility": "Architecture Evaluation + Design Patterns + Scalability",
+        "systemPromptKey": "role_architect",
+        "colorHex": "#1976D2",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "security_expert",
+        "displayName": "Security Expert",
+        "stance": "Security",
+        "responsibility": "Security Assessment + Threat Modeling + Compliance",
+        "systemPromptKey": "role_security_expert",
+        "colorHex": "#F44336",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "perf_expert",
+        "displayName": "Performance Expert",
+        "stance": "Performance",
+        "responsibility": "Performance Analysis + Bottleneck Identification + Optimization",
+        "systemPromptKey": "role_perf_expert",
+        "colorHex": "#FF9800",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "stakeholder",
+        "displayName": "Business Stakeholder",
+        "stance": "Requirements",
+        "responsibility": "Business Requirements + Priority Alignment + ROI Assessment",
+        "systemPromptKey": "role_stakeholder",
+        "colorHex": "#4CAF50",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "coordinator",
+        "displayName": "Coordinator",
+        "stance": "Neutral / Facilitation",
+        "responsibility": "Process Facilitation + Decision Tracking + Summary",
+        "systemPromptKey": "role_coordinator",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      }
+    ],
+    "mandates": {
+      "activation_k": "3",
+      "max_rounds": "12",
+      "output_type": "decision",
+      "summary_template": "multi_dimension",
+      "has_supervisor": "true",
+      "supervisor_final_call": "false",
+      "consensus_required": "false",
+      "vote_type": "binary",
+      "prompt_style": "review"
+    },
+    "ratingScale": ["Approve", "Approve with conditions", "Major revision needed", "Reject"]
+  },
+  {
+    "id": "debate",
+    "name": "Debate",
+    "description": "Structured Debate \u2014 Proponent vs Opponent with Judge adjudication",
+    "iconName": "gavel",
+    "committeeLabel": "Debate Panel",
+    "roles": [
+      {
+        "id": "proponent",
+        "displayName": "Proponent",
+        "stance": "For",
+        "responsibility": "Argument Construction + Evidence Presentation + Rebuttal",
+        "systemPromptKey": "role_proponent",
+        "colorHex": "#4CAF50",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "opponent",
+        "displayName": "Opponent",
+        "stance": "Against",
+        "responsibility": "Counter-argument + Evidence Presentation + Rebuttal",
+        "systemPromptKey": "role_opponent",
+        "colorHex": "#F44336",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "judge",
+        "displayName": "Judge",
+        "stance": "Adjudication",
+        "responsibility": "Fair Evaluation + Scoring + Final Ruling",
+        "systemPromptKey": "role_judge",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      }
+    ],
+    "mandates": {
+      "activation_k": "1",
+      "max_rounds": "10",
+      "output_type": "rating",
+      "has_supervisor": "true",
+      "vote_type": "multi_stance",
+      "summary_template": "binary",
+      "debate_rounds": "6",
+      "prompt_style": "debate",
+      "strict_alternation": "true"
+    },
+    "ratingScale": ["Proponent wins", "Opponent wins", "Draw"]
+  },
+  {
+    "id": "paper_review",
+    "name": "Paper Review",
+    "description": "Academic Paper Review \u2014 Multi-reviewer evaluation with Area Chair oversight",
+    "iconName": "article",
+    "committeeLabel": "Review Committee",
+    "roles": [
+      {
+        "id": "reviewer_1",
+        "displayName": "Reviewer 1",
+        "stance": "Methodology",
+        "responsibility": "Methodology Rigor + Experimental Design + Reproducibility",
+        "systemPromptKey": "role_reviewer_1",
+        "colorHex": "#1976D2",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "reviewer_2",
+        "displayName": "Reviewer 2",
+        "stance": "Novelty & Impact",
+        "responsibility": "Novelty Assessment + Impact Evaluation + Literature Coverage",
+        "systemPromptKey": "role_reviewer_2",
+        "colorHex": "#388E3C",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "area_chair",
+        "displayName": "Area Chair",
+        "stance": "Adjudication",
+        "responsibility": "Meta-review + Consensus Building + Final Recommendation",
+        "systemPromptKey": "role_area_chair",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      }
+    ],
+    "mandates": {
+      "activation_k": "3",
+      "max_rounds": "10",
+      "debate_rounds": "4",
+      "output_type": "score",
+      "vote_type": "scale",
+      "summary_template": "multi_dimension",
+      "prompt_style": "review"
+    },
+    "ratingScale": ["Strong Accept", "Accept", "Weak Accept", "Borderline", "Reject"]
+  },
+  {
+    "id": "startup_pitch",
+    "name": "Startup Pitch",
+    "description": "Startup Pitch Review \u2014 Founder presents, investors evaluate viability and market fit",
+    "iconName": "rocket_launch",
+    "committeeLabel": "Investment Panel",
+    "roles": [
+      {
+        "id": "founder",
+        "displayName": "Founder",
+        "stance": "Advocate",
+        "responsibility": "Vision + Product Demo + Market Opportunity + Traction",
+        "systemPromptKey": "role_founder",
+        "colorHex": "#4CAF50",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "lead_investor",
+        "displayName": "Lead Investor",
+        "stance": "Scrutiny",
+        "responsibility": "Due Diligence + Valuation + Deal Terms + Risk Assessment",
+        "systemPromptKey": "role_lead_investor",
+        "colorHex": "#F44336",
+        "canUseTools": true,
+        "isSupervisor": false
+      },
+      {
+        "id": "market_analyst",
+        "displayName": "Market Analyst",
+        "stance": "Data",
+        "responsibility": "Market Size + Competitive Landscape + Growth Projections",
+        "systemPromptKey": "role_market_analyst",
+        "colorHex": "#2196F3",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "mentor",
+        "displayName": "Mentor",
+        "stance": "Guidance",
+        "responsibility": "Strategic Advice + Founder Coaching + Network Leverage",
+        "systemPromptKey": "role_mentor",
+        "colorHex": "#FF9800",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "deal_lead",
+        "displayName": "Deal Lead",
+        "stance": "Adjudication",
+        "responsibility": "Final Investment Decision + Term Sheet + Portfolio Fit",
+        "systemPromptKey": "role_deal_lead",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      }
+    ],
+    "mandates": {
+      "vote_type": "multi_stance",
+      "output_type": "decision",
+      "summary_template": "multi_dimension",
+      "supervisor_final_call": "true",
+      "max_rounds": "12",
+      "activation_k": "2",
+      "prompt_style": "pitch"
+    },
+    "ratingScale": ["Invest", "Conditional Interest", "Pass"]
+  },
+  {
+    "id": "legal_review",
+    "name": "Legal Review",
+    "description": "Legal & Compliance Review \u2014 Cross-functional compliance assessment",
+    "iconName": "balance",
+    "committeeLabel": "Compliance Committee",
+    "roles": [
+      {
+        "id": "legal_counsel",
+        "displayName": "Legal Counsel",
+        "stance": "Compliance",
+        "responsibility": "Legal Framework + Regulatory Requirements + Contract Review",
+        "systemPromptKey": "role_legal_counsel",
+        "colorHex": "#1976D2",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "risk_manager",
+        "displayName": "Risk Manager",
+        "stance": "Risk",
+        "responsibility": "Risk Assessment + Mitigation Strategies + Impact Analysis",
+        "systemPromptKey": "role_risk_manager",
+        "colorHex": "#F44336",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "biz_rep",
+        "displayName": "Business Rep",
+        "stance": "Feasibility",
+        "responsibility": "Business Impact + Implementation Cost + Timeline",
+        "systemPromptKey": "role_biz_rep",
+        "colorHex": "#4CAF50",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "compliance_officer",
+        "displayName": "Compliance Officer",
+        "stance": "Adjudication",
+        "responsibility": "Final Compliance Ruling + Remediation Plan + Monitoring",
+        "systemPromptKey": "role_compliance_officer",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      }
+    ],
+    "mandates": {
+      "consensus_required": "true",
+      "vote_type": "multi_stance",
+      "output_type": "decision",
+      "summary_template": "multi_dimension",
+      "max_rounds": "10",
+      "debate_rounds": "4",
+      "prompt_style": "review"
+    },
+    "ratingScale": ["Compliant", "Conditionally Compliant", "Non-Compliant", "Blocked"]
+  },
+  {
+    "id": "incident_postmortem",
+    "name": "Incident Postmortem",
+    "description": "Incident Postmortem \u2014 Blameless root cause analysis and action items",
+    "iconName": "bug_report",
+    "committeeLabel": "Postmortem Committee",
+    "roles": [
+      {
+        "id": "incident_commander",
+        "displayName": "Incident Commander",
+        "stance": "Facts",
+        "responsibility": "Timeline Reconstruction + Incident Scope + Communication Log",
+        "systemPromptKey": "role_incident_commander",
+        "colorHex": "#F44336",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "engineer",
+        "displayName": "Engineer",
+        "stance": "Technical",
+        "responsibility": "Technical Root Cause + Code/Config Analysis + Fix Verification",
+        "systemPromptKey": "role_engineer",
+        "colorHex": "#2196F3",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "sre",
+        "displayName": "SRE",
+        "stance": "Systems",
+        "responsibility": "System Metrics + Monitoring Gaps + Infrastructure Analysis",
+        "systemPromptKey": "role_sre",
+        "colorHex": "#FF9800",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "pm",
+        "displayName": "Product Manager",
+        "stance": "Impact",
+        "responsibility": "User Impact + Business Impact + Customer Communication",
+        "systemPromptKey": "role_pm_postmortem",
+        "colorHex": "#9C27B0",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "facilitator",
+        "displayName": "Facilitator",
+        "stance": "Adjudication",
+        "responsibility": "Blameless Facilitation + Action Item Tracking + Follow-up",
+        "systemPromptKey": "role_facilitator",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      }
+    ],
+    "mandates": {
+      "consensus_required": "true",
+      "vote_type": "multi_stance",
+      "output_type": "open",
+      "summary_template": "convergent",
+      "max_rounds": "12",
+      "activation_k": "3",
+      "prompt_style": "collaborative"
+    },
+    "ratingScale": ["Root Cause Identified", "Partial Understanding", "Needs More Investigation"]
+  },
+  {
+    "id": "brainstorm",
+    "name": "Brainstorm",
+    "description": "Creative Brainstorm \u2014 Divergent thinking + Convergent selection",
+    "iconName": "lightbulb",
+    "committeeLabel": "Brainstorm Session",
+    "roles": [
+      {
+        "id": "facilitator_bs",
+        "displayName": "Facilitator",
+        "stance": "Adjudication",
+        "responsibility": "Session Flow + Idea Clustering + Energy Management",
+        "systemPromptKey": "role_facilitator_bs",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      },
+      {
+        "id": "visionary",
+        "displayName": "Visionary",
+        "stance": "Wild Ideas",
+        "responsibility": "Bold Ideas + Future Scenarios + Unconventional Thinking",
+        "systemPromptKey": "role_visionary",
+        "colorHex": "#9C27B0",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "pragmatist",
+        "displayName": "Pragmatist",
+        "stance": "Feasibility",
+        "responsibility": "Reality Check + Resource Constraints + Implementation Path",
+        "systemPromptKey": "role_pragmatist",
+        "colorHex": "#FF9800",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "user_voice",
+        "displayName": "User Voice",
+        "stance": "Need",
+        "responsibility": "User Pain Points + Unmet Needs + Desirability Check",
+        "systemPromptKey": "role_user_voice",
+        "colorHex": "#4CAF50",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "synthesizer",
+        "displayName": "Synthesizer",
+        "stance": "Integration",
+        "responsibility": "Idea Combination + Pattern Recognition + Concept Refinement",
+        "systemPromptKey": "role_synthesizer",
+        "colorHex": "#2196F3",
+        "canUseTools": false,
+        "isSupervisor": false
+      }
+    ],
+    "mandates": {
+      "supervisor_final_call": "false",
+      "vote_type": "multi_stance",
+      "output_type": "open",
+      "summary_template": "convergent",
+      "max_rounds": "15",
+      "activation_k": "3",
+      "prompt_style": "creative"
+    },
+    "ratingScale": ["Breakthrough Idea", "Promising Direction", "Needs Iteration", "Pivot"]
+  }
+]

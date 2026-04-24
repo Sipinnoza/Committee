@@ -85,20 +85,20 @@ fun ModelConfigScreen(
     viewModel: MeetingViewModel,
     onBack: () -> Unit,
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val configState by viewModel.configState.collectAsState()
     val keyboard = LocalSoftwareKeyboardController.current
 
-    var selectedProvider by remember(uiState.llmConfig.provider) {
-        mutableStateOf(uiState.llmConfig.provider)
+    var selectedProvider by remember(configState.llmConfig.provider) {
+        mutableStateOf(configState.llmConfig.provider)
     }
-    var selectedModel by remember(uiState.llmConfig.model) {
-        mutableStateOf(uiState.llmConfig.model)
+    var selectedModel by remember(configState.llmConfig.model) {
+        mutableStateOf(configState.llmConfig.model)
     }
-    var apiKeyInput by remember(uiState.llmConfig.apiKey) {
+    var apiKeyInput by remember(configState.llmConfig.apiKey) {
         mutableStateOf("")
     }
-    var baseUrlInput by remember(uiState.llmConfig.baseUrl) {
-        mutableStateOf(uiState.llmConfig.baseUrl)
+    var baseUrlInput by remember(configState.llmConfig.baseUrl) {
+        mutableStateOf(configState.llmConfig.baseUrl)
     }
     var showKey by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
@@ -247,7 +247,7 @@ fun ModelConfigScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            if (uiState.hasApiKey) {
+                            if (configState.hasApiKey) {
                                 Icon(Icons.Default.CheckCircle, null, tint = BuyColor,
                                     modifier = Modifier.size(16.dp))
                                 Text(stringResource(R.string.settings_apikey_configured), color = BuyColor,
@@ -287,13 +287,13 @@ fun ModelConfigScreen(
                                 keyboard?.hide()
                                 viewModel.saveLlmConfig(LlmConfig(
                                     provider = selectedProvider,
-                                    apiKey = apiKeyInput.ifBlank { uiState.llmConfig.apiKey },
+                                    apiKey = apiKeyInput.ifBlank { configState.llmConfig.apiKey },
                                     model = selectedModel,
                                     baseUrl = baseUrlInput,
                                 ))
                                 saved = true
                             },
-                            enabled = apiKeyInput.isNotBlank() || uiState.hasApiKey,
+                            enabled = apiKeyInput.isNotBlank() || configState.hasApiKey,
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = CommitteeGold,

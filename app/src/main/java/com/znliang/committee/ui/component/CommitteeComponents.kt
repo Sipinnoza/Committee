@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.znliang.committee.domain.model.AgentRole
 import com.znliang.committee.domain.model.MeetingState
 import com.znliang.committee.domain.model.PresetRole
 import com.znliang.committee.domain.model.Rating
@@ -31,39 +30,6 @@ fun resolveRoleColor(presetRole: PresetRole?): Color {
     return presetRole?.let {
         runCatching { Color(android.graphics.Color.parseColor(it.colorHex)) }.getOrNull()
     } ?: SupervisorColor
-}
-
-@Composable
-fun AgentChip(role: AgentRole, modifier: Modifier = Modifier) {
-    val color = role.color
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(color.copy(alpha = 0.12f))
-            .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
-        Text(
-            text = stringResource(role.displayNameRes()),
-            style = MaterialTheme.typography.labelLarge,
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = stringResource(role.stanceRes()),
-            style = MaterialTheme.typography.labelSmall,
-            color = color.copy(alpha = 0.6f),
-            fontSize = 10.sp,
-        )
-    }
 }
 
 // ── Pulsing Status Indicator ──────────────────────────────────────────────────
@@ -196,17 +162,6 @@ fun MeetingProgressBar(currentState: MeetingState, modifier: Modifier = Modifier
             }
         }
     }
-}
-
-// ── Extension: AgentRole → Color ──────────────────────────────────────────────
-
-val AgentRole.color: Color get() = when (this) {
-    AgentRole.ANALYST      -> AnalystColor
-    AgentRole.RISK_OFFICER -> RiskColor
-    AgentRole.STRATEGIST   -> StrategistColor
-    AgentRole.EXECUTOR     -> ExecutorColor
-    AgentRole.INTEL        -> IntelColor
-    AgentRole.SUPERVISOR   -> SupervisorColor
 }
 
 val Rating.color: Color get() = when (this) {

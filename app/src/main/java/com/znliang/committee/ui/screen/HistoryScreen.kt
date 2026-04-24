@@ -49,18 +49,18 @@ fun HistoryScreen(
     viewModel: MeetingViewModel,
     onSessionClick: (MeetingSessionEntity) -> Unit = {},
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val actionState by viewModel.actionState.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     var selectedRating by remember { mutableStateOf<String?>(null) } // null = All
 
     // Collect distinct ratings for filter chips
-    val allRatings = remember(uiState.sessions) {
-        uiState.sessions.mapNotNull { it.rating }.distinct().sorted()
+    val allRatings = remember(actionState.sessions) {
+        actionState.sessions.mapNotNull { it.rating }.distinct().sorted()
     }
 
     // Filter sessions
-    val filteredSessions = remember(uiState.sessions, searchQuery, selectedRating) {
-        uiState.sessions.filter { session ->
+    val filteredSessions = remember(actionState.sessions, searchQuery, selectedRating) {
+        actionState.sessions.filter { session ->
             val matchesSearch = searchQuery.isBlank() ||
                 session.subject.contains(searchQuery, ignoreCase = true) ||
                 (session.rating?.contains(searchQuery, ignoreCase = true) == true)
@@ -80,9 +80,9 @@ fun HistoryScreen(
                     ) {
                         Icon(Icons.Default.History, null, tint = CommitteeGold)
                         Text(stringResource(R.string.history_title), color = TextPrimary, fontWeight = FontWeight.Bold)
-                        if (uiState.sessions.isNotEmpty()) {
+                        if (actionState.sessions.isNotEmpty()) {
                             Text(
-                                "(${uiState.sessions.size})",
+                                "(${actionState.sessions.size})",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = TextMuted,
                             )
@@ -93,7 +93,7 @@ fun HistoryScreen(
             )
         }
     ) { padding ->
-        if (uiState.sessions.isEmpty()) {
+        if (actionState.sessions.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -116,7 +116,7 @@ fun HistoryScreen(
             ) {
                 // ── Decision Statistics Dashboard ──────────────────
                 item(key = "stats_dashboard") {
-                    DecisionStatsDashboard(sessions = uiState.sessions)
+                    DecisionStatsDashboard(sessions = actionState.sessions)
                 }
 
                 // ── Search & Filter ──────────────────────────────

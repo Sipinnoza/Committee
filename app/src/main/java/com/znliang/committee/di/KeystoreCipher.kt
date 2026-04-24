@@ -59,8 +59,8 @@ object KeystoreCipher {
             val combined = iv + encrypted
             ENCRYPTED_PREFIX + Base64.encodeToString(combined, Base64.NO_WRAP)
         } catch (e: Exception) {
-            Log.w(TAG, "Encryption failed: ${e.message}")
-            plainText // fallback to plaintext on failure
+            Log.e(TAG, "Encryption failed, refusing to store plaintext: ${e.message}")
+            "" // refuse to store plaintext — caller should handle empty result
         }
     }
 
@@ -82,8 +82,8 @@ object KeystoreCipher {
             )
             String(cipher.doFinal(encrypted), Charsets.UTF_8)
         } catch (e: Exception) {
-            Log.w(TAG, "Decryption failed: ${e.message}")
-            cipherText.removePrefix(ENCRYPTED_PREFIX) // fallback
+            Log.e(TAG, "Decryption failed: ${e.message}")
+            "" // refuse to return garbled ciphertext — caller should prompt re-entry
         }
     }
 }

@@ -39,6 +39,8 @@ data class Blackboard(
     val userOverrideRating: String? = null,
     /** 用户覆写理由 */
     val userOverrideReason: String = "",
+    /** 错误信息（API 失败等，非空时表示会议因错误终止） */
+    val errorMessage: String? = null,
     /** 初始阶段（用于 startMeeting 时立即推进 UI，不等 inferPhase） */
     val initialPhase: BoardPhase? = null,
 ) {

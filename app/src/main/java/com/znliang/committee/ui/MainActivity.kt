@@ -235,8 +235,8 @@ fun CommitteeApp(presetConfig: MeetingPresetConfig) {
                 arguments = listOf(navArgument("traceId") { type = NavType.StringType }),
             ) { backStackEntry ->
                 val traceId = backStackEntry.arguments?.getString("traceId") ?: ""
-                val sessions by viewModel.uiState.collectAsState()
-                val session = sessions.sessions.find { it.traceId == traceId }
+                val actionState by viewModel.actionState.collectAsState()
+                val session = actionState.sessions.find { it.traceId == traceId }
                 val speeches by viewModel.sessionSpeeches.collectAsState()
                 val sessionSpeeches = speeches[traceId] ?: emptyList()
                 if (session != null) {

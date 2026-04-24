@@ -20,9 +20,10 @@ import com.znliang.committee.engine.LlmConfig
 import com.znliang.committee.engine.runtime.AgentRuntime
 import com.znliang.committee.engine.runtime.DynamicToolRegistry
 import com.znliang.committee.engine.runtime.BoardPhase
-import com.znliang.committee.engine.runtime.BoardVote
-import com.znliang.committee.engine.runtime.ContributionScore
-import com.znliang.committee.engine.runtime.MaterialRef
+import com.znliang.committee.ui.model.ContributionInfo
+import com.znliang.committee.ui.model.MaterialItem
+import com.znliang.committee.ui.model.UiPhase
+import com.znliang.committee.ui.model.VoteInfo
 import android.content.Context
 import android.content.Intent
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -44,22 +45,23 @@ data class StreamingState(
     val currentState: MeetingState = MeetingState.IDLE,
 )
 
-/** Updated per round/vote — board-level data */
+/** Updated per round/vote — board-level data (uses UI-layer types) */
 data class BoardState(
     val subject: String = "",
-    val boardPhase: BoardPhase = BoardPhase.IDLE,
+    val boardPhase: UiPhase = UiPhase.IDLE,
     val boardRound: Int = 1,
     val boardConsensus: Boolean = false,
     val boardFinished: Boolean = false,
     val boardRating: String? = null,
     val boardSummary: String = "",
-    val boardVotes: Map<String, BoardVote> = emptyMap(),
-    val boardContribScores: Map<String, ContributionScore> = emptyMap(),
+    val boardVotes: Map<String, VoteInfo> = emptyMap(),
+    val boardContribScores: Map<String, ContributionInfo> = emptyMap(),
     val boardUserWeights: Map<String, Float> = emptyMap(),
     val boardConfidence: Int = 0,
     val boardConfidenceBreakdown: String = "",
     val boardUserOverride: String? = null,
     val boardUserOverrideReason: String = "",
+    val boardError: String? = null,
 )
 
 /** Rarely updated — API key, LLM config, error */
@@ -74,36 +76,6 @@ data class ActionState(
     val sessions: List<MeetingSessionEntity> = emptyList(),
     val pendingActions: List<DecisionActionEntity> = emptyList(),
     val appConfig: AppConfig = AppConfig(),
-)
-
-// Keep legacy MeetingUiState as a type alias for external consumers
-// that may reference it (e.g. other screens)
-data class MeetingUiState(
-    val currentState: MeetingState = MeetingState.IDLE,
-    val subject: String = "",
-    val speeches: List<SpeechRecord> = emptyList(),
-    val sessions: List<MeetingSessionEntity> = emptyList(),
-    val looperLogs: List<String> = emptyList(),
-    val isRunning: Boolean = false,
-    val isPaused: Boolean = false,
-    val hasApiKey: Boolean = false,
-    val llmConfig: LlmConfig = LlmConfig(),
-    val error: String? = null,
-    val boardPhase: BoardPhase = BoardPhase.IDLE,
-    val boardRound: Int = 1,
-    val boardConsensus: Boolean = false,
-    val boardFinished: Boolean = false,
-    val boardRating: String? = null,
-    val boardSummary: String = "",
-    val boardVotes: Map<String, BoardVote> = emptyMap(),
-    val boardContribScores: Map<String, ContributionScore> = emptyMap(),
-    val boardUserWeights: Map<String, Float> = emptyMap(),
-    val boardConfidence: Int = 0,
-    val boardConfidenceBreakdown: String = "",
-    val boardUserOverride: String? = null,
-    val boardUserOverrideReason: String = "",
-    val appConfig: AppConfig = AppConfig(),
-    val pendingActions: List<DecisionActionEntity> = emptyList(),
 )
 
 @HiltViewModel
@@ -132,10 +104,6 @@ class MeetingViewModel @Inject constructor(
     private val _actionState = MutableStateFlow(ActionState())
     val actionState: StateFlow<ActionState> = _actionState.asStateFlow()
 
-    // Legacy combined state for screens that still use it
-    private val _uiState = MutableStateFlow(MeetingUiState())
-    val uiState: StateFlow<MeetingUiState> = _uiState.asStateFlow()
-
     init {
         // ── StreamingState: speeches + isRunning + isPaused + logs ──
         viewModelScope.launch {
@@ -156,64 +124,27 @@ class MeetingViewModel @Inject constructor(
             }.collect { _streamingState.value = it }
         }
 
-        // ── BoardState: board changes ──
+        // ── BoardState: board changes (convert engine types to UI types) ──
         viewModelScope.launch {
             runtime.board.collect { board ->
                 _boardState.value = BoardState(
                     subject = board.subject,
-                    boardPhase = board.phase,
+                    boardPhase = board.phase.toUiPhase(),
                     boardRound = board.round,
                     boardConsensus = board.consensus,
                     boardFinished = board.finished,
                     boardRating = board.finalRating,
                     boardSummary = board.summary,
-                    boardVotes = board.votes,
-                    boardContribScores = board.contributionScores,
+                    boardVotes = board.votes.toVoteInfoMap(),
+                    boardContribScores = board.contributionScores.toContributionInfoMap(),
                     boardUserWeights = board.userWeights,
                     boardConfidence = board.decisionConfidence,
                     boardConfidenceBreakdown = board.confidenceBreakdown,
                     boardUserOverride = board.userOverrideRating,
                     boardUserOverrideReason = board.userOverrideReason,
+                    boardError = board.errorMessage,
                 )
             }
-        }
-
-        // ── Legacy combined uiState (for generateReport etc.) ──
-        viewModelScope.launch {
-            combine(
-                _streamingState,
-                _boardState,
-                _configState,
-                _actionState,
-            ) { streaming, board, config, action ->
-                MeetingUiState(
-                    currentState = streaming.currentState,
-                    subject = board.subject,
-                    speeches = streaming.speeches,
-                    sessions = action.sessions,
-                    looperLogs = streaming.looperLogs,
-                    isRunning = streaming.isRunning,
-                    isPaused = streaming.isPaused,
-                    hasApiKey = config.hasApiKey,
-                    llmConfig = config.llmConfig,
-                    error = config.error,
-                    boardPhase = board.boardPhase,
-                    boardRound = board.boardRound,
-                    boardConsensus = board.boardConsensus,
-                    boardFinished = board.boardFinished,
-                    boardRating = board.boardRating,
-                    boardSummary = board.boardSummary,
-                    boardVotes = board.boardVotes,
-                    boardContribScores = board.boardContribScores,
-                    boardUserWeights = board.boardUserWeights,
-                    boardConfidence = board.boardConfidence,
-                    boardConfidenceBreakdown = board.boardConfidenceBreakdown,
-                    boardUserOverride = board.boardUserOverride,
-                    boardUserOverrideReason = board.boardUserOverrideReason,
-                    appConfig = action.appConfig,
-                    pendingActions = action.pendingActions,
-                )
-            }.collect { _uiState.value = it }
         }
 
         // 监听历史 sessions
@@ -270,7 +201,7 @@ class MeetingViewModel @Inject constructor(
         }
     }
 
-    fun requestMeeting(subject: String, materials: List<MaterialRef> = emptyList()) {
+    fun requestMeeting(subject: String, materials: List<MaterialItem> = emptyList()) {
         Log.i("MeetingVM", "requestMeeting: subject=$subject materials=${materials.size}")
         if (subject.isBlank()) {
             _configState.value = _configState.value.copy(error = appContext.getString(R.string.error_enter_subject))
@@ -280,13 +211,13 @@ class MeetingViewModel @Inject constructor(
             _configState.value = _configState.value.copy(error = appContext.getString(R.string.error_configure_api_key))
             return
         }
-        runtime.startMeeting(subject, materials)
+        runtime.startMeeting(subject, materials.toMaterialRefs())
     }
 
     /** 快速决策结束后是否需要恢复原始 preset */
     private var quickDecisionOriginalPreset: com.znliang.committee.domain.model.MeetingPreset? = null
 
-    fun requestQuickDecision(subject: String, materials: List<MaterialRef> = emptyList()) {
+    fun requestQuickDecision(subject: String, materials: List<MaterialItem> = emptyList()) {
         Log.i("MeetingVM", "requestQuickDecision: subject=$subject")
         if (subject.isBlank()) {
             _configState.value = _configState.value.copy(error = appContext.getString(R.string.error_enter_subject))
@@ -306,7 +237,7 @@ class MeetingViewModel @Inject constructor(
             ))
         }
         runtime.reconfigure(quickPreset)
-        runtime.startMeeting(subject, materials)
+        runtime.startMeeting(subject, materials.toMaterialRefs())
     }
 
     fun confirmExecution() {

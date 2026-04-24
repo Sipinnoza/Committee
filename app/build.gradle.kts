@@ -53,6 +53,8 @@ android {
 }
 
 dependencies {
+    implementation(project(":core"))
+    implementation(project(":data"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -100,6 +102,11 @@ dependencies {
 
     // Rhino (JavaScript sandbox execution)
     implementation(libs.rhino)
+
+    // Test
+    testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.coroutines.test)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

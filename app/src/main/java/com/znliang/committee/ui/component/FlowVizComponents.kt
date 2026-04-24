@@ -274,7 +274,7 @@ fun FlowGraph(flowState: FlowVizState, modifier: Modifier = Modifier) {
 // ── Phase 信息卡片 ─────────────────────────────────────────────
 
 @Composable
-private fun PhaseInfoCard(phase: com.znliang.committee.engine.runtime.BoardPhase, currentStateName: String) {
+private fun PhaseInfoCard(phase: com.znliang.committee.ui.model.UiPhase, currentStateName: String) {
     val stateDisplay = mapOf(
         "IDLE" to stringResource(R.string.home_state_idle),
         "ANALYSIS" to stringResource(R.string.home_state_analysis),
@@ -286,11 +286,11 @@ private fun PhaseInfoCard(phase: com.znliang.committee.engine.runtime.BoardPhase
     )
 
     val agentsForPhase = when (phase) {
-        com.znliang.committee.engine.runtime.BoardPhase.ANALYSIS -> listOf("analyst", "intel")
-        com.znliang.committee.engine.runtime.BoardPhase.DEBATE -> listOf("analyst", "risk_officer", "strategist")
-        com.znliang.committee.engine.runtime.BoardPhase.VOTE -> listOf("analyst", "risk_officer", "strategist")
-        com.znliang.committee.engine.runtime.BoardPhase.RATING -> listOf("supervisor")
-        com.znliang.committee.engine.runtime.BoardPhase.EXECUTION -> listOf("executor")
+        com.znliang.committee.ui.model.UiPhase.ANALYSIS -> listOf("analyst", "intel")
+        com.znliang.committee.ui.model.UiPhase.DEBATE -> listOf("analyst", "risk_officer", "strategist")
+        com.znliang.committee.ui.model.UiPhase.VOTE -> listOf("analyst", "risk_officer", "strategist")
+        com.znliang.committee.ui.model.UiPhase.RATING -> listOf("supervisor")
+        com.znliang.committee.ui.model.UiPhase.EXECUTION -> listOf("executor")
         else -> emptyList()
     }
 

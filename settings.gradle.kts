@@ -20,3 +20,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "InvestmentCommittee"
 include(":app")
+include(":core")
+include(":data")

@@ -2,22 +2,19 @@ package com.znliang.committee.engine.runtime
 
 import android.util.Log
 import com.znliang.committee.engine.LlmConfig
-import kotlinx.coroutines.Dispatchers
+import com.znliang.committee.engine.StreamResult
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.withContext
 
 /**
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *  SystemLlmService — 系统 LLM 调用（无 Agent 身份）
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 系统 LLM 调用（无 Agent 身份）
  *
- *  用于 Supervisor 结束判断、点评、评级、摘要、反思等系统级调用。
- *  不携带 Agent persona，不写入 Agent 聊天记录。
+ * 用于 Supervisor 结束判断、点评、评级、摘要、反思等系统级调用。
+ * 不携带 Agent persona，不写入 Agent 聊天记录。
  *
- *  调用链：SystemLlmService → AgentPool.callSystemStreaming() → OkHttp SSE
+ * 调用链：SystemLlmService → AgentPool.callSystemStreaming() → OkHttp SSE
  */
 class SystemLlmService(
-    private val callStreaming: suspend (LlmConfig, String, String) -> Flow<String>,
+    private val callStreaming: suspend (LlmConfig, String, String) -> Flow<StreamResult>,
     private val configProvider: suspend () -> LlmConfig,
 ) {
     companion object {
@@ -26,6 +23,7 @@ class SystemLlmService(
 
     /**
      * 纯系统 LLM 调用。传入 system prompt + user prompt，返回完整响应文本。
+     * 自动过滤 StreamResult.Error 和 Done，只累积 Token。
      */
     suspend fun call(systemPrompt: String, userPrompt: String = ""): String {
         val config = configProvider()
@@ -36,7 +34,13 @@ class SystemLlmService(
         val sb = StringBuilder()
         try {
             callStreaming(config, systemPrompt, userPrompt)
-                .collect { sb.append(it) }
+                .collect { result ->
+                    when (result) {
+                        is StreamResult.Token -> sb.append(result.text)
+                        is StreamResult.Error -> Log.w(TAG, "[call] 流式错误: ${result.type} ${result.message}")
+                        is StreamResult.Done -> { /* no-op */ }
+                    }
+                }
         } catch (e: Exception) {
             Log.w(TAG, "[call] 错误: ${e.javaClass.simpleName}: ${e.message}")
         }

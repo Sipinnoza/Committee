@@ -570,4 +570,6 @@
     <string name="rating_promising">Promising Direction</string>
     <string name="rating_needs_iteration">Needs Iteration</string>
     <string name="rating_pivot">Pivot</string>
+    <string name="meeting_error_title">Meeting Terminated</string>
+    <string name="meeting_error_retry">Back to Home</string>
 </resources>

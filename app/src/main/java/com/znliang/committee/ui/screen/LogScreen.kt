@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LogScreen(viewModel: MeetingViewModel) {
-    val uiState by viewModel.uiState.collectAsState()
+    val streamState by viewModel.streamingState.collectAsState()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var userScrolled by remember { mutableStateOf(false) }
@@ -43,16 +43,16 @@ fun LogScreen(viewModel: MeetingViewModel) {
     }
 
     // Reset userScrolled when log list is replaced/emptied
-    LaunchedEffect(uiState.looperLogs.isEmpty()) {
-        if (uiState.looperLogs.isEmpty()) {
+    LaunchedEffect(streamState.looperLogs.isEmpty()) {
+        if (streamState.looperLogs.isEmpty()) {
             userScrolled = false
         }
     }
 
     // Auto-scroll only if user hasn't manually scrolled up
-    LaunchedEffect(uiState.looperLogs.size) {
-        if (uiState.looperLogs.isNotEmpty() && !userScrolled) {
-            scope.launch { listState.animateScrollToItem(uiState.looperLogs.lastIndex) }
+    LaunchedEffect(streamState.looperLogs.size) {
+        if (streamState.looperLogs.isNotEmpty() && !userScrolled) {
+            scope.launch { listState.animateScrollToItem(streamState.looperLogs.lastIndex) }
         }
     }
 
@@ -79,7 +79,7 @@ fun LogScreen(viewModel: MeetingViewModel) {
                 .clip(RoundedCornerShape(10.dp))
                 .background(SurfaceCard),
         ) {
-            if (uiState.looperLogs.isEmpty()) {
+            if (streamState.looperLogs.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.log_waiting), color = TextMuted,
                         style = MaterialTheme.typography.bodyMedium)
@@ -91,7 +91,7 @@ fun LogScreen(viewModel: MeetingViewModel) {
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    itemsIndexed(items = uiState.looperLogs, key = { idx, line -> "log_${idx}_${line.hashCode()}" }) { _, line ->
+                    itemsIndexed(items = streamState.looperLogs, key = { idx, line -> "log_${idx}_${line.hashCode()}" }) { _, line ->
                         val color = when {
                             line.contains(stringResource(R.string.log_tag_transition)) -> CommitteeGold
                             line.contains(stringResource(R.string.log_tag_event))    -> AnalystColor
