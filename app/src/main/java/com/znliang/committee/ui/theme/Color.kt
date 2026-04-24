@@ -24,7 +24,7 @@ val SupervisorColor  = Color(0xFF78909C)   // Judge — grey-blue
 // ── Rating Colors ─────────────────────────────────────────────────────────────
 val BuyColor         = Color(0xFF00C853)
 val OverweightColor  = Color(0xFF69F0AE)
-val HoldPlusColor    = Color(0xFFFFD740)
+val HoldPlusColor    = Color(0xFFFFE082)
 val HoldColor        = Color(0xFFFFD740)
 val UnderweightColor = Color(0xFFFF6D00)
 val SellColor        = Color(0xFFD50000)

@@ -9,8 +9,13 @@ import kotlinx.coroutines.flow.Flow
  * 用户在 APP 内创建的 tool/skill 定义。
  *
  * executionType:
- *   "http"  — HTTP 请求模板，executionConfig 里放 url/method/headers/bodyTemplate
- *   "llm"   — 用 LLM 处理，executionConfig 里放 systemPromptTemplate
+ *   "http"        — HTTP 请求模板，executionConfig 里放 url/method/headers/bodyTemplate
+ *   "llm"         — 用 LLM 处理，executionConfig 里放 systemPromptTemplate
+ *   "javascript"  — 本地 Rhino JS 沙箱执行，executionConfig 里放 script
+ *   "intent"      — Android Intent 交互，executionConfig 里放 action/type/uri/extras
+ *   "db_query"    — 本地 Room DB 只读查询，executionConfig 里放 query/max_rows
+ *   "chain"       — 顺序工具链编排，executionConfig 里放 steps 数组
+ *   "regex"       — 本地正则提取/替换，executionConfig 里放 pattern/input/group/findAll/replacement
  *
  * parameters: JSON Schema 格式，如：
  *   {"type":"object","properties":{"query":{"type":"string","description":"搜索关键词"}},"required":["query"]}

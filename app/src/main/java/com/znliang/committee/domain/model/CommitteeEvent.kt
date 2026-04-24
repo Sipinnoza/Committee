@@ -37,4 +37,6 @@ data class SpeechRecord(
     val timestamp: Instant = Instant.now(),
     val isStreaming: Boolean = false,
     val id: String = "sp_${UUID.randomUUID().toString().replace("-", "").take(10)}",
+    /** Agent 的推理过程（思考链路），用户可展开查看 */
+    val reasoning: String = "",
 )

@@ -44,10 +44,11 @@ interface Agent {
     /** 构建统一 prompt */
     fun buildUnifiedPrompt(board: Blackboard): String
 
-    /** 🔥 Attention：按标准化标签过滤 */
+    /** 🔥 Attention：按标准化标签过滤（排除自身发言，避免上下文中重复自己） */
     fun relevantMessages(board: Blackboard): List<BoardMessage> {
-        return if (attentionTags.isEmpty()) board.messages.takeLast(8)
-        else board.messagesByTags(*attentionTags.toTypedArray()).takeLast(6)
+        val others = board.messages.filter { it.role != role }
+        return if (attentionTags.isEmpty()) others.takeLast(8)
+        else others.filter { msg -> msg.normalizedTags.any { it in attentionTags } }.takeLast(6)
     }
 
     /**
@@ -75,9 +76,9 @@ interface Agent {
         score += relevantCount * 2.0
 
         // ③ 当前有分歧（投票接近）→ 有相关 attention tags 的角色加分
-        val bullCount = board.votes.values.count { it.agree }
-        val bearCount = board.votes.size - bullCount
-        val hasDivergence = board.votes.size >= 2 && kotlin.math.abs(bullCount - bearCount) <= 1
+        val agreeCount = board.votes.values.count { it.agree }
+        val disagreeCount = board.votes.size - agreeCount
+        val hasDivergence = board.votes.size >= 2 && kotlin.math.abs(agreeCount - disagreeCount) <= 1
         if (hasDivergence) {
             // Agents with divergence-relevant tags (RISK, STRATEGY) get boosted
             val divergenceTags = setOf(MsgTag.RISK, MsgTag.STRATEGY)

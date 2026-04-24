@@ -1,142 +1,6 @@
 package com.znliang.committee.domain.model
 
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.stringPreferencesKey
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import com.znliang.committee.R
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
-import javax.inject.Inject
-import javax.inject.Singleton
-
-// ── Data Models ──────────────────────────────────────────────
-
-/**
- * 会议预设角色模板
- */
-data class PresetRole(
-    val id: String,
-    val displayName: String,
-    val stance: String,
-    val responsibility: String,
-    val systemPromptKey: String,
-    val colorHex: String,
-    val canUseTools: Boolean = false,
-) {
-    companion object {
-        /** Map role id → string resource IDs for i18n */
-        private val DISPLAY_NAME_RES: Map<String, Int> by lazy { mapOf(
-            "analyst" to R.string.role_analyst_display,
-            "risk_officer" to R.string.role_risk_display,
-            "strategy_validator" to R.string.role_strategist_display,
-            "executor" to R.string.role_executor_display,
-            "intel" to R.string.role_intel_display,
-            "supervisor" to R.string.role_supervisor_display,
-            "coordinator" to R.string.preset_gm_coordinator_name,
-            "researcher" to R.string.preset_gm_researcher_name,
-            "reviewer" to R.string.preset_gm_reviewer_name,
-            // product_review roles
-            "product_manager" to R.string.role_pm_display,
-            "tech_lead" to R.string.role_tech_lead_display,
-            "designer" to R.string.role_designer_display,
-            "qa_engineer" to R.string.role_qa_display,
-            "user_advocate" to R.string.role_user_advocate_display,
-            // tech_review roles
-            "architect" to R.string.role_architect_display,
-            "security_expert" to R.string.role_security_display,
-            "perf_expert" to R.string.role_perf_display,
-            "stakeholder" to R.string.role_stakeholder_display,
-            // debate roles
-            "proponent" to R.string.role_proponent_display,
-            "opponent" to R.string.role_opponent_display,
-            "judge" to R.string.role_judge_display,
-            // paper_review roles
-            "reviewer_1" to R.string.role_reviewer1_display,
-            "reviewer_2" to R.string.role_reviewer2_display,
-            "area_chair" to R.string.role_area_chair_display,
-        ) }
-        private val STANCE_RES: Map<String, Int> by lazy { mapOf(
-            "analyst" to R.string.role_analyst_stance,
-            "risk_officer" to R.string.role_risk_stance,
-            "strategy_validator" to R.string.role_strategist_stance,
-            "executor" to R.string.role_executor_stance,
-            "intel" to R.string.role_intel_stance,
-            "supervisor" to R.string.role_supervisor_stance,
-            "coordinator" to R.string.preset_gm_coordinator_stance,
-            "researcher" to R.string.preset_gm_researcher_stance,
-            "reviewer" to R.string.preset_gm_reviewer_stance,
-            // product_review roles
-            "product_manager" to R.string.role_pm_stance,
-            "tech_lead" to R.string.role_tech_lead_stance,
-            "designer" to R.string.role_designer_stance,
-            "qa_engineer" to R.string.role_qa_stance,
-            "user_advocate" to R.string.role_user_advocate_stance,
-            // tech_review roles
-            "architect" to R.string.role_architect_stance,
-            "security_expert" to R.string.role_security_stance,
-            "perf_expert" to R.string.role_perf_stance,
-            "stakeholder" to R.string.role_stakeholder_stance,
-            // debate roles
-            "proponent" to R.string.role_proponent_stance,
-            "opponent" to R.string.role_opponent_stance,
-            "judge" to R.string.role_judge_stance,
-            // paper_review roles
-            "reviewer_1" to R.string.role_reviewer1_stance,
-            "reviewer_2" to R.string.role_reviewer2_stance,
-            "area_chair" to R.string.role_area_chair_stance,
-        ) }
-        private val RESPONSIBILITY_RES: Map<String, Int> by lazy { mapOf(
-            "analyst" to R.string.role_analyst_resp,
-            "risk_officer" to R.string.role_risk_resp,
-            "strategy_validator" to R.string.role_strategist_resp,
-            "executor" to R.string.role_executor_resp,
-            "intel" to R.string.role_intel_resp,
-            "supervisor" to R.string.role_supervisor_resp,
-            "coordinator" to R.string.preset_gm_coordinator_resp,
-            "researcher" to R.string.preset_gm_researcher_resp,
-            "reviewer" to R.string.preset_gm_reviewer_resp,
-            // product_review roles
-            "product_manager" to R.string.role_pm_resp,
-            "tech_lead" to R.string.role_tech_lead_resp,
-            "designer" to R.string.role_designer_resp,
-            "qa_engineer" to R.string.role_qa_resp,
-            "user_advocate" to R.string.role_user_advocate_resp,
-            // tech_review roles
-            "architect" to R.string.role_architect_resp,
-            "security_expert" to R.string.role_security_resp,
-            "perf_expert" to R.string.role_perf_resp,
-            "stakeholder" to R.string.role_stakeholder_resp,
-            // debate roles
-            "proponent" to R.string.role_proponent_resp,
-            "opponent" to R.string.role_opponent_resp,
-            "judge" to R.string.role_judge_resp,
-            // paper_review roles
-            "reviewer_1" to R.string.role_reviewer1_resp,
-            "reviewer_2" to R.string.role_reviewer2_resp,
-            "area_chair" to R.string.role_area_chair_resp,
-        ) }
-    }
-
-    /** @return String resource ID for localized display name, or 0 for custom roles */
-    @androidx.annotation.StringRes
-    fun displayNameRes(): Int = DISPLAY_NAME_RES[id] ?: 0
-
-    /** @return String resource ID for localized stance, or 0 for custom roles */
-    @androidx.annotation.StringRes
-    fun stanceRes(): Int = STANCE_RES[id] ?: 0
-
-    /** @return String resource ID for localized responsibility, or 0 for custom roles */
-    @androidx.annotation.StringRes
-    fun responsibilityRes(): Int = RESPONSIBILITY_RES[id] ?: 0
-}
 
 /**
  * 会议预设模板
@@ -149,7 +13,6 @@ data class PresetRole(
  * @param roles           角色列表（默认角色）
  * @param mandates        会议规则/指令（key-value 对）
  * @param ratingScale     评级量表
- * @param isActive        是否为当前激活 preset（仅运行时使用，不持久化）
  */
 data class MeetingPreset(
     val id: String,
@@ -160,8 +23,9 @@ data class MeetingPreset(
     val roles: List<PresetRole>,
     val mandates: Map<String, String>,
     val ratingScale: List<String>,
-    val isActive: Boolean = false,
 ) {
+    /** Runtime-only flag — excluded from equals/hashCode to avoid false inequality */
+    @Transient var isActive: Boolean = false
     /** 通过 roleId 查找预设角色 */
     fun findRole(roleId: String): PresetRole? = roles.find { it.id == roleId }
 
@@ -173,6 +37,12 @@ data class MeetingPreset(
     //   evolve_threshold  → experience count before auto-evolution (default "3")
     //   has_supervisor     → whether a supervisor role exists (default "true")
     //   output_type        → "rating" | "decision" | "score" | "open" (default "rating")
+    //   vote_type          → "binary" | "scale" | "multi_stance" (default "binary")
+    //   debate_rounds      → minimum rounds before finish check (default agents.size)
+    //   consensus_required → require consensus before finishing (default "false")
+    //   supervisor_final_call → supervisor verdict overrides vote (default "true")
+    //   summary_template   → "binary" | "multi_dimension" | "convergent" (default "binary")
+    //   prompt_style       → "debate" | "review" | "collaborative" | "creative" | "pitch" (default "debate")
 
     fun mandateInt(key: String, default: Int): Int = mandates[key]?.toIntOrNull() ?: default
     fun mandateStr(key: String, default: String): String = mandates[key] ?: default
@@ -196,6 +66,10 @@ data class MeetingPreset(
             "tech_review" to R.string.preset_tr_label,
             "debate" to R.string.preset_db_label,
             "paper_review" to R.string.preset_paper_label,
+            "startup_pitch" to R.string.preset_sp_label,
+            "legal_review" to R.string.preset_lr_label,
+            "incident_postmortem" to R.string.preset_ip_label,
+            "brainstorm" to R.string.preset_bs_label,
         )
         private val NAME_RES: Map<String, Int> = mapOf(
             "investment_committee" to R.string.preset_ic_name,
@@ -204,6 +78,10 @@ data class MeetingPreset(
             "tech_review" to R.string.preset_tr_name,
             "debate" to R.string.preset_db_name,
             "paper_review" to R.string.preset_paper_name,
+            "startup_pitch" to R.string.preset_sp_name,
+            "legal_review" to R.string.preset_lr_name,
+            "incident_postmortem" to R.string.preset_ip_name,
+            "brainstorm" to R.string.preset_bs_name,
         )
 
         @androidx.annotation.StringRes
@@ -272,12 +150,18 @@ val INVESTMENT_COMMITTEE_PRESET = MeetingPreset(
             responsibility = "Arbitration + Minutes + Execution Discipline Tracking",
             systemPromptKey = "role_supervisor",
             colorHex = "#607D8B",
+            isSupervisor = true,
         ),
     ),
     mandates = mapOf(
         "debate_rounds" to "3",
+        "max_rounds" to "15",
         "consensus_required" to "false",
         "supervisor_final_call" to "true",
+        "has_supervisor" to "true",
+        "output_type" to "rating",
+        "summary_template" to "binary",
+        "prompt_style" to "debate",
         "phase1_label" to "Debate",
         "phase2_label" to "Risk Assessment",
     ),
@@ -299,6 +183,7 @@ val GENERAL_MEETING_PRESET = MeetingPreset(
             responsibility = "Process Facilitation + Agenda Management + Summary",
             systemPromptKey = "role_coordinator",
             colorHex = "#1976D2",
+            isSupervisor = true,
         ),
         PresetRole(
             id = "researcher",
@@ -319,9 +204,13 @@ val GENERAL_MEETING_PRESET = MeetingPreset(
         ),
     ),
     mandates = mapOf(
-        "debate_rounds" to "2",
+        "debate_rounds" to "3",
+        "max_rounds" to "10",
         "consensus_required" to "true",
         "supervisor_final_call" to "false",
+        "output_type" to "decision",
+        "summary_template" to "convergent",
+        "prompt_style" to "collaborative",
         "phase1_label" to "Discussion",
         "phase2_label" to "Review & Assessment",
     ),
@@ -383,12 +272,19 @@ val PRODUCT_REVIEW_PRESET = MeetingPreset(
             responsibility = "Process Facilitation + Decision Tracking + Summary",
             systemPromptKey = "role_coordinator",
             colorHex = "#607D8B",
+            isSupervisor = true,
         ),
     ),
     mandates = mapOf(
-        "activation_k" to "2",
+        "activation_k" to "3",
         "max_rounds" to "15",
         "output_type" to "decision",
+        "summary_template" to "multi_dimension",
+        "has_supervisor" to "true",
+        "supervisor_final_call" to "false",
+        "consensus_required" to "false",
+        "vote_type" to "binary",
+        "prompt_style" to "review",
     ),
     ratingScale = listOf("Ship", "Ship with fixes", "Needs revision", "Reject"),
 )
@@ -440,12 +336,19 @@ val TECH_REVIEW_PRESET = MeetingPreset(
             responsibility = "Process Facilitation + Decision Tracking + Summary",
             systemPromptKey = "role_coordinator",
             colorHex = "#607D8B",
+            isSupervisor = true,
         ),
     ),
     mandates = mapOf(
-        "activation_k" to "2",
+        "activation_k" to "3",
         "max_rounds" to "12",
         "output_type" to "decision",
+        "summary_template" to "multi_dimension",
+        "has_supervisor" to "true",
+        "supervisor_final_call" to "false",
+        "consensus_required" to "false",
+        "vote_type" to "binary",
+        "prompt_style" to "review",
     ),
     ratingScale = listOf("Approve", "Approve with conditions", "Major revision needed", "Reject"),
 )
@@ -481,6 +384,7 @@ val DEBATE_PRESET = MeetingPreset(
             responsibility = "Fair Evaluation + Scoring + Final Ruling",
             systemPromptKey = "role_judge",
             colorHex = "#607D8B",
+            isSupervisor = true,
         ),
     ),
     mandates = mapOf(
@@ -488,6 +392,11 @@ val DEBATE_PRESET = MeetingPreset(
         "max_rounds" to "10",
         "output_type" to "rating",
         "has_supervisor" to "true",
+        "vote_type" to "multi_stance",
+        "summary_template" to "binary",
+        "debate_rounds" to "6",
+        "prompt_style" to "debate",
+        "strict_alternation" to "true",
     ),
     ratingScale = listOf("Proponent wins", "Opponent wins", "Draw"),
 )
@@ -523,14 +432,262 @@ val PAPER_REVIEW_PRESET = MeetingPreset(
             responsibility = "Meta-review + Consensus Building + Final Recommendation",
             systemPromptKey = "role_area_chair",
             colorHex = "#607D8B",
+            isSupervisor = true,
         ),
     ),
     mandates = mapOf(
-        "activation_k" to "2",
+        "activation_k" to "3",
         "max_rounds" to "10",
+        "debate_rounds" to "4",
         "output_type" to "score",
+        "vote_type" to "scale",
+        "summary_template" to "multi_dimension",
+        "prompt_style" to "review",
     ),
     ratingScale = listOf("Strong Accept", "Accept", "Weak Accept", "Borderline", "Reject"),
+)
+
+// ── New Presets (Phase 6) ────────────────────────────────────
+
+/** Startup Pitch preset — 创业路演 */
+val STARTUP_PITCH_PRESET = MeetingPreset(
+    id = "startup_pitch",
+    name = "Startup Pitch",
+    description = "Startup Pitch Review — Founder presents, investors evaluate viability and market fit",
+    iconName = "rocket_launch",
+    committeeLabel = "Investment Panel",
+    roles = listOf(
+        PresetRole(
+            id = "founder",
+            displayName = "Founder",
+            stance = "Advocate",
+            responsibility = "Vision + Product Demo + Market Opportunity + Traction",
+            systemPromptKey = "role_founder",
+            colorHex = "#4CAF50",
+        ),
+        PresetRole(
+            id = "lead_investor",
+            displayName = "Lead Investor",
+            stance = "Scrutiny",
+            responsibility = "Due Diligence + Valuation + Deal Terms + Risk Assessment",
+            systemPromptKey = "role_lead_investor",
+            colorHex = "#F44336",
+            canUseTools = true,
+        ),
+        PresetRole(
+            id = "market_analyst",
+            displayName = "Market Analyst",
+            stance = "Data",
+            responsibility = "Market Size + Competitive Landscape + Growth Projections",
+            systemPromptKey = "role_market_analyst",
+            colorHex = "#2196F3",
+        ),
+        PresetRole(
+            id = "mentor",
+            displayName = "Mentor",
+            stance = "Guidance",
+            responsibility = "Strategic Advice + Founder Coaching + Network Leverage",
+            systemPromptKey = "role_mentor",
+            colorHex = "#FF9800",
+        ),
+        PresetRole(
+            id = "deal_lead",
+            displayName = "Deal Lead",
+            stance = "Adjudication",
+            responsibility = "Final Investment Decision + Term Sheet + Portfolio Fit",
+            systemPromptKey = "role_deal_lead",
+            colorHex = "#607D8B",
+            isSupervisor = true,
+        ),
+    ),
+    mandates = mapOf(
+        "vote_type" to "multi_stance",
+        "output_type" to "decision",
+        "summary_template" to "multi_dimension",
+        "supervisor_final_call" to "true",
+        "max_rounds" to "12",
+        "activation_k" to "2",
+        "prompt_style" to "pitch",
+    ),
+    ratingScale = listOf("Invest", "Conditional Interest", "Pass"),
+)
+
+/** Legal Review preset — 合规审查 */
+val LEGAL_REVIEW_PRESET = MeetingPreset(
+    id = "legal_review",
+    name = "Legal Review",
+    description = "Legal & Compliance Review — Cross-functional compliance assessment",
+    iconName = "balance",
+    committeeLabel = "Compliance Committee",
+    roles = listOf(
+        PresetRole(
+            id = "legal_counsel",
+            displayName = "Legal Counsel",
+            stance = "Compliance",
+            responsibility = "Legal Framework + Regulatory Requirements + Contract Review",
+            systemPromptKey = "role_legal_counsel",
+            colorHex = "#1976D2",
+        ),
+        PresetRole(
+            id = "risk_manager",
+            displayName = "Risk Manager",
+            stance = "Risk",
+            responsibility = "Risk Assessment + Mitigation Strategies + Impact Analysis",
+            systemPromptKey = "role_risk_manager",
+            colorHex = "#F44336",
+        ),
+        PresetRole(
+            id = "biz_rep",
+            displayName = "Business Rep",
+            stance = "Feasibility",
+            responsibility = "Business Impact + Implementation Cost + Timeline",
+            systemPromptKey = "role_biz_rep",
+            colorHex = "#4CAF50",
+        ),
+        PresetRole(
+            id = "compliance_officer",
+            displayName = "Compliance Officer",
+            stance = "Adjudication",
+            responsibility = "Final Compliance Ruling + Remediation Plan + Monitoring",
+            systemPromptKey = "role_compliance_officer",
+            colorHex = "#607D8B",
+            isSupervisor = true,
+        ),
+    ),
+    mandates = mapOf(
+        "consensus_required" to "true",
+        "vote_type" to "multi_stance",
+        "output_type" to "decision",
+        "summary_template" to "multi_dimension",
+        "max_rounds" to "10",
+        "debate_rounds" to "4",
+        "prompt_style" to "review",
+    ),
+    ratingScale = listOf("Compliant", "Conditionally Compliant", "Non-Compliant", "Blocked"),
+)
+
+/** Incident Postmortem preset — 事故复盘 */
+val INCIDENT_POSTMORTEM_PRESET = MeetingPreset(
+    id = "incident_postmortem",
+    name = "Incident Postmortem",
+    description = "Incident Postmortem — Blameless root cause analysis and action items",
+    iconName = "bug_report",
+    committeeLabel = "Postmortem Committee",
+    roles = listOf(
+        PresetRole(
+            id = "incident_commander",
+            displayName = "Incident Commander",
+            stance = "Facts",
+            responsibility = "Timeline Reconstruction + Incident Scope + Communication Log",
+            systemPromptKey = "role_incident_commander",
+            colorHex = "#F44336",
+        ),
+        PresetRole(
+            id = "engineer",
+            displayName = "Engineer",
+            stance = "Technical",
+            responsibility = "Technical Root Cause + Code/Config Analysis + Fix Verification",
+            systemPromptKey = "role_engineer",
+            colorHex = "#2196F3",
+        ),
+        PresetRole(
+            id = "sre",
+            displayName = "SRE",
+            stance = "Systems",
+            responsibility = "System Metrics + Monitoring Gaps + Infrastructure Analysis",
+            systemPromptKey = "role_sre",
+            colorHex = "#FF9800",
+        ),
+        PresetRole(
+            id = "pm",
+            displayName = "Product Manager",
+            stance = "Impact",
+            responsibility = "User Impact + Business Impact + Customer Communication",
+            systemPromptKey = "role_pm_postmortem",
+            colorHex = "#9C27B0",
+        ),
+        PresetRole(
+            id = "facilitator",
+            displayName = "Facilitator",
+            stance = "Adjudication",
+            responsibility = "Blameless Facilitation + Action Item Tracking + Follow-up",
+            systemPromptKey = "role_facilitator",
+            colorHex = "#607D8B",
+            isSupervisor = true,
+        ),
+    ),
+    mandates = mapOf(
+        "consensus_required" to "true",
+        "vote_type" to "multi_stance",
+        "output_type" to "open",
+        "summary_template" to "convergent",
+        "max_rounds" to "12",
+        "activation_k" to "3",
+        "prompt_style" to "collaborative",
+    ),
+    ratingScale = listOf("Root Cause Identified", "Partial Understanding", "Needs More Investigation"),
+)
+
+/** Brainstorm preset — 头脑风暴 */
+val BRAINSTORM_PRESET = MeetingPreset(
+    id = "brainstorm",
+    name = "Brainstorm",
+    description = "Creative Brainstorm — Divergent thinking + Convergent selection",
+    iconName = "lightbulb",
+    committeeLabel = "Brainstorm Session",
+    roles = listOf(
+        PresetRole(
+            id = "facilitator_bs",
+            displayName = "Facilitator",
+            stance = "Adjudication",
+            responsibility = "Session Flow + Idea Clustering + Energy Management",
+            systemPromptKey = "role_facilitator_bs",
+            colorHex = "#607D8B",
+            isSupervisor = true,
+        ),
+        PresetRole(
+            id = "visionary",
+            displayName = "Visionary",
+            stance = "Wild Ideas",
+            responsibility = "Bold Ideas + Future Scenarios + Unconventional Thinking",
+            systemPromptKey = "role_visionary",
+            colorHex = "#9C27B0",
+        ),
+        PresetRole(
+            id = "pragmatist",
+            displayName = "Pragmatist",
+            stance = "Feasibility",
+            responsibility = "Reality Check + Resource Constraints + Implementation Path",
+            systemPromptKey = "role_pragmatist",
+            colorHex = "#FF9800",
+        ),
+        PresetRole(
+            id = "user_voice",
+            displayName = "User Voice",
+            stance = "Need",
+            responsibility = "User Pain Points + Unmet Needs + Desirability Check",
+            systemPromptKey = "role_user_voice",
+            colorHex = "#4CAF50",
+        ),
+        PresetRole(
+            id = "synthesizer",
+            displayName = "Synthesizer",
+            stance = "Integration",
+            responsibility = "Idea Combination + Pattern Recognition + Concept Refinement",
+            systemPromptKey = "role_synthesizer",
+            colorHex = "#2196F3",
+        ),
+    ),
+    mandates = mapOf(
+        "supervisor_final_call" to "false",
+        "vote_type" to "multi_stance",
+        "output_type" to "open",
+        "summary_template" to "convergent",
+        "max_rounds" to "15",
+        "activation_k" to "3",
+        "prompt_style" to "creative",
+    ),
+    ratingScale = listOf("Breakthrough Idea", "Promising Direction", "Needs Iteration", "Pivot"),
 )
 
 /** 所有内置 preset 列表 */
@@ -541,242 +698,8 @@ val ALL_PRESETS: List<MeetingPreset> = listOf(
     TECH_REVIEW_PRESET,
     DEBATE_PRESET,
     PAPER_REVIEW_PRESET,
+    STARTUP_PITCH_PRESET,
+    LEGAL_REVIEW_PRESET,
+    INCIDENT_POSTMORTEM_PRESET,
+    BRAINSTORM_PRESET,
 )
-
-// ── Preset Config Manager ────────────────────────────────────
-
-private val PREF_ACTIVE_PRESET = stringPreferencesKey("active_preset_id")
-private val PREF_CUSTOM_ROLES_PREFIX = "custom_roles_"
-private val PREF_CUSTOM_PRESETS = stringPreferencesKey("custom_presets_v1")
-
-private val gson = Gson()
-private val roleListType = object : TypeToken<List<PresetRole>>() {}.type
-private val presetListType = object : TypeToken<List<MeetingPreset>>() {}.type
-
-/**
- * 会议预设配置管理器
- *
- * 负责管理当前激活的 preset 和自定义角色，通过 DataStore 持久化。
- * 支持角色增删改和恢复默认。
- */
-@Singleton
-class MeetingPresetConfig @Inject constructor(
-    private val dataStore: DataStore<Preferences>,
-) {
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
-    private val prefsFlow: StateFlow<Preferences> = dataStore.data
-        .stateIn(scope, SharingStarted.Eagerly, emptyPreferences())
-
-    private fun emptyPreferences(): Preferences =
-        androidx.datastore.preferences.core.mutablePreferencesOf()
-
-    // ── 自定义角色 CRUD ──────────────────────────────────────
-
-    /** 读取自定义角色列表（null 表示未自定义，使用默认） */
-    private fun readCustomRoles(prefs: Preferences, presetId: String): List<PresetRole>? {
-        val key = stringPreferencesKey("${PREF_CUSTOM_ROLES_PREFIX}${presetId}")
-        val json = prefs[key] ?: return null
-        return try { gson.fromJson<List<PresetRole>>(json, roleListType) } catch (_: Exception) { null }
-    }
-
-    /** 保存自定义角色列表 */
-    suspend fun saveCustomRoles(presetId: String, roles: List<PresetRole>) {
-        val key = stringPreferencesKey("${PREF_CUSTOM_ROLES_PREFIX}${presetId}")
-        dataStore.updateData { prefs ->
-            prefs.toMutablePreferences().apply {
-                set(key, gson.toJson(roles))
-            }
-        }
-    }
-
-    /** 恢复默认角色（删除自定义覆盖） */
-    suspend fun resetToDefaultRoles(presetId: String) {
-        val key = stringPreferencesKey("${PREF_CUSTOM_ROLES_PREFIX}${presetId}")
-        dataStore.updateData { prefs ->
-            prefs.toMutablePreferences().apply { remove(key) }
-        }
-    }
-
-    /** 是否有自定义角色 */
-    fun hasCustomRoles(presetId: String): Boolean {
-        return readCustomRoles(prefsFlow.value, presetId) != null
-    }
-
-    // ── 获取 preset（合并自定义角色） ────────────────────────
-
-    /** 获取指定 preset（合并自定义角色，含自定义预设） */
-    fun getPreset(presetId: String): MeetingPreset {
-        val base = MeetingPreset.fromId(presetId)
-            ?: readCustomPresets(prefsFlow.value).find { it.id == presetId }
-            ?: INVESTMENT_COMMITTEE_PRESET
-        val custom = readCustomRoles(prefsFlow.value, presetId)
-        return if (custom != null) base.copy(roles = custom) else base
-    }
-
-    /** 获取当前激活的 preset（同步，合并自定义角色） */
-    fun getActivePreset(): MeetingPreset {
-        val presetId = prefsFlow.value[PREF_ACTIVE_PRESET] ?: INVESTMENT_COMMITTEE_PRESET.id
-        return getPreset(presetId)
-    }
-
-    /** 获取当前激活 preset（挂起，确保 DataStore 就绪） */
-    suspend fun getActivePresetSuspend(): MeetingPreset {
-        val prefs = prefsFlow.value.takeIf { it.asMap().isNotEmpty() }
-            ?: dataStore.data.first()
-        val presetId = prefs[PREF_ACTIVE_PRESET] ?: INVESTMENT_COMMITTEE_PRESET.id
-        val base = MeetingPreset.fromId(presetId)
-            ?: readCustomPresets(prefs).find { it.id == presetId }
-            ?: INVESTMENT_COMMITTEE_PRESET
-        val custom = readCustomRoles(prefs, presetId)
-        return if (custom != null) base.copy(roles = custom) else base
-    }
-
-    /** 切换激活的 preset（持久化到 DataStore） */
-    suspend fun setActivePreset(presetId: String) {
-        dataStore.updateData { prefs ->
-            prefs.toMutablePreferences().apply {
-                set(PREF_ACTIVE_PRESET, presetId)
-            }
-        }
-    }
-
-    /** 监听当前 preset 变化（Flow，合并自定义角色，含自定义预设） */
-    fun activePresetFlow() = dataStore.data.map { prefs ->
-        val presetId = prefs[PREF_ACTIVE_PRESET] ?: INVESTMENT_COMMITTEE_PRESET.id
-        val base = MeetingPreset.fromId(presetId)
-            ?: readCustomPresets(prefs).find { it.id == presetId }
-            ?: INVESTMENT_COMMITTEE_PRESET
-        val custom = readCustomRoles(prefs, presetId)
-        if (custom != null) base.copy(roles = custom) else base
-    }
-
-    // ── 便捷访问方法 ─────────────────────────────────────────
-
-    fun committeeLabel(): String = getActivePreset().committeeLabel
-    fun appTitle(): String = "${committeeLabel()} Assistant"
-    fun activeRoles(): List<PresetRole> = getActivePreset().roles
-    fun activeRatingScale(): List<String> = getActivePreset().ratingScale
-    fun activeMandates(): Map<String, String> = getActivePreset().mandates
-
-    // ── 自定义预设 CRUD ─────────────────────────────────────────
-
-    /** 读取自定义预设列表 */
-    private fun readCustomPresets(prefs: Preferences): List<MeetingPreset> {
-        val json = prefs[PREF_CUSTOM_PRESETS] ?: return emptyList()
-        return try { gson.fromJson<List<MeetingPreset>>(json, presetListType) } catch (_: Exception) { emptyList() }
-    }
-
-    /** 获取所有自定义预设 */
-    fun getCustomPresets(): List<MeetingPreset> = readCustomPresets(prefsFlow.value)
-
-    /** 获取所有预设（内置 + 自定义） */
-    fun getAllPresets(): List<MeetingPreset> = ALL_PRESETS + getCustomPresets()
-
-    /** 保存自定义预设 */
-    suspend fun saveCustomPreset(preset: MeetingPreset) {
-        dataStore.updateData { prefs ->
-            val existing = readCustomPresets(prefs).toMutableList()
-            val idx = existing.indexOfFirst { it.id == preset.id }
-            if (idx >= 0) existing[idx] = preset else existing.add(preset)
-            prefs.toMutablePreferences().apply {
-                set(PREF_CUSTOM_PRESETS, gson.toJson(existing))
-            }
-        }
-    }
-
-    /** 删除自定义预设 */
-    suspend fun deleteCustomPreset(presetId: String) {
-        dataStore.updateData { prefs ->
-            val existing = readCustomPresets(prefs).filter { it.id != presetId }
-            prefs.toMutablePreferences().apply {
-                set(PREF_CUSTOM_PRESETS, gson.toJson(existing))
-                // 如果删除的是当前活动预设，切回默认
-                if (prefs[PREF_ACTIVE_PRESET] == presetId) {
-                    set(PREF_ACTIVE_PRESET, ALL_PRESETS.first().id)
-                }
-            }
-        }
-    }
-
-    /** 查找预设（内置 + 自定义） */
-    fun findPreset(presetId: String): MeetingPreset? =
-        MeetingPreset.fromId(presetId) ?: readCustomPresets(prefsFlow.value).find { it.id == presetId }
-}
-
-// ── Preset Recommender ──────────────────────────────────────
-
-/**
- * 基于输入议题关键词的预设模板智能推荐器。
- * 通过关键词匹配 + 权重评分，为"团队决策"场景推荐最合适的会议模板。
- */
-object PresetRecommender {
-
-    private data class Rule(val presetId: String, val keywords: Set<String>, val weight: Int = 1)
-
-    private val rules = listOf(
-        // 投资 / 金融
-        Rule("investment_committee", setOf(
-            "股票", "stock", "基金", "fund", "投资", "invest", "估值", "valuation",
-            "买入", "卖出", "增持", "减持", "持有", "buy", "sell", "hold",
-            "上市", "ipo", "财报", "earnings", "分红", "dividend",
-            "债券", "bond", "期货", "futures", "etf", "指数", "index",
-            "a股", "港股", "美股", "纳斯达克", "nasdaq", "标普", "s&p",
-            "市盈率", "pe", "市净率", "pb", "roe", "eps",
-        ), weight = 2),
-        // 产品评审
-        Rule("product_review", setOf(
-            "产品", "product", "功能", "feature", "需求", "requirement",
-            "用户", "user", "体验", "ux", "ui", "设计", "design",
-            "版本", "version", "迭代", "iteration", "上线", "launch", "发布", "release",
-            "mvp", "prd", "原型", "prototype", "竞品", "competitor",
-        ), weight = 2),
-        // 技术评审
-        Rule("tech_review", setOf(
-            "架构", "architecture", "技术", "tech", "方案", "solution",
-            "api", "接口", "性能", "performance", "安全", "security",
-            "数据库", "database", "微服务", "microservice", "重构", "refactor",
-            "代码", "code", "系统", "system", "部署", "deploy", "服务器", "server",
-            "算法", "algorithm", "缓存", "cache", "并发", "concurrent",
-        ), weight = 2),
-        // 辩论
-        Rule("debate", setOf(
-            "辩论", "debate", "正方", "反方", "支持", "反对",
-            "利弊", "pros", "cons", "是否", "should", "应该",
-            "观点", "opinion", "立场", "position", "争议", "controversial",
-        ), weight = 2),
-        // 论文审稿
-        Rule("paper_review", setOf(
-            "论文", "paper", "审稿", "review", "学术", "academic",
-            "研究", "research", "实验", "experiment", "方法论", "methodology",
-            "引用", "citation", "期刊", "journal", "会议", "conference",
-            "摘要", "abstract", "假设", "hypothesis",
-        ), weight = 2),
-        // 通用会议 — 低权重兜底
-        Rule("general_meeting", setOf(
-            "会议", "meeting", "讨论", "discuss", "评审", "plan", "计划",
-            "项目", "project", "团队", "team", "协作", "collaborate",
-            "方案", "proposal", "决策", "decision", "决定",
-        ), weight = 1),
-    )
-
-    /**
-     * 根据议题文本推荐最佳预设。
-     * @return 推荐的 presetId，如果没有明显匹配则返回 null
-     */
-    fun recommend(topic: String): String? {
-        if (topic.length < 2) return null
-        val lower = topic.lowercase()
-        val scores = mutableMapOf<String, Int>()
-        for (rule in rules) {
-            val hits = rule.keywords.count { kw -> lower.contains(kw) }
-            if (hits > 0) {
-                scores[rule.presetId] = (scores[rule.presetId] ?: 0) + hits * rule.weight
-            }
-        }
-        if (scores.isEmpty()) return null
-        val best = scores.maxByOrNull { it.value } ?: return null
-        // 至少 2 分才推荐，避免单个弱匹配的误推荐
-        return if (best.value >= 2) best.key else null
-    }
-}

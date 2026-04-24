@@ -65,6 +65,7 @@ import com.znliang.committee.ui.viewmodel.AgentChatViewModel
 import com.znliang.committee.ui.viewmodel.MeetingViewModel
 import com.znliang.committee.ui.viewmodel.SettingsViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import java.util.Locale
 
@@ -85,8 +86,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Language must be applied before setContent; quick single-row Room read is acceptable
-        val config = runBlocking { appConfigRepository.getConfig() }
+        // Language must be applied before setContent — use IO dispatcher for DB read
+        val config = runBlocking(Dispatchers.IO) { appConfigRepository.getConfig() }
         applyLanguage(config.selectedLanguage)
         enableEdgeToEdge()
         setContent {

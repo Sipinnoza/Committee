@@ -89,11 +89,17 @@ dependencies {
     // DataStore
     implementation(libs.datastore.preferences)
 
+    // Security (encrypted key storage)
+    implementation(libs.security.crypto)
+
     // Splash Screen
     implementation(libs.splashscreen)
 
     // JSoup (Web page extraction)
     implementation(libs.jsoup)
+
+    // Rhino (JavaScript sandbox execution)
+    implementation(libs.rhino)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

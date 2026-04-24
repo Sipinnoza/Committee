@@ -1,7 +1,12 @@
 package com.znliang.committee.ui.component
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.*
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -9,6 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,13 +48,13 @@ fun ChatBubble(
     isExpanded: Boolean,
     onToggle: () -> Unit,
     presetRole: PresetRole? = null,
+    onFollowUp: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val isHuman = speech.agent == "human"
     val agentColor = remember(presetRole?.colorHex, isHuman) {
         if (isHuman) Color(0xFF4FC3F7.toInt()) // Light blue for human
-        else presetRole?.let { runCatching { Color(android.graphics.Color.parseColor(it.colorHex)) }.getOrNull() }
-            ?: SupervisorColor
+        else resolveRoleColor(presetRole)
     }
     val agentName = if (isHuman) {
         stringResource(R.string.human_speaker_name)
@@ -124,6 +132,35 @@ fun ChatBubble(
                     color = TextMuted,
                     fontSize = 10.sp,
                 )
+                // Follow-up question button
+                if (onFollowUp != null && !speech.isStreaming && !isHuman) {
+                    var showFollowUp by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .clickable { showFollowUp = true },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.QuestionAnswer,
+                            contentDescription = "Ask follow-up",
+                            tint = agentColor.copy(alpha = 0.4f),
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                    if (showFollowUp) {
+                        FollowUpDialog(
+                            agentName = agentName,
+                            agentColor = agentColor,
+                            onDismiss = { showFollowUp = false },
+                            onSubmit = { question ->
+                                onFollowUp(question)
+                                showFollowUp = false
+                            },
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.height(4.dp))
@@ -157,9 +194,46 @@ fun ChatBubble(
                 } else {
                     speech.content.take(120) + if (speech.content.length > 120) "…" else ""
                 }
-                MarkdownText(
-                    text = displayText,
-                )
+
+                if (speech.isStreaming && displayText.isBlank()) {
+                    // CONTENT 尚未出现，显示"思考中..."脉冲点动画
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        val infiniteTransition = rememberInfiniteTransition(label = "thinkingDots")
+                        repeat(3) { index ->
+                            val dotAlpha by infiniteTransition.animateFloat(
+                                initialValue = 0.2f,
+                                targetValue = 1f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(durationMillis = 600, delayMillis = index * 200),
+                                    repeatMode = RepeatMode.Reverse,
+                                ),
+                                label = "dot$index",
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(
+                                        agentColor.copy(alpha = dotAlpha),
+                                        CircleShape,
+                                    )
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.agents_thinking),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextMuted,
+                            fontStyle = FontStyle.Italic,
+                        )
+                    }
+                } else {
+                    MarkdownText(
+                        text = displayText,
+                    )
+                }
 
                 // Streaming cursor: blinking block
                 if (speech.isStreaming) {
@@ -195,6 +269,54 @@ fun ChatBubble(
                             contentDescription = null,
                             tint = agentColor.copy(alpha = 0.5f),
                             modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+
+                // ── Reasoning trace (thinking process) ──
+                if (speech.reasoning.isNotBlank() && !speech.isStreaming) {
+                    var showReasoning by remember { mutableStateOf(false) }
+                    Spacer(Modifier.height(6.dp))
+                    HorizontalDivider(color = agentColor.copy(alpha = 0.1f))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showReasoning = !showReasoning }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = agentColor.copy(alpha = 0.5f),
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = if (showReasoning) "Hide reasoning" else "Show reasoning",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = agentColor.copy(alpha = 0.5f),
+                            fontSize = 10.sp,
+                        )
+                    }
+                    AnimatedVisibility(
+                        visible = showReasoning,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically(),
+                    ) {
+                        Text(
+                            text = speech.reasoning,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Default,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    agentColor.copy(alpha = 0.04f),
+                                    RoundedCornerShape(6.dp),
+                                )
+                                .padding(8.dp),
                         )
                     }
                 }
@@ -259,4 +381,45 @@ fun EventBubble(
             )
         }
     }
+}
+
+/**
+ * 追问对话框 — 用户针对特定 Agent 的发言追问
+ */
+@Composable
+private fun FollowUpDialog(
+    agentName: String,
+    agentColor: Color,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit,
+) {
+    var questionText by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Ask $agentName", color = agentColor, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        },
+        text = {
+            OutlinedTextField(
+                value = questionText,
+                onValueChange = { questionText = it },
+                placeholder = { Text("Your question...", color = TextMuted) },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 3,
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (questionText.isNotBlank()) onSubmit(questionText) },
+                enabled = questionText.isNotBlank(),
+            ) {
+                Text("Ask", color = if (questionText.isNotBlank()) agentColor else TextMuted)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TextMuted)
+            }
+        },
+    )
 }

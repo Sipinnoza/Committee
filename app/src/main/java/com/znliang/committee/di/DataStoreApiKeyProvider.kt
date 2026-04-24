@@ -57,9 +57,12 @@ class DataStoreApiKeyProvider @Inject constructor(
 
     // ── Sync 方法（从缓存读，无 runBlocking） ─────────────────────
 
-    fun hasKey(): Boolean = prefsFlow.value[PREF_API_KEY]?.isNotBlank() == true
+    fun hasKey(): Boolean {
+        val raw = prefsFlow.value[PREF_API_KEY] ?: ""
+        return KeystoreCipher.decrypt(raw).isNotBlank()
+    }
 
-    fun getKey(): String = prefsFlow.value[PREF_API_KEY] ?: ""
+    fun getKey(): String = KeystoreCipher.decrypt(prefsFlow.value[PREF_API_KEY] ?: "")
 
     /** 从缓存读取全局 config（同步，适合在 viewModelScope.launch 内用） */
     fun getConfigCached(): LlmConfig = buildConfig(prefsFlow.value)
@@ -81,14 +84,14 @@ class DataStoreApiKeyProvider @Inject constructor(
 
     suspend fun saveKey(key: String) {
         dataStore.updateData { prefs ->
-            prefs.toMutablePreferences().apply { set(PREF_API_KEY, key) }
+            prefs.toMutablePreferences().apply { set(PREF_API_KEY, KeystoreCipher.encrypt(key)) }
         }
     }
 
     suspend fun saveConfig(config: LlmConfig) {
         dataStore.updateData { prefs ->
             prefs.toMutablePreferences().apply {
-                set(PREF_API_KEY, config.apiKey)
+                set(PREF_API_KEY, KeystoreCipher.encrypt(config.apiKey))
                 set(PREF_LLM_PROVIDER, config.provider.id)
                 set(PREF_LLM_MODEL, config.model)
                 set(PREF_LLM_BASE_URL, config.baseUrl)
@@ -101,7 +104,7 @@ class DataStoreApiKeyProvider @Inject constructor(
             prefs.toMutablePreferences().apply {
                 set(agentProviderKey(roleId), config.provider.id)
                 set(agentModelKey(roleId), config.model)
-                set(agentApiKeyKey(roleId), config.apiKey)
+                set(agentApiKeyKey(roleId), KeystoreCipher.encrypt(config.apiKey))
                 set(agentBaseUrlKey(roleId), config.baseUrl)
             }
         }
@@ -121,15 +124,15 @@ class DataStoreApiKeyProvider @Inject constructor(
 
     // ── Tavily API Key ──────────────────────────────────────────
 
-    fun getTavilyKeyCached(): String = prefsFlow.value[PREF_TAVILY_KEY] ?: ""
+    fun getTavilyKeyCached(): String = KeystoreCipher.decrypt(prefsFlow.value[PREF_TAVILY_KEY] ?: "")
 
     suspend fun getTavilyKey(): String {
-        return prefsFlow.value[PREF_TAVILY_KEY] ?: ""
+        return KeystoreCipher.decrypt(prefsFlow.value[PREF_TAVILY_KEY] ?: "")
     }
 
     suspend fun saveTavilyKey(key: String) {
         dataStore.updateData { prefs ->
-            prefs.toMutablePreferences().apply { set(PREF_TAVILY_KEY, key) }
+            prefs.toMutablePreferences().apply { set(PREF_TAVILY_KEY, KeystoreCipher.encrypt(key)) }
         }
     }
 
@@ -145,7 +148,7 @@ class DataStoreApiKeyProvider @Inject constructor(
             ?: provider.defaultBaseUrl
         return LlmConfig(
             provider = provider,
-            apiKey = prefs[PREF_API_KEY] ?: "",
+            apiKey = KeystoreCipher.decrypt(prefs[PREF_API_KEY] ?: ""),
             model = model,
             baseUrl = baseUrl,
         )
@@ -164,7 +167,7 @@ class DataStoreApiKeyProvider @Inject constructor(
         val baseUrl = prefs[agentBaseUrlKey(roleId)]
             ?.takeIf { it.isNotBlank() && it !in LlmProvider.entries.map { p -> p.defaultBaseUrl } }
             ?: provider.defaultBaseUrl
-        val apiKey = agentApiKey?.takeIf { it.isNotBlank() } ?: global.apiKey
+        val apiKey = KeystoreCipher.decrypt(agentApiKey?.takeIf { it.isNotBlank() } ?: "") .ifBlank { global.apiKey }
         return LlmConfig(provider = provider, apiKey = apiKey, model = model, baseUrl = baseUrl)
     }
 }

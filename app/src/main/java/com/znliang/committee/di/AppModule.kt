@@ -21,16 +21,15 @@ import com.znliang.committee.data.db.MeetingSessionDao
 import com.znliang.committee.data.db.PromptChangelogDao
 import com.znliang.committee.data.db.SkillDefinitionDao
 import com.znliang.committee.data.db.SpeechDao
-import com.znliang.committee.data.repository.AppConfigRepository
 import com.znliang.committee.data.repository.EventRepository
 import com.znliang.committee.data.repository.EvolutionRepository
-import com.znliang.committee.engine.AgentPool
-import com.znliang.committee.domain.model.MeetingPreset
 import com.znliang.committee.domain.model.MeetingPresetConfig
+import com.znliang.committee.engine.AgentPool
 import com.znliang.committee.engine.runtime.AgentRuntime
 import com.znliang.committee.engine.runtime.DynamicToolRegistry
 import com.znliang.committee.engine.runtime.GenericAgent
 import com.znliang.committee.engine.runtime.GenericSupervisor
+import com.znliang.committee.engine.runtime.VoteType
 import com.znliang.committee.engine.runtime.WebSearchService
 import dagger.Module
 import dagger.Provides
@@ -220,13 +219,7 @@ object AppModule {
     @Provides fun provideDecisionActionDao(db: CommitteeDatabase): DecisionActionDao = db.decisionActionDao()
     @Provides @Singleton fun provideGson(): Gson = Gson()
 
-    @Provides @Singleton
-    fun provideEvolutionRepository(
-        evolutionDao: AgentEvolutionDao,
-        skillDao: AgentSkillDao,
-        changelogDao: PromptChangelogDao,
-        outcomeDao: MeetingOutcomeDao,
-    ): EvolutionRepository = EvolutionRepository(evolutionDao, skillDao, changelogDao, outcomeDao)
+    // EvolutionRepository: uses @Inject constructor — no @Provides needed
 
     @Provides @Singleton
     fun provideWebSearchService(
@@ -248,6 +241,8 @@ object AppModule {
         @Named("normal") normalClient: OkHttpClient,
         apiKeyProvider: DataStoreApiKeyProvider,
         webSearchService: WebSearchService,
+        @ApplicationContext appContext: Context,
+        database: CommitteeDatabase,
     ): DynamicToolRegistry {
         return DynamicToolRegistry(
             skillDao = skillDefinitionDao,
@@ -255,26 +250,19 @@ object AppModule {
             okHttp = normalClient,
             configProvider = { apiKeyProvider.getConfig() },
             webSearchService = webSearchService,
+            appContext = appContext,
+            database = database,
         )
     }
 
-    @Provides @Singleton
-    fun provideAgentPool(
-        apiKeyProvider: DataStoreApiKeyProvider,
-        gson: Gson,
-        @Named("streaming") streamingClient: OkHttpClient,
-        @ApplicationContext appContext: Context,
-        toolRegistry: DynamicToolRegistry,
-    ): AgentPool = AgentPool(apiKeyProvider, gson, streamingClient, appContext, toolRegistry)
-
-    // ── MeetingPresetConfig ──────────────────────────────────────
-
-    @Provides @Singleton
-    fun provideMeetingPresetConfig(dataStore: DataStore<Preferences>): MeetingPresetConfig =
-        MeetingPresetConfig(dataStore)
+    // AgentPool: uses @Inject constructor — no @Provides needed
+    // MeetingPresetConfig: uses @Inject constructor — no @Provides needed
 
     // ── Agent Runtime（v8 — preset-driven dynamic agents） ────────
 
+    // NOTE: getActivePreset() may return default if DataStore hasn't loaded yet.
+    // This is safe because MeetingViewModel's activePresetFlow().collect { reconfigure() }
+    // will re-configure the runtime once the real preset is available.
     @Provides @Singleton
     fun provideAgentRuntime(
         agentPool: AgentPool,
@@ -287,18 +275,22 @@ object AppModule {
     ): AgentRuntime {
         val preset = presetConfig.getActivePreset()
 
-        // Find supervisor role (last role or role with id containing "supervisor"/"coordinator"/"judge"/"chair")
-        val supervisorRoleIds = setOf("supervisor", "coordinator", "judge", "area_chair")
-        val supervisorPresetRole = preset.roles.find { it.id in supervisorRoleIds }
+        // Find supervisor role via isSupervisor flag, fallback to last role
+        val supervisorPresetRole = preset.roles.find { it.isSupervisor }
             ?: preset.roles.last()
 
         val supervisor = GenericSupervisor(
             presetRole = supervisorPresetRole,
             ratingScale = preset.ratingScale,
             committeeLabel = preset.committeeLabel,
+            preset = preset,
         )
 
         // Build agent list from non-supervisor roles
+        val promptStyle = preset.mandateStr("prompt_style", "debate")
+        val voteType = try {
+            VoteType.valueOf(preset.mandateStr("vote_type", "binary").uppercase())
+        } catch (_: Exception) { VoteType.BINARY }
         val agents = preset.roles
             .filter { it.id != supervisorPresetRole.id }
             .map { role ->
@@ -306,6 +298,9 @@ object AppModule {
                     presetRole = role,
                     systemPrompt = "", // Will be built dynamically by buildUnifiedPrompt
                     canUseTools = role.canUseTools,
+                    promptStyle = promptStyle,
+                    voteType = voteType,
+                    voteOptions = preset.ratingScale,
                 )
             }
 
@@ -340,6 +335,8 @@ object AppModule {
     @Provides @Singleton @Named("streaming")
     fun provideStreamingClient(): OkHttpClient =
         OkHttpClient.Builder()
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
             .addInterceptor(HttpLoggingInterceptor { msg ->
                 android.util.Log.d("OkHttp", msg)
             }.apply {
@@ -351,7 +348,5 @@ object AppModule {
     fun provideDataStore(@ApplicationContext ctx: Context): DataStore<Preferences> =
         ctx.dataStore
 
-    @Provides @Singleton
-    fun provideAppConfigRepository(dao: AppConfigDao): AppConfigRepository =
-        AppConfigRepository(dao)
+    // AppConfigRepository: uses @Inject constructor — no @Provides needed
 }

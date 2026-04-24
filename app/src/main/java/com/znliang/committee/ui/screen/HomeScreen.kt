@@ -7,6 +7,9 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -67,6 +70,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -88,6 +93,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -111,6 +117,7 @@ import com.znliang.committee.ui.component.EventBubble
 import com.znliang.committee.ui.component.PulsingDot
 import com.znliang.committee.ui.component.SectionHeader
 import com.znliang.committee.ui.component.StateBadge
+import com.znliang.committee.ui.component.resolveRoleColor
 import com.znliang.committee.ui.component.SystemBubble
 import com.znliang.committee.ui.theme.BorderColor
 import com.znliang.committee.ui.theme.BuyColor
@@ -128,6 +135,10 @@ import com.znliang.committee.ui.viewmodel.AgentMemoryStats
 import com.znliang.committee.ui.viewmodel.AgentMemoryViewModel
 import com.znliang.committee.ui.viewmodel.MeetingUiState
 import com.znliang.committee.ui.viewmodel.MeetingViewModel
+import com.znliang.committee.ui.viewmodel.StreamingState
+import com.znliang.committee.ui.viewmodel.BoardState
+import com.znliang.committee.ui.viewmodel.ConfigState
+import com.znliang.committee.ui.viewmodel.ActionState
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 
@@ -144,6 +155,12 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit = {},
     onAgentClick: (String) -> Unit = {},
 ) {
+    // 4 independent state flows — streaming only recomposes speech area
+    val streamState by viewModel.streamingState.collectAsState()
+    val boardState by viewModel.boardState.collectAsState()
+    val configState by viewModel.configState.collectAsState()
+    val actionState by viewModel.actionState.collectAsState()
+    // Legacy combined state for sub-composables that still accept it
     val uiState by viewModel.uiState.collectAsState()
     val activePreset by presetConfig.activePresetFlow()
         .collectAsState(initial = presetConfig.getActivePreset())
@@ -158,20 +175,24 @@ fun HomeScreen(
     // Track expanded state per speech
     val expandedKeys = remember { mutableStateMapOf<String, Boolean>() }
 
-    val isMeetingActive = uiState.currentState != MeetingState.IDLE && uiState.currentState != MeetingState.REJECTED
+    val isMeetingActive = streamState.currentState != MeetingState.IDLE && streamState.currentState != MeetingState.REJECTED
 
-    // Auto-scroll to bottom when new speech arrives
-    LaunchedEffect(uiState.speeches.size) {
+    // Auto-scroll to bottom when new speech arrives, only if user is near bottom
+    LaunchedEffect(streamState.speeches.size) {
         val itemCount = listState.layoutInfo.totalItemsCount
         if (itemCount > 0) {
-            scope.launch { listState.animateScrollToItem(itemCount - 1) }
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val isNearBottom = lastVisibleIndex >= itemCount - 3
+            if (isNearBottom) {
+                scope.launch { listState.animateScrollToItem(itemCount - 1) }
+            }
         }
     }
 
     // Error snackbar
     val snackbarHostState = remember { SnackbarHostState() }
-    LaunchedEffect(uiState.error) {
-        uiState.error?.let {
+    LaunchedEffect(configState.error) {
+        configState.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearError()
         }
@@ -188,7 +209,7 @@ fun HomeScreen(
                             color = CommitteeGold, fontWeight = FontWeight.ExtraBold)
                         if (isMeetingActive) {
                             Text("·", color = TextMuted, fontSize = 18.sp)
-                            Text(stringResource(uiState.currentState.displayNameRes()),
+                            Text(stringResource(streamState.currentState.displayNameRes()),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = CommitteeGold.copy(alpha = 0.8f))
                         }
@@ -205,15 +226,15 @@ fun HomeScreen(
                             Icon(Icons.Default.Settings, stringResource(R.string.nav_settings), tint = TextMuted, modifier = Modifier.size(20.dp))
                         }
                     }
-                    if (uiState.hasApiKey && !isMeetingActive) {
+                    if (configState.hasApiKey && !isMeetingActive) {
                         Text(
-                            text = uiState.llmConfig.displayTag,
+                            text = configState.llmConfig.displayTag,
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted,
                             modifier = Modifier.padding(end = 12.dp),
                         )
                     }
-                    StateBadge(uiState.currentState, Modifier.padding(end = 12.dp))
+                    StateBadge(streamState.currentState, Modifier.padding(end = 12.dp))
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = SurfaceCard,
@@ -222,12 +243,12 @@ fun HomeScreen(
             )
         },
         bottomBar = {
-            if (uiState.currentState == MeetingState.APPROVED) {
+            if (streamState.currentState == MeetingState.APPROVED) {
                 ExecutionConfirmBar(viewModel = viewModel)
-            } else if (isMeetingActive && !uiState.boardFinished) {
+            } else if (isMeetingActive && !boardState.boardFinished) {
                 HumanInputBar(
                     viewModel = viewModel,
-                    isPaused = uiState.isPaused,
+                    isPaused = streamState.isPaused,
                 )
             }
         }
@@ -246,6 +267,7 @@ fun HomeScreen(
                         MeetingStatusBar(
                             uiState = uiState,
                             roles = activePreset.roles,
+                            onWeightChange = { roleId, w -> viewModel.setAgentWeight(roleId, w) },
                         )
                     }
                 }
@@ -282,9 +304,9 @@ fun HomeScreen(
             }
 
             // ── System event: meeting start ──────────────────────────────
-            if (uiState.speeches.isNotEmpty()) {
+            if (streamState.speeches.isNotEmpty()) {
                 item(key = "meeting_start_event") {
-                    EventBubble(stringResource(R.string.home_meeting_start, uiState.speeches.firstOrNull()?.let { s -> 
+                    EventBubble(stringResource(R.string.home_meeting_start, streamState.speeches.firstOrNull()?.let { s ->
                         java.time.format.DateTimeFormatter.ofPattern("HH:mm")
                             .withZone(java.time.ZoneId.systemDefault())
                             .format(s.timestamp) 
@@ -293,28 +315,46 @@ fun HomeScreen(
             }
 
             // ── Chat messages: speeches + system logs interleaved ─────────
-            items(uiState.speeches, key = { it.id }) { speech ->
-                val presetRole = activePreset.findRole(speech.agent)
-                ChatBubble(
-                    speech = speech,
-                    isExpanded = expandedKeys[speech.id] == true,
-                    onToggle = {
-                        expandedKeys[speech.id] = expandedKeys[speech.id] != true
-                    },
-                    presetRole = presetRole,
-                )
+            items(streamState.speeches, key = { it.id }) { speech ->
+                // 系统事件（分歧标注等）渲染为 EventBubble
+                if (speech.agent == "system") {
+                    EventBubble(
+                        text = speech.content,
+                        color = StateWarningColor,
+                    )
+                } else {
+                    val presetRole = activePreset.findRole(speech.agent)
+                    ChatBubble(
+                        speech = speech,
+                        isExpanded = expandedKeys[speech.id] == true,
+                        onToggle = {
+                            expandedKeys[speech.id] = expandedKeys[speech.id] != true
+                        },
+                        presetRole = presetRole,
+                        onFollowUp = if (isMeetingActive && speech.agent != "human" && speech.agent != "supervisor") {
+                            { question -> viewModel.followUpQuestion(speech.agent, question) }
+                        } else null,
+                    )
+                }
             }
 
             // ── Meeting Summary Card (when finished) ────────────────────
-            if (uiState.boardFinished) {
+            if (boardState.boardFinished) {
                 item(key = "meeting_summary") {
                     val context = LocalContext.current
                     MeetingSummaryCard(
-                        rating = uiState.boardRating,
-                        summary = uiState.boardSummary,
-                        subject = uiState.subject,
-                        votes = uiState.boardVotes,
+                        rating = boardState.boardRating,
+                        summary = boardState.boardSummary,
+                        subject = boardState.subject,
+                        votes = boardState.boardVotes,
                         ratingScale = activePreset.ratingScale,
+                        contribScores = boardState.boardContribScores,
+                        roles = activePreset.roles,
+                        confidence = boardState.boardConfidence,
+                        confidenceBreakdown = boardState.boardConfidenceBreakdown,
+                        userOverride = boardState.boardUserOverride,
+                        userOverrideReason = boardState.boardUserOverrideReason,
+                        onOverride = { rating, reason -> viewModel.overrideDecision(rating, reason) },
                         onNewMeeting = {
                             viewModel.resetToIdle()
                         },
@@ -340,10 +380,10 @@ fun HomeScreen(
             }
 
             // ── Action Items (pending decisions to execute) ────────────
-            if (uiState.pendingActions.isNotEmpty()) {
+            if (actionState.pendingActions.isNotEmpty()) {
                 item(key = "action_items") {
                     ActionItemsCard(
-                        actions = uiState.pendingActions,
+                        actions = actionState.pendingActions,
                         onStatusChange = { id, status -> viewModel.updateActionStatus(id, status) },
                         onDelete = { id -> viewModel.deleteAction(id) },
                     )
@@ -351,7 +391,7 @@ fun HomeScreen(
             }
 
             // ── Add Action Item (when meeting finished) ───────────────
-            if (uiState.boardFinished) {
+            if (boardState.boardFinished) {
                 item(key = "add_action") {
                     var showAddAction by remember { mutableStateOf(false) }
                     OutlinedButton(
@@ -379,10 +419,10 @@ fun HomeScreen(
             }
 
             // ── Live system logs (thinking / waiting) ─────────────────────
-            if (uiState.looperLogs.isNotEmpty()) {
+            if (streamState.looperLogs.isNotEmpty()) {
                 item(key = "logs_spacer") { Spacer(Modifier.height(4.dp)) }
                 // Show last few system logs as system bubbles
-                val recentLogs = uiState.looperLogs.takeLast(3)
+                val recentLogs = streamState.looperLogs.takeLast(3)
                 item(key = "recent_logs") {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         recentLogs.forEach { line ->
@@ -404,7 +444,7 @@ fun HomeScreen(
             }
 
             // ── Waiting indicator ─────────────────────────────────────────
-            if (isMeetingActive && uiState.looperLogs.lastOrNull()?.contains("[Thinking]") == true) {
+            if (isMeetingActive && streamState.looperLogs.lastOrNull()?.contains("[Thinking]") == true) {
                 item(key = "thinking_indicator") {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
@@ -441,6 +481,7 @@ private fun MeetingInitCard(
     val keyboard = LocalSoftwareKeyboardController.current
     val context = LocalContext.current
     val isRejected = uiState.currentState == MeetingState.REJECTED
+    val ioScope = rememberCoroutineScope()
 
     // Image picker launcher
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -450,9 +491,9 @@ private fun MeetingInitCard(
         onAttachedChanged()
     }
 
-    /** Convert attached URIs to MaterialRef list with base64 data */
-    fun buildMaterialRefs(): List<MaterialRef> {
-        return attachedUris.mapIndexed { idx, uri ->
+    /** Convert attached URIs to MaterialRef list with base64 data (runs on IO thread) */
+    suspend fun buildMaterialRefs(): List<MaterialRef> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        attachedUris.toList().mapIndexed { idx, uri ->
             try {
                 val inputStream = context.contentResolver.openInputStream(uri) ?: return@mapIndexed null
                 val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
@@ -544,17 +585,35 @@ private fun MeetingInitCard(
             }
 
             // Subject input + button
+            val inputHintRes = when (activePresetId) {
+                "investment_committee" -> R.string.home_input_topic_investment_committee
+                "general_meeting" -> R.string.home_input_topic_general_meeting
+                "product_review" -> R.string.home_input_topic_product_review
+                "tech_review" -> R.string.home_input_topic_tech_review
+                "debate" -> R.string.home_input_topic_debate
+                "paper_review" -> R.string.home_input_topic_paper_review
+                "startup_pitch" -> R.string.home_input_topic_startup_pitch
+                "legal_review" -> R.string.home_input_topic_legal_review
+                "incident_postmortem" -> R.string.home_input_topic_incident_postmortem
+                "brainstorm" -> R.string.home_input_topic_brainstorm
+                else -> R.string.home_input_topic
+            }
             OutlinedTextField(
                 value = subjectInput,
                 onValueChange = onSubjectChange,
-                label = { Text(stringResource(R.string.home_input_topic)) },
+                label = { Text(stringResource(inputHintRes)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = {
                     keyboard?.hide()
                     if (subjectInput.isNotBlank()) {
-                        viewModel.requestMeeting(subjectInput, buildMaterialRefs())
+                        ioScope.launch {
+                            val materials = buildMaterialRefs()
+                            viewModel.requestMeeting(subjectInput, materials)
+                        }
+                        attachedUris.clear()
+                        onAttachedChanged()
                     }
                 }),
                 colors = committeeTextFieldColors(),
@@ -766,11 +825,16 @@ private fun MeetingInitCard(
             Button(
                 onClick = {
                     keyboard?.hide()
-                    if (quickMode) {
-                        viewModel.requestQuickDecision(subjectInput, buildMaterialRefs())
-                    } else {
-                        viewModel.requestMeeting(subjectInput, buildMaterialRefs())
+                    ioScope.launch {
+                        val materials = buildMaterialRefs()
+                        if (quickMode) {
+                            viewModel.requestQuickDecision(subjectInput, materials)
+                        } else {
+                            viewModel.requestMeeting(subjectInput, materials)
+                        }
                     }
+                    attachedUris.clear()
+                    onAttachedChanged()
                 },
                 enabled = subjectInput.isNotBlank() && (uiState.currentState == MeetingState.IDLE || isRejected),
                 modifier = Modifier.fillMaxWidth(),
@@ -970,8 +1034,14 @@ private fun VoteDialog(
 private fun MeetingStatusBar(
     uiState: MeetingUiState,
     roles: List<PresetRole> = emptyList(),
+    onWeightChange: (String, Float) -> Unit = { _, _ -> },
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val expandRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(300),
+        label = "expandArrow",
+    )
 
     Card(
         modifier = Modifier
@@ -1063,7 +1133,7 @@ private fun MeetingStatusBar(
                     Icon(
                         Icons.Default.ExpandMore,
                         contentDescription = if (expanded) stringResource(R.string.home_collapse) else stringResource(R.string.home_expand),
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(16.dp).rotate(expandRotation),
                         tint = TextMuted,
                     )
                 }
@@ -1088,11 +1158,27 @@ private fun MeetingStatusBar(
                         color = TextSecondary,
                     )
 
+                    // ── 实时讨论要点速览 ──
+                    if (uiState.boardSummary.isNotBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        LiveKeyPointsPreview(summary = uiState.boardSummary)
+                    }
+
                     // ── 参与者头像条 ──
                     if (roles.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
                         HorizontalDivider(color = BorderColor)
                         Spacer(Modifier.height(6.dp))
+
+                        // ── 立场光谱：实时展示各 Agent 投票分布 ──
+                        if (uiState.boardVotes.isNotEmpty()) {
+                            StanceSpectrum(
+                                votes = uiState.boardVotes,
+                                roles = roles,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.SmartToy, null, tint = TextMuted, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(4.dp))
@@ -1104,9 +1190,270 @@ private fun MeetingStatusBar(
                         }
                         Spacer(Modifier.height(4.dp))
                         ParticipantAvatarRow(roles = roles)
+
+                        // ── Agent 话语权重控制 ──
+                        if (!uiState.boardFinished) {
+                            Spacer(Modifier.height(8.dp))
+                            HorizontalDivider(color = BorderColor)
+                            Spacer(Modifier.height(4.dp))
+                            Text(stringResource(R.string.agent_influence_label), style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted, fontSize = 10.sp)
+                            Spacer(Modifier.height(4.dp))
+                            roles.filter { it.id != "supervisor" }.forEach { role ->
+                                val roleColor = resolveRoleColor(role)
+                                val currentWeight = uiState.boardUserWeights[role.id] ?: 1.0f
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(Modifier.size(6.dp).clip(CircleShape).background(roleColor))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(role.displayName.take(4), fontSize = 9.sp, color = roleColor,
+                                        fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp))
+                                    Slider(
+                                        value = currentWeight,
+                                        onValueChange = { onWeightChange(role.id, it) },
+                                        valueRange = 0.1f..3.0f,
+                                        modifier = Modifier.weight(1f).height(20.dp),
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = roleColor,
+                                            activeTrackColor = roleColor.copy(alpha = 0.5f),
+                                        ),
+                                    )
+                                    Text("${"%.1f".format(currentWeight)}x", fontSize = 9.sp, color = TextMuted)
+                                }
+                            }
+                        }
                     }
 
                     Spacer(Modifier.height(4.dp))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 覆写决策对话框 — 让用户能推翻 Agent 结论
+ */
+@Composable
+private fun OverrideDecisionDialog(
+    currentRating: String,
+    ratingScale: List<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit,
+) {
+    var selectedRating by remember { mutableStateOf(currentRating) }
+    var reason by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Override Decision", color = CommitteeGold, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Agent suggests: $currentRating", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                Text("Your decision:", style = MaterialTheme.typography.labelMedium, color = TextPrimary)
+                // Rating chips
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(ratingScale) { rating ->
+                        val isSelected = rating == selectedRating
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) CommitteeGold.copy(alpha = 0.2f) else SurfaceCard,
+                            border = BorderStroke(
+                                if (isSelected) 1.5.dp else 1.dp,
+                                if (isSelected) CommitteeGold else BorderColor,
+                            ),
+                            modifier = Modifier.clickable { selectedRating = rating },
+                        ) {
+                            Text(
+                                rating,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                color = if (isSelected) CommitteeGold else TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    placeholder = { Text("Why do you disagree?", color = TextMuted) },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (reason.isNotBlank()) onConfirm(selectedRating, reason) },
+                enabled = reason.isNotBlank() && selectedRating != currentRating,
+            ) {
+                Text("Confirm Override", color = if (reason.isNotBlank() && selectedRating != currentRating) CommitteeGold else TextMuted)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Keep Agent Decision", color = TextMuted)
+            }
+        },
+    )
+}
+
+/**
+ * 实时讨论要点速览 — 从 summary 中提取正/反方论点
+ */
+@Composable
+private fun LiveKeyPointsPreview(summary: String) {
+    val proPoints = mutableListOf<String>()
+    val conPoints = mutableListOf<String>()
+    var currentSection = ""
+
+    for (line in summary.lines()) {
+        val trimmed = line.trim()
+        when {
+            trimmed.contains("正方") || trimmed.contains("赞成") || trimmed.contains("Pro") -> currentSection = "pro"
+            trimmed.contains("反方") || trimmed.contains("反对") || trimmed.contains("Con") -> currentSection = "con"
+            trimmed.contains("分歧") || trimmed.contains("共识") || trimmed.contains("Divergence") -> currentSection = ""
+            trimmed.startsWith("-") || trimmed.startsWith("·") || trimmed.matches(Regex("^\\d+\\..*")) -> {
+                val point = trimmed.removePrefix("-").removePrefix("·").trim()
+                    .replace(Regex("^\\d+\\.\\s*"), "")
+                if (point.isNotBlank()) {
+                    when (currentSection) {
+                        "pro" -> proPoints.add(point)
+                        "con" -> conPoints.add(point)
+                    }
+                }
+            }
+        }
+    }
+
+    if (proPoints.isEmpty() && conPoints.isEmpty()) return
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // 正方论点
+        if (proPoints.isNotEmpty()) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.vote_agree_label), fontSize = 9.sp, color = BuyColor, fontWeight = FontWeight.Bold)
+                proPoints.take(3).forEach { point ->
+                    Text("· ${point.take(40)}", fontSize = 9.sp, color = TextMuted, maxLines = 1)
+                }
+            }
+        }
+        // 反方论点
+        if (conPoints.isNotEmpty()) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.vote_disagree_label), fontSize = 9.sp, color = SellColor, fontWeight = FontWeight.Bold)
+                conPoints.take(3).forEach { point ->
+                    Text("· ${point.take(40)}", fontSize = 9.sp, color = TextMuted, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 立场光谱 — 实时展示各 Agent 的投票分布
+ * 赞成(绿)和反对(红)双色渐变条 + 每个投票者的头像标记
+ */
+@Composable
+private fun StanceSpectrum(
+    votes: Map<String, com.znliang.committee.engine.runtime.BoardVote>,
+    roles: List<PresetRole>,
+) {
+    val agreeVotes = votes.filter { it.value.agree }
+    val disagreeVotes = votes.filter { !it.value.agree }
+    val total = votes.size
+    val agreeRatio = if (total > 0) agreeVotes.size.toFloat() / total else 0.5f
+    val animatedAgreeRatio by animateFloatAsState(
+        targetValue = agreeRatio,
+        animationSpec = tween(800, easing = FastOutSlowInEasing),
+        label = "stanceAgree",
+    )
+
+    Column {
+        // Label row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                "Agree ${agreeVotes.size}",
+                style = MaterialTheme.typography.labelSmall,
+                color = BuyColor,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+            )
+            Text(
+                "${(agreeRatio * 100).toInt()}%",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextMuted,
+                fontSize = 10.sp,
+            )
+            Text(
+                "Disagree ${disagreeVotes.size}",
+                style = MaterialTheme.typography.labelSmall,
+                color = SellColor,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        // Spectrum bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+        ) {
+            if (agreeRatio > 0f) {
+                Box(
+                    Modifier
+                        .weight(animatedAgreeRatio.coerceAtLeast(0.05f))
+                        .fillMaxHeight()
+                        .background(BuyColor.copy(alpha = 0.7f))
+                )
+            }
+            if (agreeRatio < 1f) {
+                Box(
+                    Modifier
+                        .weight((1f - animatedAgreeRatio).coerceAtLeast(0.05f))
+                        .fillMaxHeight()
+                        .background(SellColor.copy(alpha = 0.7f))
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        // Voter chips
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            votes.entries.forEach { (roleId, vote) ->
+                val presetRole = roles.find { it.id == roleId }
+                val color = resolveRoleColor(presetRole)
+                val name = presetRole?.displayName ?: roleId
+                val voteColor = if (vote.agree) BuyColor else SellColor
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(voteColor.copy(alpha = 0.15f))
+                        .border(1.5.dp, color.copy(alpha = 0.6f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        name.first().toString(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = color,
+                    )
                 }
             }
         }
@@ -1123,6 +1470,13 @@ private fun MeetingSummaryCard(
     subject: String,
     votes: Map<String, com.znliang.committee.engine.runtime.BoardVote> = emptyMap(),
     ratingScale: List<String> = emptyList(),
+    contribScores: Map<String, com.znliang.committee.engine.runtime.ContributionScore> = emptyMap(),
+    roles: List<PresetRole> = emptyList(),
+    confidence: Int = 0,
+    confidenceBreakdown: String = "",
+    userOverride: String? = null,
+    userOverrideReason: String = "",
+    onOverride: (String, String) -> Unit = { _, _ -> },
     onNewMeeting: () -> Unit,
     onShare: () -> Unit = {},
     onExportReport: () -> Unit = {},
@@ -1163,12 +1517,105 @@ private fun MeetingSummaryCard(
                     Text(rating, style = MaterialTheme.typography.titleLarge,
                         color = ratingColor, fontWeight = FontWeight.ExtraBold)
                 }
+                // 置信度指标
+                if (confidence > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(stringResource(R.string.confidence_label), style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                        val confColor = when {
+                            confidence >= 75 -> BuyColor
+                            confidence >= 50 -> CommitteeGold
+                            else -> SellColor
+                        }
+                        // Confidence bar
+                        val animatedConfidence by animateFloatAsState(
+                            targetValue = confidence / 100f,
+                            animationSpec = tween(800, easing = FastOutSlowInEasing),
+                            label = "confidence",
+                        )
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(BorderColor)
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth(animatedConfidence)
+                                    .fillMaxHeight()
+                                    .background(confColor, RoundedCornerShape(3.dp))
+                            )
+                        }
+                        Text("$confidence%", style = MaterialTheme.typography.labelSmall,
+                            color = confColor, fontWeight = FontWeight.Bold)
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
             }
 
             // 投票结果可视化
             if (votes.isNotEmpty()) {
                 VoteResultsBar(votes = votes)
+                Spacer(Modifier.height(4.dp))
+            }
+
+            // Agent 贡献度评分
+            if (contribScores.isNotEmpty()) {
+                HorizontalDivider(color = BorderColor, modifier = Modifier.padding(vertical = 4.dp))
+                Text(stringResource(R.string.contrib_scores_title), style = MaterialTheme.typography.labelMedium,
+                    color = CommitteeGold, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                contribScores.values.sortedByDescending { it.overall }.forEach { score ->
+                    val presetRole = roles.find { it.id == score.roleId }
+                    val roleColor = resolveRoleColor(presetRole)
+                    val roleName = presetRole?.displayName ?: score.roleId
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Box(
+                            Modifier.size(6.dp).clip(CircleShape).background(roleColor)
+                        )
+                        Text(roleName, style = MaterialTheme.typography.labelSmall, color = roleColor,
+                            fontWeight = FontWeight.Bold, modifier = Modifier.width(60.dp))
+                        // Score bars
+                        val barWidth = 40.dp
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(stringResource(R.string.contrib_info_label), fontSize = 9.sp, color = TextMuted)
+                                Box(Modifier.width(barWidth * score.informationGain / 5f).height(3.dp)
+                                    .background(CommitteeGold.copy(alpha = 0.6f), RoundedCornerShape(2.dp)))
+                                Text(stringResource(R.string.contrib_logic_label), fontSize = 9.sp, color = TextMuted)
+                                Box(Modifier.width(barWidth * score.logicQuality / 5f).height(3.dp)
+                                    .background(CommitteeGold.copy(alpha = 0.6f), RoundedCornerShape(2.dp)))
+                                Text(stringResource(R.string.contrib_collab_label), fontSize = 9.sp, color = TextMuted)
+                                Box(Modifier.width(barWidth * score.interactionQuality / 5f).height(3.dp)
+                                    .background(CommitteeGold.copy(alpha = 0.6f), RoundedCornerShape(2.dp)))
+                            }
+                        }
+                        Text(
+                            "${"%.1f".format(score.overall)}",
+                            fontSize = 11.sp,
+                            color = when {
+                                score.overall >= 4f -> BuyColor
+                                score.overall >= 3f -> CommitteeGold
+                                else -> SellColor
+                            },
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    if (score.brief.isNotBlank()) {
+                        Text(score.brief, style = MaterialTheme.typography.labelSmall, color = TextMuted,
+                            fontSize = 9.sp, modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
                 Spacer(Modifier.height(4.dp))
             }
 
@@ -1180,6 +1627,56 @@ private fun MeetingSummaryCard(
             }
 
             Spacer(Modifier.height(16.dp))
+
+            // ── 用户覆写区域 ──
+            if (userOverride != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = CommitteeGold.copy(alpha = 0.08f)),
+                    border = BorderStroke(1.dp, CommitteeGold.copy(alpha = 0.3f)),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CheckCircle, null, tint = CommitteeGold, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Your Decision: $userOverride", style = MaterialTheme.typography.labelMedium,
+                                color = CommitteeGold, fontWeight = FontWeight.Bold)
+                        }
+                        if (userOverrideReason.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(userOverrideReason, style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary, fontSize = 11.sp)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            } else if (rating != null) {
+                // 覆写按钮
+                var showOverrideDialog by remember { mutableStateOf(false) }
+                OutlinedButton(
+                    onClick = { showOverrideDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                    border = BorderStroke(1.dp, BorderColor),
+                ) {
+                    Icon(Icons.Default.HowToVote, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Override Decision", fontSize = 12.sp)
+                }
+                if (showOverrideDialog) {
+                    OverrideDecisionDialog(
+                        currentRating = rating,
+                        ratingScale = ratingScale,
+                        onDismiss = { showOverrideDialog = false },
+                        onConfirm = { newRating, reason ->
+                            onOverride(newRating, reason)
+                            showOverrideDialog = false
+                        },
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+            }
 
             // 决策报告操作按钮
             Row(
@@ -1239,10 +1736,7 @@ private fun ParticipantAvatarRow(roles: List<PresetRole>) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         roles.forEach { role ->
-            val roleColor = remember(role.colorHex) {
-                runCatching { Color(role.colorHex.toColorInt()) }
-                    .getOrDefault(Color(0xFF607D8B.toInt()))
-            }
+            val roleColor = resolveRoleColor(role)
             val displayChar = if (role.displayNameRes() != 0) {
                 role.displayName.first().uppercaseChar()
             } else {
@@ -1287,6 +1781,11 @@ private fun VoteResultsBar(votes: Map<String, com.znliang.committee.engine.runti
     val agreeCount = votes.values.count { it.agree }
     val disagreeCount = votes.size - agreeCount
     val agreeRatio = if (votes.isNotEmpty()) agreeCount.toFloat() / votes.size else 0f
+    val animatedAgreeRatio by animateFloatAsState(
+        targetValue = agreeRatio,
+        animationSpec = tween(800, easing = FastOutSlowInEasing),
+        label = "voteAgree",
+    )
 
     Column {
         // Header
@@ -1318,7 +1817,7 @@ private fun VoteResultsBar(votes: Map<String, com.znliang.committee.engine.runti
             if (agreeRatio > 0f) {
                 Box(
                     modifier = Modifier
-                        .weight(agreeRatio.coerceAtLeast(0.05f))
+                        .weight(animatedAgreeRatio.coerceAtLeast(0.05f))
                         .fillMaxHeight()
                         .background(BuyColor.copy(alpha = 0.7f)),
                     contentAlignment = Alignment.Center,
@@ -1337,7 +1836,7 @@ private fun VoteResultsBar(votes: Map<String, com.znliang.committee.engine.runti
             if (disagreeCount > 0) {
                 Box(
                     modifier = Modifier
-                        .weight((1f - agreeRatio).coerceAtLeast(0.05f))
+                        .weight((1f - animatedAgreeRatio).coerceAtLeast(0.05f))
                         .fillMaxHeight()
                         .background(SellColor.copy(alpha = 0.7f)),
                     contentAlignment = Alignment.Center,

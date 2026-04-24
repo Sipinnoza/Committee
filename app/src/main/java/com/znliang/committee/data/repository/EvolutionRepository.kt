@@ -46,7 +46,8 @@ class EvolutionRepository @Inject constructor(
     suspend fun getExperiencesByRoleAndCategory(role: String, category: String, limit: Int = 20): List<AgentEvolutionEntity> =
         evolutionDao.getByRoleAndCategory(role, category, limit)
 
-    /** 暴露底层 DAO 给 EvolvableAgent 的 recallRelevantExperience */
+    /** 暴露底层 DAO 给 EvolvableAgent 的 recallRelevantExperience — 计划迁移到 repo 方法 */
+    @Deprecated("Use repository methods instead of direct DAO access", level = DeprecationLevel.WARNING)
     fun evolutionDao(): AgentEvolutionDao = evolutionDao
 
     // ── 技能库 ────────────────────────────────────────────────

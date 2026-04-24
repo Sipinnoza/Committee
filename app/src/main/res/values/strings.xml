@@ -66,6 +66,16 @@
     <string name="home_final_rating_label">Final Rating: </string>
     <string name="home_flow_status">Flow Status</string>
     <string name="home_input_topic">Enter topic, e.g. 600028 Sinopec</string>
+    <string name="home_input_topic_investment_committee">Enter topic, e.g. AAPL Apple</string>
+    <string name="home_input_topic_general_meeting">Enter topic for discussion</string>
+    <string name="home_input_topic_product_review">Enter product/feature to review</string>
+    <string name="home_input_topic_tech_review">Enter technical proposal to review</string>
+    <string name="home_input_topic_debate">Enter debate topic, e.g. Should AI replace…</string>
+    <string name="home_input_topic_paper_review">Enter paper title or abstract</string>
+    <string name="home_input_topic_startup_pitch">Enter startup name &amp; pitch summary</string>
+    <string name="home_input_topic_legal_review">Enter clause or compliance issue</string>
+    <string name="home_input_topic_incident_postmortem">Enter incident description</string>
+    <string name="home_input_topic_brainstorm">Enter brainstorm topic</string>
     <string name="home_minutes">Meeting Minutes</string>
     <string name="home_nav_analysis">Analysis</string>
     <string name="home_nav_debate">Debate</string>
@@ -163,6 +173,13 @@
     <string name="skill_custom_title">Custom Skills</string>
     <string name="skill_exec_config">Execution Config (JSON)</string>
     <string name="skill_exec_type">Execution Type</string>
+    <string name="skill_type_http">HTTP Request</string>
+    <string name="skill_type_llm">LLM Prompt</string>
+    <string name="skill_type_javascript">JavaScript Sandbox</string>
+    <string name="skill_type_intent">Android Intent</string>
+    <string name="skill_type_db_query">DB Query</string>
+    <string name="skill_type_chain">Tool Chain</string>
+    <string name="skill_type_regex">Regex Extract</string>
     <string name="skill_mgmt_title">Skill Management</string>
     <string name="skill_name">Name</string>
     <string name="skill_param_template">Parameters (JSON Schema)</string>
@@ -199,6 +216,7 @@
     <string name="agents_members">%s Members</string>
     <string name="skill_example">e.g. %s</string>
     <string name="skill_param_example">e.g. {\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"}}}</string>
+    <string name="skill_badge_recommended">REC</string>
     <string name="home_state_desc_idle">Waiting for new meeting</string>
     <string name="home_state_desc_validating">Strategist checks prior resolution execution &amp;amp; target eligibility</string>
     <string name="home_state_desc_rejected">Entry assessment failed</string>
@@ -453,4 +471,103 @@
     <string name="urgency_urgent">Urgent</string>
     <string name="urgency_critical">Critical</string>
     <string name="estimated_duration">Est. ~%d min</string>
+
+    <!-- Contribution Scores -->
+    <string name="contrib_scores_title">Contribution Scores</string>
+    <string name="contrib_info_label">Info</string>
+    <string name="contrib_logic_label">Logic</string>
+    <string name="contrib_collab_label">Collab</string>
+    <string name="confidence_label">Confidence:</string>
+    <string name="agent_influence_label">Agent Influence</string>
+
+    <!-- Startup Pitch preset -->
+    <string name="preset_sp_name">Startup Pitch</string>
+    <string name="preset_sp_label">Investment Panel</string>
+    <string name="preset_sp_desc">Startup Pitch Review — Founder presents, investors evaluate viability and market fit</string>
+    <string name="role_founder_display">Founder</string>
+    <string name="role_founder_stance">Advocate</string>
+    <string name="role_founder_resp">Vision + Product Demo + Market Opportunity + Traction</string>
+    <string name="role_lead_investor_display">Lead Investor</string>
+    <string name="role_lead_investor_stance">Scrutiny</string>
+    <string name="role_lead_investor_resp">Due Diligence + Valuation + Deal Terms + Risk Assessment</string>
+    <string name="role_market_analyst_display">Market Analyst</string>
+    <string name="role_market_analyst_stance">Data</string>
+    <string name="role_market_analyst_resp">Market Size + Competitive Landscape + Growth Projections</string>
+    <string name="role_mentor_display">Mentor</string>
+    <string name="role_mentor_stance">Guidance</string>
+    <string name="role_mentor_resp">Strategic Advice + Founder Coaching + Network Leverage</string>
+    <string name="role_deal_lead_display">Deal Lead</string>
+    <string name="role_deal_lead_stance">Adjudication</string>
+    <string name="role_deal_lead_resp">Final Investment Decision + Term Sheet + Portfolio Fit</string>
+    <string name="rating_invest">Invest</string>
+    <string name="rating_conditional_interest">Conditional Interest</string>
+    <string name="rating_pass">Pass</string>
+
+    <!-- Legal Review preset -->
+    <string name="preset_lr_name">Legal Review</string>
+    <string name="preset_lr_label">Compliance Committee</string>
+    <string name="preset_lr_desc">Legal &amp; Compliance Review — Cross-functional compliance assessment</string>
+    <string name="role_legal_counsel_display">Legal Counsel</string>
+    <string name="role_legal_counsel_stance">Compliance</string>
+    <string name="role_legal_counsel_resp">Legal Framework + Regulatory Requirements + Contract Review</string>
+    <string name="role_risk_manager_display">Risk Manager</string>
+    <string name="role_risk_manager_stance">Risk</string>
+    <string name="role_risk_manager_resp">Risk Assessment + Mitigation Strategies + Impact Analysis</string>
+    <string name="role_biz_rep_display">Business Rep</string>
+    <string name="role_biz_rep_stance">Feasibility</string>
+    <string name="role_biz_rep_resp">Business Impact + Implementation Cost + Timeline</string>
+    <string name="role_compliance_officer_display">Compliance Officer</string>
+    <string name="role_compliance_officer_stance">Adjudication</string>
+    <string name="role_compliance_officer_resp">Final Compliance Ruling + Remediation Plan + Monitoring</string>
+    <string name="rating_compliant">Compliant</string>
+    <string name="rating_conditionally_compliant">Conditionally Compliant</string>
+    <string name="rating_non_compliant">Non-Compliant</string>
+    <string name="rating_blocked">Blocked</string>
+
+    <!-- Incident Postmortem preset -->
+    <string name="preset_ip_name">Incident Postmortem</string>
+    <string name="preset_ip_label">Postmortem Committee</string>
+    <string name="preset_ip_desc">Incident Postmortem — Blameless root cause analysis and action items</string>
+    <string name="role_incident_commander_display">Incident Commander</string>
+    <string name="role_incident_commander_stance">Facts</string>
+    <string name="role_incident_commander_resp">Timeline Reconstruction + Incident Scope + Communication Log</string>
+    <string name="role_engineer_display">Engineer</string>
+    <string name="role_engineer_stance">Technical</string>
+    <string name="role_engineer_resp">Technical Root Cause + Code/Config Analysis + Fix Verification</string>
+    <string name="role_sre_display">SRE</string>
+    <string name="role_sre_stance">Systems</string>
+    <string name="role_sre_resp">System Metrics + Monitoring Gaps + Infrastructure Analysis</string>
+    <string name="role_pm_postmortem_display">Product Manager</string>
+    <string name="role_pm_postmortem_stance">Impact</string>
+    <string name="role_pm_postmortem_resp">User Impact + Business Impact + Customer Communication</string>
+    <string name="role_facilitator_display">Facilitator</string>
+    <string name="role_facilitator_stance">Adjudication</string>
+    <string name="role_facilitator_resp">Blameless Facilitation + Action Item Tracking + Follow-up</string>
+    <string name="rating_root_cause_identified">Root Cause Identified</string>
+    <string name="rating_partial_understanding">Partial Understanding</string>
+    <string name="rating_needs_investigation">Needs More Investigation</string>
+
+    <!-- Brainstorm preset -->
+    <string name="preset_bs_name">Brainstorm</string>
+    <string name="preset_bs_label">Brainstorm Session</string>
+    <string name="preset_bs_desc">Creative Brainstorm — Divergent thinking + Convergent selection</string>
+    <string name="role_facilitator_bs_display">Facilitator</string>
+    <string name="role_facilitator_bs_stance">Adjudication</string>
+    <string name="role_facilitator_bs_resp">Session Flow + Idea Clustering + Energy Management</string>
+    <string name="role_visionary_display">Visionary</string>
+    <string name="role_visionary_stance">Wild Ideas</string>
+    <string name="role_visionary_resp">Bold Ideas + Future Scenarios + Unconventional Thinking</string>
+    <string name="role_pragmatist_display">Pragmatist</string>
+    <string name="role_pragmatist_stance">Feasibility</string>
+    <string name="role_pragmatist_resp">Reality Check + Resource Constraints + Implementation Path</string>
+    <string name="role_user_voice_display">User Voice</string>
+    <string name="role_user_voice_stance">Need</string>
+    <string name="role_user_voice_resp">User Pain Points + Unmet Needs + Desirability Check</string>
+    <string name="role_synthesizer_display">Synthesizer</string>
+    <string name="role_synthesizer_stance">Integration</string>
+    <string name="role_synthesizer_resp">Idea Combination + Pattern Recognition + Concept Refinement</string>
+    <string name="rating_breakthrough">Breakthrough Idea</string>
+    <string name="rating_promising">Promising Direction</string>
+    <string name="rating_needs_iteration">Needs Iteration</string>
+    <string name="rating_pivot">Pivot</string>
 </resources>

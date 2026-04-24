@@ -79,5 +79,11 @@
     public static final android.os.Parcelable$Creator *;
 }
 
+# --- Rhino (JS sandbox) ---
+-keep class org.mozilla.javascript.** { *; }
+-keep class org.mozilla.classfile.** { *; }
+-dontwarn org.mozilla.javascript.**
+-dontwarn org.mozilla.classfile.**
+
 # --- R8 full mode compatibility ---
 -keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation

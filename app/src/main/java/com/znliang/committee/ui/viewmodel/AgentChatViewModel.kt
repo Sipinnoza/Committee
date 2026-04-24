@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.znliang.committee.R
 import com.znliang.committee.data.db.AgentChatDao
 import com.znliang.committee.data.db.AgentChatMessageEntity
 import com.znliang.committee.di.DataStoreApiKeyProvider
@@ -15,6 +16,7 @@ import com.znliang.committee.engine.LlmConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
@@ -56,6 +58,8 @@ class AgentChatViewModel @Inject constructor(
     val uiState: StateFlow<AgentChatUiState> = _uiState.asStateFlow()
 
     private var currentRoleId: String = ""
+    private var chatCollectorJob: Job? = null
+    private var suggestionCollectorJob: Job? = null
 
     fun setAgent(roleId: String, displayName: String = "", systemPromptKey: String = "") {
         currentRoleId = roleId
@@ -80,7 +84,9 @@ class AgentChatViewModel @Inject constructor(
             isEditingPrompt = false,
         )
 
-        viewModelScope.launch {
+        // Cancel previous collectors to prevent coroutine leaks
+        chatCollectorJob?.cancel()
+        chatCollectorJob = viewModelScope.launch {
             chatDao.observeMessages(roleId).collect { entities ->
                 _uiState.value = _uiState.value.copy(
                     messages = entities.map {
@@ -90,7 +96,8 @@ class AgentChatViewModel @Inject constructor(
             }
         }
 
-        viewModelScope.launch {
+        suggestionCollectorJob?.cancel()
+        suggestionCollectorJob = viewModelScope.launch {
             runtime.promptSuggestions.collect { suggestions ->
                 val mySuggestion = suggestions[roleId] ?: ""
                 _uiState.value = _uiState.value.copy(promptSuggestion = mySuggestion)
@@ -101,7 +108,7 @@ class AgentChatViewModel @Inject constructor(
     fun sendMessage(text: String) {
         if (text.isBlank()) return
         if (!apiKeyProvider.hasKey()) {
-            _uiState.value = _uiState.value.copy(error = "请先在设置中配置 API Key")
+            _uiState.value = _uiState.value.copy(error = appContext.getString(R.string.error_configure_api_key))
             return
         }
 
@@ -167,12 +174,12 @@ class AgentChatViewModel @Inject constructor(
                     isLoading = false,
                 )
             } catch (e: Exception) {
-                val errMsg = "${e.javaClass.simpleName}: ${e.message ?: "未知错误，请检查网络和API配置"}"
+                val errMsg = "${e.javaClass.simpleName}: ${e.message ?: appContext.getString(R.string.error_unknown)}"
                 chatDao.insert(AgentChatMessageEntity(
                     id = placeholderId,
                     agentRole = currentRoleId,
                     role = "assistant",
-                    content = "错误: $errMsg",
+                    content = appContext.getString(R.string.error_format, errMsg),
                     ts = now + 1,
                 ))
                 _uiState.value = _uiState.value.copy(isLoading = false, error = errMsg)

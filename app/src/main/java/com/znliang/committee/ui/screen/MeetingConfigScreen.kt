@@ -25,9 +25,17 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.Balance
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Engineering
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Inventory
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -595,6 +603,14 @@ private fun PresetCard(
                 imageVector = when (preset.iconName) {
                     "account_balance" -> Icons.Default.AccountBalance
                     "groups" -> Icons.Default.Groups
+                    "inventory" -> Icons.Default.Inventory
+                    "engineering" -> Icons.Default.Engineering
+                    "gavel" -> Icons.Default.Gavel
+                    "article" -> Icons.Default.Article
+                    "rocket_launch" -> Icons.Default.RocketLaunch
+                    "balance" -> Icons.Default.Balance
+                    "bug_report" -> Icons.Default.BugReport
+                    "lightbulb" -> Icons.Default.Lightbulb
                     else -> Icons.Default.MeetingRoom
                 },
                 contentDescription = null,

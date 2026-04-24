@@ -18,7 +18,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -39,7 +38,7 @@ class AgentPool @Inject constructor(
     private val gson: Gson,
     @Named("streaming") private val okHttp: OkHttpClient,
     @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: Context,
-    private val toolRegistry: DynamicToolRegistry?,
+    private val toolRegistry: DynamicToolRegistry,
 ) {
     companion object {
         private const val TAG = "AgentPool"
@@ -84,15 +83,59 @@ class AgentPool @Inject constructor(
 
     // ── 流式调用 ────────────────────────────────────────────────────────
 
-    /** Role-ID based streaming — delegates to AgentRole-based version */
+    /**
+     * Role-ID based streaming.
+     * For known AgentRole IDs → delegates to AgentRole-based version with per-role config.
+     * For generic preset roles (unknown to AgentRole enum) → uses global LLM config directly.
+     */
     fun callAgentStreamingByRoleId(
         roleId: String,
         context: MicContext,
         systemPromptOverride: String? = null,
         materials: List<MaterialData> = emptyList(),
     ): Flow<String> {
-        val agentRole = AgentRole.fromId(roleId) ?: AgentRole.SUPERVISOR
-        return callAgentStreaming(agentRole, context, systemPromptOverride, materials)
+        val agentRole = AgentRole.fromId(roleId)
+        if (agentRole != null) {
+            return callAgentStreaming(agentRole, context, systemPromptOverride, materials)
+        }
+        // Generic preset role — use per-agent config (falls back to global)
+        return callGenericRoleStreaming(roleId, context, systemPromptOverride, materials)
+    }
+
+    /**
+     * Streaming call for generic preset roles that don't map to AgentRole enum.
+     * Uses per-agent config if set, otherwise global config.
+     */
+    private fun callGenericRoleStreaming(
+        roleId: String,
+        context: MicContext,
+        systemPromptOverride: String? = null,
+        materials: List<MaterialData> = emptyList(),
+    ): Flow<String> = channelFlow {
+        val config = apiKeyProvider.getAgentConfigCached(roleId)
+        val systemPrompt = systemPromptOverride ?: "你是一个AI助手。请根据你的角色职责协助讨论。"
+        val userMessage = buildString {
+            appendLine("标的：${context.subject}")
+            if (context.task.isNotBlank()) appendLine("任务说明：${context.task}")
+        }
+
+        Log.d(TAG, "══════════════════════════════════════════════════")
+        Log.d(TAG, "[GENERIC-STREAM] provider=${config.provider.displayName} model=${config.model} roleId=$roleId")
+
+        val zaiWebSearch = if (config.provider == LlmProvider.ZAI) listOf(ZAI_WEB_SEARCH_TOOL) else emptyList()
+
+        launch(Dispatchers.IO) {
+            try {
+                when (config.provider) {
+                    LlmProvider.ANTHROPIC -> collectAnthropicStream(channel, config, systemPrompt, userMessage, materials)
+                    else -> collectOpenAiStream(channel, config.baseUrl, config, systemPrompt, userMessage, zaiWebSearch, materials)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "[GENERIC-STREAM] 错误: ${e.javaClass.simpleName}: ${e.message}")
+                channel.trySend("【请求失败】${e.javaClass.simpleName}: ${e.message ?: "未知错误"}")
+            } finally { close() }
+        }
+        awaitClose {}
     }
 
     // ── 带 Tool Calling 的流式调用 ───────────────────────────────
@@ -118,7 +161,7 @@ class AgentPool @Inject constructor(
         Log.d(TAG, "[STREAM] provider=${config.provider.displayName} model=${config.model}")
         Log.d(TAG, "[STREAM] role=${role.displayName} subject=${context.subject}")
 
-        val toolsSchema = toolRegistry?.buildToolsSchema() ?: emptyList()
+        val toolsSchema = toolRegistry.buildToolsSchema()
         val zaiWebSearch = if (config.provider == LlmProvider.ZAI) listOf(ZAI_WEB_SEARCH_TOOL) else emptyList()
         val allTools = toolsSchema + zaiWebSearch
 
@@ -174,7 +217,7 @@ class AgentPool @Inject constructor(
                         val arguments = func["arguments"] as? String ?: "{}"
                         val toolCallId = tc["id"] as? String ?: ("tc_${System.currentTimeMillis()}")
 
-                        val result = toolRegistry!!.executeToolCall(toolName, arguments)
+                        val result = toolRegistry.executeToolCall(toolName, arguments)
                         Log.d(TAG, "[TOOL] $toolName → ${result.take(100)}")
                         messages.add(mapOf(
                             "role" to "tool",
@@ -236,30 +279,28 @@ class AgentPool @Inject constructor(
             .post(body.toRequestBody("application/json".toMediaType()))
             .build()
 
-        val client = okHttp.newBuilder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .build()
+        val response = okHttp.newCall(request).execute()
+        return response.use { resp ->
+            if (!resp.isSuccessful) {
+                val errBody = resp.body?.string()?.take(300) ?: ""
+                throw RuntimeException("Tool check HTTP ${resp.code}: $errBody")
+            }
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            val errBody = response.body?.string()?.take(300) ?: ""
-            throw RuntimeException("Tool check HTTP ${response.code}: $errBody")
+            val responseText = resp.body?.string() ?: ""
+            val json = gson.fromJson(responseText, Map::class.java) as? Map<*, *>
+            val choices = json?.get("choices") as? List<Map<String, Any>> ?: return@use Triple(false, null, emptyList())
+            val choice = choices.firstOrNull() ?: return@use Triple(false, null, emptyList())
+            val message = choice["message"] as? Map<String, Any> ?: return@use Triple(false, null, emptyList())
+
+            val toolCalls = message["tool_calls"] as? List<Map<String, Any>>
+            val content = message["content"] as? String
+
+            if (toolCalls != null && toolCalls.isNotEmpty()) {
+                Triple(true, content, toolCalls)
+            } else {
+                Triple(false, content, emptyList())
+            }
         }
-
-        val responseText = response.body?.string() ?: ""
-        val json = gson.fromJson(responseText, Map::class.java) as? Map<*, *>
-        val choices = json?.get("choices") as? List<Map<String, Any>> ?: return Triple(false, null, emptyList())
-        val choice = choices.firstOrNull() ?: return Triple(false, null, emptyList())
-        val message = choice["message"] as? Map<String, Any> ?: return Triple(false, null, emptyList())
-
-        val toolCalls = message["tool_calls"] as? List<Map<String, Any>>
-        val content = message["content"] as? String
-
-        if (toolCalls != null && toolCalls.isNotEmpty()) {
-            return Triple(true, content, toolCalls)
-        }
-        return Triple(false, content, emptyList())
     }
 
     /**
@@ -289,18 +330,19 @@ class AgentPool @Inject constructor(
             .post(body.toRequestBody("application/json".toMediaType()))
             .build()
 
-        val sseClient = okHttp.newBuilder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .build()
-
-        val response = sseClient.newCall(request).execute()
+        val response = okHttp.newCall(request).execute()
         if (!response.isSuccessful) {
-            val errBody = response.body?.string()?.take(300) ?: ""
-            throw RuntimeException("Stream HTTP ${response.code}: $errBody")
+            response.use { resp ->
+                val errBody = resp.body?.string()?.take(300) ?: ""
+                throw RuntimeException("Stream HTTP ${resp.code}: $errBody")
+            }
         }
 
-        val reader = response.body?.byteStream()?.bufferedReader() ?: return
+        val reader = response.body?.byteStream()?.bufferedReader()
+        if (reader == null) {
+            response.close()
+            return
+        }
         var tokenCount = 0
         try {
             while (true) {
@@ -378,20 +420,21 @@ class AgentPool @Inject constructor(
             .post(bodyJson.toRequestBody("application/json".toMediaType()))
             .build()
 
-        val sseClient = okHttp.newBuilder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .build()
-
-        val response = sseClient.newCall(request).execute()
+        val response = okHttp.newCall(request).execute()
         Log.d(TAG, "[SSE-Anthropic] HTTP ${response.code} received")
         if (!response.isSuccessful) {
-            val errBody = response.body?.string()?.take(300) ?: ""
-            Log.w(TAG, "[SSE-Anthropic] 错误响应: $errBody")
-            throw RuntimeException("HTTP ${response.code}: $errBody")
+            response.use { resp ->
+                val errBody = resp.body?.string()?.take(300) ?: ""
+                Log.w(TAG, "[SSE-Anthropic] 错误响应: $errBody")
+                throw RuntimeException("HTTP ${resp.code}: $errBody")
+            }
         }
 
-        val reader = response.body?.byteStream()?.bufferedReader() ?: return
+        val reader = response.body?.byteStream()?.bufferedReader()
+        if (reader == null) {
+            response.close()
+            return
+        }
         var tokenCount = 0
         try {
             while (true) {
@@ -472,19 +515,20 @@ class AgentPool @Inject constructor(
             .post(body.toRequestBody("application/json".toMediaType()))
             .build()
 
-        val sseClient = okHttp.newBuilder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .build()
-
-        val response = sseClient.newCall(request).execute()
+        val response = okHttp.newCall(request).execute()
         Log.d(TAG, "[SSE] HTTP ${response.code} received")
         if (!response.isSuccessful) {
-            val errBody = response.body?.string()?.take(300) ?: ""
-            throw RuntimeException("HTTP ${response.code}: $errBody")
+            response.use { resp ->
+                val errBody = resp.body?.string()?.take(300) ?: ""
+                throw RuntimeException("HTTP ${resp.code}: $errBody")
+            }
         }
 
-        val reader = response.body?.byteStream()?.bufferedReader() ?: return
+        val reader = response.body?.byteStream()?.bufferedReader()
+        if (reader == null) {
+            response.close()
+            return
+        }
         var tokenCount = 0
         try {
             while (true) {

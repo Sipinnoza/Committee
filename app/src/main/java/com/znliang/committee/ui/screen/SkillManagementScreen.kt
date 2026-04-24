@@ -1,9 +1,11 @@
 package com.znliang.committee.ui.screen
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -17,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.znliang.committee.R
 import com.znliang.committee.data.db.SkillDefinitionEntity
+import com.znliang.committee.domain.model.PresetSkillCatalog
 import com.znliang.committee.ui.component.SectionHeader
 import com.znliang.committee.ui.theme.*
 import com.znliang.committee.ui.viewmodel.SkillManagementViewModel
@@ -222,9 +225,14 @@ private fun SkillCard(
                     )
                     // Execution type badge
                     val (badgeColor, badgeText) = when (skill.executionType.lowercase()) {
-                        "http" -> CommitteeGold to "HTTP"
-                        "llm" -> IntelColor to "LLM"
-                        else -> TextMuted to skill.executionType.uppercase()
+                        "http"       -> CommitteeGold to "HTTP"
+                        "llm"        -> IntelColor to "LLM"
+                        "javascript" -> ExecutorColor to "JS"
+                        "intent"     -> StrategistColor to "INTENT"
+                        "db_query"   -> AnalystColor to "DB"
+                        "chain"      -> BuyColor to "CHAIN"
+                        "regex"      -> RiskColor to "REGEX"
+                        else         -> TextMuted to skill.executionType.uppercase()
                     }
                     Surface(
                         shape = RoundedCornerShape(6.dp),
@@ -238,6 +246,22 @@ private fun SkillCard(
                             color = badgeColor,
                             fontWeight = FontWeight.Bold,
                         )
+                    }
+                    // Recommended badge
+                    if (skill.name in PresetSkillCatalog.allRecommendedNames()) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = BuyColor.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, BuyColor.copy(alpha = 0.3f)),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.skill_badge_recommended),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = BuyColor,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                     }
                 }
                 // Enabled toggle
@@ -324,6 +348,11 @@ private fun SkillEditDialog(
     // Default config examples shown as helper text
     val httpExample = """{"url":"https://api.example.com/search","method":"POST","headers":{},"bodyTemplate":"{\"query\":\"{{query}}\"}"}"""
     val llmExample = """{"systemPromptTemplate":"Analyze based on {{query}}"}"""
+    val jsExample = """{"script":"var data = JSON.parse(input); data.prices.reduce(function(a,b){return a+b},0) / data.prices.length;"}"""
+    val intentExample = """{"action":"android.intent.action.SEND","type":"text/plain","extras":{"android.intent.extra.TEXT":"{{summary}}"}}"""
+    val dbQueryExample = """{"query":"SELECT subject, finalRating FROM meeting_sessions WHERE subject LIKE '%{{keyword}}%'","max_rows":10}"""
+    val chainExample = """{"steps":[{"tool":"web_search","args":{"query":"{{company}} earnings"}},{"tool":"summarize_financial","args":{"data":"${"$"}PREV"}}]}"""
+    val regexExample = """{"pattern":"(\\d{6})","input":"{{text}}","group":1,"findAll":true}"""
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -372,8 +401,11 @@ private fun SkillEditDialog(
                     style = MaterialTheme.typography.labelLarge,
                     color = TextSecondary,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("http", "llm").forEach { type ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                ) {
+                    listOf("http", "llm", "javascript", "intent", "db_query", "chain", "regex").forEach { type ->
                         FilterChip(
                             selected = executionType == type,
                             onClick = { executionType = type },
@@ -432,11 +464,18 @@ private fun SkillEditDialog(
                         .fillMaxWidth()
                         .heightIn(min = 80.dp),
                     supportingText = {
+                        val example = when (executionType) {
+                            "http"       -> httpExample
+                            "llm"        -> llmExample
+                            "javascript" -> jsExample
+                            "intent"     -> intentExample
+                            "db_query"   -> dbQueryExample
+                            "chain"      -> chainExample
+                            "regex"      -> regexExample
+                            else         -> httpExample
+                        }
                         Text(
-                            if (executionType == "http")
-                                stringResource(R.string.skill_example, httpExample)
-                            else
-                                stringResource(R.string.skill_example, llmExample),
+                            stringResource(R.string.skill_example, example),
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted,
                         )
