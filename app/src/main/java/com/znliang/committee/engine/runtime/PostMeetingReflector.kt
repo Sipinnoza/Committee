@@ -1,6 +1,9 @@
 package com.znliang.committee.engine.runtime
 
+import android.util.Log
+import com.znliang.committee.data.db.DecisionActionEntity
 import com.znliang.committee.data.db.MeetingOutcomeEntity
+import org.json.JSONArray
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -164,6 +167,9 @@ PRIORITY: HIGH / MEDIUM / LOW
                                 )
                                 if (evolved) {
                                     ctx.log("[进化] 🧬 ${evolver.displayName()} Prompt 已自动进化！")
+                                    ctx.updateBoard { b -> b.copy(
+                                        evolutionNotification = "${evolver.displayName()} Prompt 已自动进化"
+                                    ) }
                                 }
                             } catch (e: Exception) {
                                 ctx.log("[进化] ${evolver.displayName()} 自动进化失败: ${e.message}")
@@ -202,6 +208,70 @@ PRIORITY: HIGH / MEDIUM / LOW
         if (suggestions.isNotEmpty()) {
             ctx.setPromptSuggestions(suggestions)
             ctx.log("[Reflect] ${suggestions.size} 条优化建议已就绪")
+        }
+    }
+
+    /**
+     * 自动提取行动项：用 LLM 分析会议内容，提取 3-7 条 action items 写入 DB
+     */
+    suspend fun extractActionItems() {
+        val board = ctx.boardValue
+        if (board.messages.isEmpty()) return
+
+        val lastSpeeches = ctx.speechesValue.takeLast(5).joinToString("\n") {
+            "[${it.agent}] ${it.content.take(300)}"
+        }
+
+        val prompt = """你是一个会议行动项提取助手。根据以下会议信息，提取 3-7 条可执行的行动项。
+
+## 标的/主题
+${board.subject}
+
+## 最终评级
+${board.finalRating ?: "无"}
+
+## 讨论摘要
+${board.summary.take(500)}
+
+## 最近发言
+$lastSpeeches
+
+## 输出格式
+输出一个 JSON 数组，每个元素包含 title, description, assignee 三个字段。
+assignee 应根据讨论内容推断最合适的负责角色。
+只输出 JSON 数组，不要包含其他内容。
+
+示例:
+[{"title":"完成风险评估报告","description":"基于讨论中提到的三个风险点，编写详细评估报告","assignee":"Risk Officer"}]"""
+
+        try {
+            val raw = ctx.systemLlm.quickCall(prompt)
+            val jsonStr = raw.trim().let { s ->
+                // Extract JSON array from response, handling markdown code blocks
+                val start = s.indexOf('[')
+                val end = s.lastIndexOf(']')
+                if (start >= 0 && end > start) s.substring(start, end + 1) else s
+            }
+
+            val arr = JSONArray(jsonStr)
+            val actions = mutableListOf<DecisionActionEntity>()
+            for (i in 0 until arr.length().coerceAtMost(7)) {
+                val obj = arr.getJSONObject(i)
+                actions.add(DecisionActionEntity(
+                    traceId = ctx.currentTraceId,
+                    subject = board.subject,
+                    title = obj.optString("title", "").take(200),
+                    description = obj.optString("description", "").take(500),
+                    assignee = obj.optString("assignee", ""),
+                ))
+            }
+            if (actions.isNotEmpty()) {
+                ctx.actionRepo.insertAll(actions)
+                ctx.log("[ActionItems] 自动提取 ${actions.size} 条行动项")
+            }
+        } catch (e: Exception) {
+            Log.w("PostMeetingReflector", "extractActionItems JSON parse failed: ${e.message}")
+            ctx.log("[ActionItems] 提取失败: ${e.message}")
         }
     }
 

@@ -70,6 +70,9 @@ data class MeetingPreset(
             "legal_review" to R.string.preset_lr_label,
             "incident_postmortem" to R.string.preset_ip_label,
             "brainstorm" to R.string.preset_bs_label,
+            "hiring" to R.string.preset_hiring_label,
+            "budget" to R.string.preset_budget_label,
+            "marketing" to R.string.preset_marketing_label,
         )
         private val NAME_RES: Map<String, Int> = mapOf(
             "investment_committee" to R.string.preset_ic_name,
@@ -82,6 +85,9 @@ data class MeetingPreset(
             "legal_review" to R.string.preset_lr_name,
             "incident_postmortem" to R.string.preset_ip_name,
             "brainstorm" to R.string.preset_bs_name,
+            "hiring" to R.string.preset_hiring_name,
+            "budget" to R.string.preset_budget_name,
+            "marketing" to R.string.preset_marketing_name,
         )
 
         @androidx.annotation.StringRes
@@ -690,6 +696,74 @@ val BRAINSTORM_PRESET = MeetingPreset(
     ratingScale = listOf("Breakthrough Idea", "Promising Direction", "Needs Iteration", "Pivot"),
 )
 
+// ── 新增预设：招聘评估 ──
+
+val HIRING_PRESET = MeetingPreset(
+    id = "hiring",
+    name = "Hiring Review",
+    description = "Structured candidate evaluation — technical, cultural, and managerial perspectives",
+    iconName = "people",
+    committeeLabel = "Hiring Panel",
+    roles = listOf(
+        PresetRole("hiring_manager", "Hiring Manager", "Advocate", "Role fit + Team needs + Growth potential", "hiring_manager", "#4CAF50"),
+        PresetRole("tech_interviewer", "Tech Interviewer", "Evaluator", "Technical skills + Problem-solving + Code quality", "tech_interviewer", "#2196F3"),
+        PresetRole("culture_assessor", "Culture Assessor", "Observer", "Team dynamics + Values alignment + Communication", "culture_assessor", "#9C27B0"),
+        PresetRole("bar_raiser", "Bar Raiser", "Skeptic", "Hiring bar + Cross-team fit + Long-term potential", "bar_raiser", "#FF5722"),
+        PresetRole("hr_coordinator", "HR Coordinator", "Neutral", "Process compliance + Comp calibration + Final recommendation", "hr_coordinator", "#607D8B", isSupervisor = true),
+    ),
+    mandates = mapOf(
+        "max_rounds" to "15", "has_supervisor" to "true", "supervisor_final_call" to "true",
+        "vote_type" to "multi_stance", "consensus_required" to "false",
+        "activation_k" to "3", "prompt_style" to "debate",
+    ),
+    ratingScale = listOf("Strong Hire", "Hire", "Lean Hire", "No Hire", "Strong No Hire"),
+)
+
+// ── 新增预设：预算评审 ──
+
+val BUDGET_PRESET = MeetingPreset(
+    id = "budget",
+    name = "Budget Review",
+    description = "Budget allocation review — balance business needs with fiscal responsibility",
+    iconName = "account_balance",
+    committeeLabel = "Budget Committee",
+    roles = listOf(
+        PresetRole("budget_owner", "Budget Owner", "Advocate", "Business justification + ROI projections + Resource needs", "budget_owner", "#4CAF50"),
+        PresetRole("finance_controller", "Finance Controller", "Conservative", "Fiscal discipline + Cost analysis + Budget compliance", "finance_controller", "#F44336"),
+        PresetRole("strategy_advisor", "Strategy Advisor", "Analytical", "Strategic alignment + Priority ranking + Opportunity cost", "strategy_advisor", "#2196F3", canUseTools = true),
+        PresetRole("cfo", "CFO", "Balanced", "Final approval + Portfolio balance + Risk tolerance", "cfo", "#607D8B", isSupervisor = true),
+    ),
+    mandates = mapOf(
+        "max_rounds" to "15", "has_supervisor" to "true", "supervisor_final_call" to "true",
+        "vote_type" to "scale", "consensus_required" to "false",
+        "activation_k" to "2", "prompt_style" to "debate",
+    ),
+    ratingScale = listOf("Approve Full Budget", "Approve with Cuts", "Defer to Next Quarter", "Reject"),
+)
+
+// ── 新增预设：营销策略 ──
+
+val MARKETING_PRESET = MeetingPreset(
+    id = "marketing",
+    name = "Marketing Strategy",
+    description = "Marketing campaign review — creative, data, and brand alignment evaluation",
+    iconName = "campaign",
+    committeeLabel = "Marketing War Room",
+    roles = listOf(
+        PresetRole("creative_director", "Creative Director", "Visionary", "Creative concept + Brand storytelling + Visual direction", "creative_director", "#E91E63"),
+        PresetRole("data_analyst", "Data Analyst", "Evidence-based", "Market data + Audience insights + Performance metrics", "data_analyst", "#2196F3", canUseTools = true),
+        PresetRole("brand_manager", "Brand Manager", "Protector", "Brand consistency + Positioning + Competitive differentiation", "brand_manager", "#9C27B0"),
+        PresetRole("growth_hacker", "Growth Hacker", "Aggressive", "Growth channels + Viral mechanics + Conversion optimization", "growth_hacker", "#FF9800"),
+        PresetRole("cmo", "CMO", "Strategic", "Campaign approval + Budget allocation + Go-to-market strategy", "cmo", "#607D8B", isSupervisor = true),
+    ),
+    mandates = mapOf(
+        "max_rounds" to "15", "has_supervisor" to "true", "supervisor_final_call" to "true",
+        "vote_type" to "multi_stance", "consensus_required" to "false",
+        "activation_k" to "3", "prompt_style" to "creative",
+    ),
+    ratingScale = listOf("Launch", "Launch with Revisions", "Needs Major Rework", "Kill Campaign"),
+)
+
 /** 所有内置 preset 列表 */
 val ALL_PRESETS: List<MeetingPreset> = listOf(
     INVESTMENT_COMMITTEE_PRESET,
@@ -702,4 +776,7 @@ val ALL_PRESETS: List<MeetingPreset> = listOf(
     LEGAL_REVIEW_PRESET,
     INCIDENT_POSTMORTEM_PRESET,
     BRAINSTORM_PRESET,
+    HIRING_PRESET,
+    BUDGET_PRESET,
+    MARKETING_PRESET,
 )

@@ -194,41 +194,55 @@ fun VoteResultsBar(votes: Map<String, com.znliang.committee.ui.model.VoteInfo>) 
         // Per-agent vote breakdown
         Spacer(Modifier.height(6.dp))
         votes.forEach { (role, vote) ->
-            Row(
+            var reasonExpanded by remember { mutableStateOf(false) }
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 1.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(vertical = 1.dp)
+                    .then(if (vote.reason.isNotBlank()) Modifier.clickable { reasonExpanded = !reasonExpanded } else Modifier),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(
-                            if (vote.agree) BuyColor.copy(alpha = 0.7f) else SellColor.copy(alpha = 0.7f),
-                            CircleShape,
-                        ),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    role,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextPrimary,
-                    modifier = Modifier.width(80.dp),
-                    maxLines = 1,
-                )
-                Text(
-                    if (vote.agree) stringResource(R.string.vote_agree_label) else stringResource(R.string.vote_disagree_label),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (vote.agree) BuyColor else SellColor,
-                    fontWeight = FontWeight.Bold,
-                )
-                if (vote.reason.isNotBlank()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(
+                                if (vote.agree) BuyColor.copy(alpha = 0.7f) else SellColor.copy(alpha = 0.7f),
+                                CircleShape,
+                            ),
+                    )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        vote.reason.take(40),
+                        role,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextPrimary,
+                        modifier = Modifier.width(80.dp),
+                        maxLines = 1,
+                    )
+                    Text(
+                        if (vote.agree) stringResource(R.string.vote_agree_label) else stringResource(R.string.vote_disagree_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (vote.agree) BuyColor else SellColor,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    if (vote.reason.isNotBlank() && !reasonExpanded) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            vote.reason,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted,
+                            maxLines = 1,
+                        )
+                    }
+                }
+                if (vote.reason.isNotBlank() && reasonExpanded) {
+                    Text(
+                        vote.reason,
                         style = MaterialTheme.typography.labelSmall,
                         color = TextMuted,
-                        maxLines = 1,
+                        maxLines = Int.MAX_VALUE,
+                        modifier = Modifier.padding(start = 14.dp, top = 2.dp),
                     )
                 }
             }
@@ -252,12 +266,12 @@ fun OverrideDecisionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("Override Decision", color = CommitteeGold, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(stringResource(R.string.vote_override_title), color = CommitteeGold, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Agent suggests: $currentRating", style = MaterialTheme.typography.bodySmall, color = TextMuted)
-                Text("Your decision:", style = MaterialTheme.typography.labelMedium, color = TextPrimary)
+                Text(stringResource(R.string.vote_agent_suggests, currentRating), style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                Text(stringResource(R.string.vote_your_decision), style = MaterialTheme.typography.labelMedium, color = TextPrimary)
                 // Rating chips
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(ratingScale) { rating ->
@@ -284,7 +298,7 @@ fun OverrideDecisionDialog(
                 OutlinedTextField(
                     value = reason,
                     onValueChange = { reason = it },
-                    placeholder = { Text("Why do you disagree?", color = TextMuted) },
+                    placeholder = { Text(stringResource(R.string.vote_disagree_reason_hint), color = TextMuted) },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 3,
                 )
@@ -295,12 +309,12 @@ fun OverrideDecisionDialog(
                 onClick = { if (reason.isNotBlank()) onConfirm(selectedRating, reason) },
                 enabled = reason.isNotBlank() && selectedRating != currentRating,
             ) {
-                Text("Confirm Override", color = if (reason.isNotBlank() && selectedRating != currentRating) CommitteeGold else TextMuted)
+                Text(stringResource(R.string.vote_confirm_override), color = if (reason.isNotBlank() && selectedRating != currentRating) CommitteeGold else TextMuted)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Keep Agent Decision", color = TextMuted)
+                Text(stringResource(R.string.vote_keep_agent), color = TextMuted)
             }
         },
     )

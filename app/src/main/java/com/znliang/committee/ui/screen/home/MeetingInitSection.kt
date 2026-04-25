@@ -3,9 +3,11 @@ package com.znliang.committee.ui.screen.home
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
+import androidx.compose.animation.AnimatedVisibility
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SmartToy
@@ -43,12 +46,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -57,6 +63,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -73,6 +81,7 @@ import com.znliang.committee.domain.model.PresetRole
 import com.znliang.committee.ui.model.MaterialItem
 import com.znliang.committee.ui.component.resolveRoleColor
 import com.znliang.committee.ui.theme.BorderColor
+import com.znliang.committee.ui.theme.BuyColor
 import com.znliang.committee.ui.theme.CommitteeGold
 import com.znliang.committee.ui.theme.StateWarningColor
 import com.znliang.committee.ui.theme.SurfaceCard
@@ -221,6 +230,9 @@ fun MeetingInitCard(
                 "legal_review" -> R.string.home_input_topic_legal_review
                 "incident_postmortem" -> R.string.home_input_topic_incident_postmortem
                 "brainstorm" -> R.string.home_input_topic_brainstorm
+                "hiring" -> R.string.preset_hiring_hint
+                "budget" -> R.string.preset_budget_hint
+                "marketing" -> R.string.preset_marketing_hint
                 else -> R.string.home_input_topic
             }
             OutlinedTextField(
@@ -334,7 +346,27 @@ fun MeetingInitCard(
                                 .border(1.dp, BorderColor, RoundedCornerShape(8.dp)),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("${idx + 1}", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                            val uri = attachedUris[idx]
+                            val bitmap = remember(uri) {
+                                try {
+                                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                                        val opts = BitmapFactory.Options().apply {
+                                            inSampleSize = 4 // downsample for thumbnail
+                                        }
+                                        BitmapFactory.decodeStream(stream, null, opts)
+                                    }
+                                } catch (_: Exception) { null }
+                            }
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = null,
+                                    modifier = Modifier.matchParentSize().clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop,
+                                )
+                            } else {
+                                Text("${idx + 1}", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                            }
                             // Remove button
                             IconButton(
                                 onClick = {
@@ -447,9 +479,79 @@ fun MeetingInitCard(
                 )
             }
 
+            // ── 影响力权重前置配置 ──
+            val initRoles = remember { presetConfig.activeRoles().filter { !it.isSupervisor } }
+            val initWeights = remember { mutableStateMapOf<String, Float>() }
+            if (initRoles.isNotEmpty()) {
+                var weightExpanded by remember { mutableStateOf(false) }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { weightExpanded = !weightExpanded }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.weight_config_title),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        if (weightExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = TextMuted,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+                AnimatedVisibility(visible = weightExpanded) {
+                    Column {
+                        initRoles.forEach { role ->
+                            val w = initWeights[role.id] ?: 1.0f
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    if (role.displayNameRes() != 0) stringResource(role.displayNameRes()) else role.displayName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextPrimary,
+                                    modifier = Modifier.width(80.dp),
+                                    maxLines = 1,
+                                )
+                                Slider(
+                                    value = w,
+                                    onValueChange = { initWeights[role.id] = it },
+                                    valueRange = 0.1f..3.0f,
+                                    modifier = Modifier.weight(1f).height(24.dp),
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = CommitteeGold,
+                                        activeTrackColor = CommitteeGold,
+                                        inactiveTrackColor = BorderColor,
+                                    ),
+                                )
+                                Text(
+                                    "%.1f".format(w),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = CommitteeGold,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(32.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+
+            }
+
             Button(
                 onClick = {
                     keyboard?.hide()
+                    // Apply pre-configured weights before starting
+                    initWeights.forEach { (roleId, weight) ->
+                        if (weight != 1.0f) viewModel.setAgentWeight(roleId, weight)
+                    }
                     ioScope.launch {
                         val materials = buildMaterialItems()
                         if (quickMode) {
@@ -542,7 +644,7 @@ fun CompactAgentCard(role: PresetRole, stats: AgentMemoryStats? = null, onClick:
                     maxLines = 1,
                 )
                 // Memory badges
-                if (stats != null && (stats.experienceCount > 0 || stats.skillCount > 0)) {
+                if (stats != null && (stats.experienceCount > 0 || stats.skillCount > 0 || stats.meetingCount > 0)) {
                     Spacer(Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (stats.experienceCount > 0) {
@@ -553,6 +655,12 @@ fun CompactAgentCard(role: PresetRole, stats: AgentMemoryStats? = null, onClick:
                         }
                         if (stats.changelogCount > 0) {
                             AgentBadge("\u2728 ${stats.changelogCount}", TextSecondary)
+                        }
+                        if (stats.voteAccuracy != null) {
+                            AgentBadge("${(stats.voteAccuracy * 100).toInt()}%", BuyColor)
+                        }
+                        if (stats.meetingCount > 0) {
+                            AgentBadge("${stats.meetingCount} mtgs", TextMuted)
                         }
                     }
                 }

@@ -546,7 +546,7 @@ private fun BuiltinToolCard(name: String, descRes: Int) {
                 border = BorderStroke(1.dp, CommitteeGold.copy(alpha = 0.3f)),
             ) {
                 Text(
-                    text = "BUILT-IN",
+                    text = stringResource(R.string.skill_builtin_badge),
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = CommitteeGold,

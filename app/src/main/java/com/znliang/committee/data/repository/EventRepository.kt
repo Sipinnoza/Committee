@@ -87,6 +87,8 @@ class EventRepository @Inject constructor(
         summary = summary,
         content = content,
         ts = timestamp.toEpochMilli(),
+        reasoning = reasoning,
+        voteLabel = voteLabel,
     )
 
     private fun SpeechEntity.toSpeechRecord() = SpeechRecord(
@@ -96,5 +98,11 @@ class EventRepository @Inject constructor(
         summary = summary,
         content = content,
         timestamp = java.time.Instant.ofEpochMilli(ts),
+        reasoning = reasoning,
+        voteLabel = voteLabel,
+        // Reconstruct boolean flags from speechId prefix convention
+        isPhaseTransition = speechId.startsWith("phase_"),
+        isConsensusEvent = speechId.startsWith("consensus_"),
+        isAgendaEvent = speechId.startsWith("agenda_"),
     )
 }

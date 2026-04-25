@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.znliang.committee.R
+import com.znliang.committee.domain.model.PresetRole
 import com.znliang.committee.ui.theme.*
 import com.znliang.committee.ui.viewmodel.*
 import java.time.Instant
@@ -81,7 +82,7 @@ fun FlowVisualizationCard(
 
             // 当前 Phase 信息
             vizState.currentPhase?.let { phase ->
-                PhaseInfoCard(phase, vizState.currentState)
+                PhaseInfoCard(phase, vizState.currentState, vizState.agentRoleIds)
                 Spacer(Modifier.height(8.dp))
             }
 
@@ -274,7 +275,11 @@ fun FlowGraph(flowState: FlowVizState, modifier: Modifier = Modifier) {
 // ── Phase 信息卡片 ─────────────────────────────────────────────
 
 @Composable
-private fun PhaseInfoCard(phase: com.znliang.committee.ui.model.UiPhase, currentStateName: String) {
+private fun PhaseInfoCard(
+    phase: com.znliang.committee.ui.model.UiPhase,
+    currentStateName: String,
+    agentRoleIds: List<String>,
+) {
     val stateDisplay = mapOf(
         "IDLE" to stringResource(R.string.home_state_idle),
         "ANALYSIS" to stringResource(R.string.home_state_analysis),
@@ -285,13 +290,29 @@ private fun PhaseInfoCard(phase: com.znliang.committee.ui.model.UiPhase, current
         "DONE" to stringResource(R.string.home_state_done),
     )
 
-    val agentsForPhase = when (phase) {
-        com.znliang.committee.ui.model.UiPhase.ANALYSIS -> listOf("analyst", "intel")
-        com.znliang.committee.ui.model.UiPhase.DEBATE -> listOf("analyst", "risk_officer", "strategist")
-        com.znliang.committee.ui.model.UiPhase.VOTE -> listOf("analyst", "risk_officer", "strategist")
-        com.znliang.committee.ui.model.UiPhase.RATING -> listOf("supervisor")
-        com.znliang.committee.ui.model.UiPhase.EXECUTION -> listOf("executor")
-        else -> emptyList()
+    // Dynamically select agents for each phase based on the preset's actual roles.
+    // If agentRoleIds is available, partition roles proportionally across phases;
+    // otherwise fall back to showing all agents for active phases.
+    val agentsForPhase = if (agentRoleIds.isEmpty()) {
+        emptyList()
+    } else {
+        when (phase) {
+            com.znliang.committee.ui.model.UiPhase.ANALYSIS ->
+                // First half of non-supervisor agents
+                agentRoleIds.take((agentRoleIds.size + 1) / 2)
+            com.znliang.committee.ui.model.UiPhase.DEBATE,
+            com.znliang.committee.ui.model.UiPhase.VOTE ->
+                // All agents participate in debate and voting
+                agentRoleIds
+            com.znliang.committee.ui.model.UiPhase.RATING ->
+                // Last agent (typically the supervisor)
+                agentRoleIds.takeLast(1)
+            com.znliang.committee.ui.model.UiPhase.EXECUTION ->
+                // Second-to-last agent (typically the executor) or first if only one
+                if (agentRoleIds.size >= 2) listOf(agentRoleIds[agentRoleIds.size - 2])
+                else agentRoleIds.take(1)
+            else -> emptyList()
+        }
     }
 
     Row(
@@ -320,6 +341,12 @@ private fun PhaseInfoCard(phase: com.znliang.committee.ui.model.UiPhase, current
         // Agent 列表
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             agentsForPhase.forEach { agentId ->
+                val nameResId = PresetRole.displayNameResForId(agentId)
+                val displayChar = if (nameResId != 0) {
+                    stringResource(nameResId).first().uppercaseChar().toString()
+                } else {
+                    agentId.first().uppercaseChar().toString()
+                }
                 Box(
                     modifier = Modifier
                         .size(24.dp)
@@ -329,7 +356,7 @@ private fun PhaseInfoCard(phase: com.znliang.committee.ui.model.UiPhase, current
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        agentId.first().uppercaseChar().toString(),
+                        displayChar,
                         style = MaterialTheme.typography.labelSmall,
                         color = agentColorFor(agentId),
                         fontWeight = FontWeight.Bold,
@@ -341,14 +368,10 @@ private fun PhaseInfoCard(phase: com.znliang.committee.ui.model.UiPhase, current
     }
 }
 
-private fun agentColorFor(agentId: String): Color = when (agentId) {
-    "analyst"     -> AnalystColor
-    "risk_officer" -> RiskColor
-    "strategist"  -> StrategistColor
-    "executor"    -> ExecutorColor
-    "intel"       -> IntelColor
-    "supervisor"  -> SupervisorColor
-    else          -> TextMuted
+private fun agentColorFor(agentId: String): Color {
+    // Use a deterministic color based on roleId hash — works for any preset
+    val hue = (agentId.hashCode() and 0x7FFFFFFF).mod(360).toFloat()
+    return Color.hsl(hue, 0.6f, 0.65f)
 }
 
 // ── 转场历史时间线 ──────────────────────────────────────────────

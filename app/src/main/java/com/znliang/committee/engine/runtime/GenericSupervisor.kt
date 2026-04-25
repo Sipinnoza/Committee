@@ -85,9 +85,14 @@ class GenericSupervisor(
             else -> "4. 存在正反双方的交叉回应，而不是各说各话（当前：${if (hasCrossResponse) "已有交叉回应" else "暂无交叉回应"}）"
         }
 
+        // Avg speeches per participant
+        val avgSpeechesPerParticipant = if (totalParticipantCount > 0) debateCount.toFloat() / totalParticipantCount else 0f
+
         return """你是${committeeLabel}的主持人。判断讨论是否充分，可以进行最终评定。
 
-讨论主题：${board.subject} | 轮次：${board.round} | 发言：${debateCount}条 | $voteSummary
+注意：宁可多讨论几轮也不要草率结束。高质量的决策需要充分的讨论。如果你不确定，请选择NO。
+
+讨论主题：${board.subject} | 轮次：${board.round} | 发言：${debateCount}条 | 人均：${"%.1f".format(avgSpeechesPerParticipant)}条 | $voteSummary
 
 参与者发言统计（共${totalParticipantCount}人，已发言${spokenParticipantCount}人）：
 $speakerStats
@@ -95,14 +100,16 @@ $speakerStats
 
 重要：必须同时满足以下所有条件才能回答YES：
 1. 至少有${maxOf(totalParticipantCount - 1, 2)}个不同参与者发言过（当前：${spokenParticipantCount}人）
-2. 讨论轮次至少达到参与者数量（当前：第${board.round}轮 / 需要至少${totalParticipantCount}轮）
+2. 每位参与者平均发言至少3次（当前人均：${"%.1f".format(avgSpeechesPerParticipant)}次）
+3. 讨论轮次至少达到参与者数量的2倍（当前：第${board.round}轮 / 建议至少${totalParticipantCount * 2}轮）
 $criterion3
 $criterion4
-5. 不存在未回应的重要质疑
+6. 不存在未回应的重要质疑
+7. 各方观点已经有足够深度的展开，不只是表面陈述
 
 $recentMsgs
 
-只回答：YES（讨论充分，可以评定）或 NO（继续讨论）"""
+只回答：YES（讨论确实充分，可以评定）或 NO（继续讨论，还不够充分）"""
     }
 
     // ── buildSupervisionPrompt ────────────────────────────────

@@ -62,6 +62,9 @@ data class BoardState(
     val boardUserOverride: String? = null,
     val boardUserOverrideReason: String = "",
     val boardError: String? = null,
+    val preSearchStatus: String = "IDLE",
+    val preSearchResultCount: Int = 0,
+    val evolutionNotification: String = "",
 )
 
 /** Rarely updated — API key, LLM config, error */
@@ -143,6 +146,10 @@ class MeetingViewModel @Inject constructor(
                     boardUserOverride = board.userOverrideRating,
                     boardUserOverrideReason = board.userOverrideReason,
                     boardError = board.errorMessage,
+                    preSearchStatus = board.preSearchStatus.name,
+                    preSearchResultCount = if (board.preGatheredInfo.isNotBlank())
+                        board.preGatheredInfo.lines().count { it.startsWith("### ") } else 0,
+                    evolutionNotification = board.evolutionNotification,
                 )
             }
         }
@@ -322,6 +329,7 @@ class MeetingViewModel @Inject constructor(
         if (streaming.speeches.isEmpty()) return null
 
         val markdown = DecisionReportGenerator.generateMarkdown(
+            context = appContext,
             subject = board.subject,
             presetName = preset.name,
             committeeLabel = preset.committeeLabel,
@@ -348,6 +356,7 @@ class MeetingViewModel @Inject constructor(
         val preset = presetConfig.getActivePreset()
 
         return DecisionReportGenerator.generateShareText(
+            context = appContext,
             subject = board.subject,
             committeeLabel = preset.committeeLabel,
             rating = board.boardRating,

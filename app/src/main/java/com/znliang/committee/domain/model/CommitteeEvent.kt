@@ -39,4 +39,12 @@ data class SpeechRecord(
     val id: String = "sp_${UUID.randomUUID().toString().replace("-", "").take(10)}",
     /** Agent 的推理过程（思考链路），用户可展开查看 */
     val reasoning: String = "",
+    /** 内联投票标签 — 如 "Agree", "Score=8", "Stance=看涨" */
+    val voteLabel: String = "",
+    /** 是否为阶段转换事件（agent=="system" 时有效） */
+    val isPhaseTransition: Boolean = false,
+    /** 是否为共识达成事件（agent=="system" 时有效） */
+    val isConsensusEvent: Boolean = false,
+    /** 是否为会前议程事件（agent=="system" 时有效） */
+    val isAgendaEvent: Boolean = false,
 )

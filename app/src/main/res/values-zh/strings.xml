@@ -130,10 +130,17 @@
     <string name="session_meeting_end">会议结束 · %s</string>
     <string name="session_meeting_start">会议开始 · %s</string>
     <string name="session_no_speeches">暂无发言记录</string>
+    <string name="session_discussion_summary">讨论摘要</string>
+    <string name="session_votes">投票结果</string>
     <string name="session_rating_label">评级</string>
     <string name="session_speech_count">发言数</string>
     <string name="session_start_time">开始时间</string>
     <string name="session_summary">会议概要</string>
+    <!-- Session Detail -->
+    <string name="session_error_title">会议异常</string>
+    <string name="session_user_override">用户覆盖决策：%s</string>
+    <string name="session_override_reason">理由：%s</string>
+    <string name="session_execution_plan">执行计划</string>
     <string name="settings_about">关于</string>
     <string name="settings_apikey_configured">API Key 已配置</string>
     <string name="settings_apikey_desc">用于驱动六大 AI 委员。Key 仅存储在本设备，不会上传。</string>
@@ -405,6 +412,39 @@
     <string name="human_vote_title">投出你的一票</string>
 
     <!-- 决策报告 -->
+    <string name="report_title">决策报告</string>
+    <string name="report_meeting_info">会议信息</string>
+    <string name="report_item">项目</string>
+    <string name="report_detail">详情</string>
+    <string name="report_subject">议题</string>
+    <string name="report_committee">委员会</string>
+    <string name="report_mode">模式</string>
+    <string name="report_start">开始</string>
+    <string name="report_end">结束</string>
+    <string name="report_rounds">轮次</string>
+    <string name="report_participants">参与者</string>
+    <string name="report_consensus_reached">已达成</string>
+    <string name="report_consensus_not_reached">未达成</string>
+    <string name="report_final_decision">最终决策</string>
+    <string name="report_voting_results">投票结果</string>
+    <string name="report_agree_disagree">赞成: **%1$d** / 反对: **%2$d** (共 %3$d 票)</string>
+    <string name="report_role_col">角色</string>
+    <string name="report_vote_col">投票</string>
+    <string name="report_reason_col">理由</string>
+    <string name="report_vote_agree">赞成</string>
+    <string name="report_vote_disagree">反对</string>
+    <string name="report_discussion_summary">讨论摘要</string>
+    <string name="report_key_arguments">各角色关键论点</string>
+    <string name="report_human_input">人工输入</string>
+    <string name="report_full_log">完整讨论记录</string>
+    <string name="report_generated_by">由群策 Agentra 生成 — 多智能体自主决策系统</string>
+    <string name="report_share_title">[%s] 决策报告</string>
+    <string name="report_share_subject">议题：%s</string>
+    <string name="report_share_decision">决策：%s</string>
+    <string name="report_share_vote">投票：%1$d/%2$d 赞成</string>
+    <string name="report_share_consensus">状态：已达成共识</string>
+    <string name="report_share_summary">摘要：</string>
+    <string name="report_share_footer">— 群策 Agentra</string>
     <string name="report_share">分享</string>
     <string name="report_export">导出报告</string>
     <string name="report_share_chooser">分享决策</string>
@@ -479,6 +519,79 @@
     <string name="contrib_collab_label">协作</string>
     <string name="confidence_label">置信度：</string>
     <string name="agent_influence_label">话语权重</string>
+
+    <!-- Pre-search notification -->
+    <string name="pre_search_searching">搜索情报中…</string>
+    <string name="pre_search_done">已获取 %d 条情报</string>
+    <string name="pre_search_failed">情报搜索失败</string>
+
+    <!-- Evolution visibility -->
+    <string name="vote_accuracy_badge">%d%%</string>
+    <string name="meeting_count_badge">%d 次会议</string>
+    <string name="evolution_notification">会后 Agent 已自动进化</string>
+
+    <!-- Weight config -->
+    <string name="weight_config_title">影响力设置</string>
+
+    <!-- Hiring preset -->
+    <string name="preset_hiring_name">招聘评估</string>
+    <string name="preset_hiring_label">招聘面试组</string>
+    <string name="preset_hiring_desc">结构化候选人评估 — 技术、文化与管理多维视角</string>
+    <string name="preset_hiring_hint">输入候选人姓名和应聘职位…</string>
+    <string name="role_hiring_manager_display">用人经理</string>
+    <string name="role_hiring_manager_stance">支持方</string>
+    <string name="role_hiring_manager_resp">岗位匹配 + 团队需求 + 发展潜力</string>
+    <string name="role_tech_interviewer_display">技术面试官</string>
+    <string name="role_tech_interviewer_stance">评估方</string>
+    <string name="role_tech_interviewer_resp">技术能力 + 解题思维 + 代码质量</string>
+    <string name="role_culture_assessor_display">文化评估员</string>
+    <string name="role_culture_assessor_stance">观察方</string>
+    <string name="role_culture_assessor_resp">团队协作 + 价值观契合 + 沟通能力</string>
+    <string name="role_bar_raiser_display">Bar Raiser</string>
+    <string name="role_bar_raiser_stance">质疑方</string>
+    <string name="role_bar_raiser_resp">招聘标准 + 跨团队适配 + 长期潜力</string>
+    <string name="role_hr_coordinator_display">HR 协调员</string>
+    <string name="role_hr_coordinator_stance">中立</string>
+    <string name="role_hr_coordinator_resp">流程合规 + 薪酬校准 + 最终建议</string>
+
+    <!-- Budget preset -->
+    <string name="preset_budget_name">预算评审</string>
+    <string name="preset_budget_label">预算委员会</string>
+    <string name="preset_budget_desc">预算分配评审 — 平衡业务需求与财务纪律</string>
+    <string name="preset_budget_hint">输入预算提案或部门…</string>
+    <string name="role_budget_owner_display">预算申请人</string>
+    <string name="role_budget_owner_stance">支持方</string>
+    <string name="role_budget_owner_resp">业务论证 + ROI 预测 + 资源需求</string>
+    <string name="role_finance_controller_display">财务管控</string>
+    <string name="role_finance_controller_stance">保守方</string>
+    <string name="role_finance_controller_resp">财务纪律 + 成本分析 + 预算合规</string>
+    <string name="role_strategy_advisor_display">战略顾问</string>
+    <string name="role_strategy_advisor_stance">分析方</string>
+    <string name="role_strategy_advisor_resp">战略对齐 + 优先级排序 + 机会成本</string>
+    <string name="role_cfo_display">CFO</string>
+    <string name="role_cfo_stance">平衡</string>
+    <string name="role_cfo_resp">最终审批 + 组合平衡 + 风险容忍度</string>
+
+    <!-- Marketing preset -->
+    <string name="preset_marketing_name">营销策略</string>
+    <string name="preset_marketing_label">营销作战室</string>
+    <string name="preset_marketing_desc">营销活动评审 — 创意、数据与品牌一致性评估</string>
+    <string name="preset_marketing_hint">输入推广活动或产品…</string>
+    <string name="role_creative_director_display">创意总监</string>
+    <string name="role_creative_director_stance">创新方</string>
+    <string name="role_creative_director_resp">创意概念 + 品牌故事 + 视觉方向</string>
+    <string name="role_data_analyst_display">数据分析师</string>
+    <string name="role_data_analyst_stance">数据方</string>
+    <string name="role_data_analyst_resp">市场数据 + 用户洞察 + 效果指标</string>
+    <string name="role_brand_manager_display">品牌经理</string>
+    <string name="role_brand_manager_stance">守护方</string>
+    <string name="role_brand_manager_resp">品牌一致性 + 定位策略 + 竞争差异化</string>
+    <string name="role_growth_hacker_display">增长黑客</string>
+    <string name="role_growth_hacker_stance">激进方</string>
+    <string name="role_growth_hacker_resp">增长渠道 + 裂变机制 + 转化优化</string>
+    <string name="role_cmo_display">CMO</string>
+    <string name="role_cmo_stance">战略方</string>
+    <string name="role_cmo_resp">活动审批 + 预算分配 + 上市策略</string>
 
     <!-- 创业路演预设 -->
     <string name="preset_sp_name">创业路演</string>
@@ -572,4 +685,49 @@
     <string name="rating_pivot">转向</string>
     <string name="meeting_error_title">会议异常终止</string>
     <string name="meeting_error_retry">返回首页</string>
+    <!-- Speech Card -->
+    <string name="speech_ask_followup">追问</string>
+    <string name="speech_hide_reasoning">收起推理</string>
+    <string name="speech_show_reasoning">查看推理</string>
+    <string name="speech_ask_agent">问 %s</string>
+    <string name="speech_question_hint">你的问题…</string>
+    <string name="speech_ask_btn">发送</string>
+    <!-- Vote Override -->
+    <string name="vote_override_title">覆盖决策</string>
+    <string name="vote_agent_suggests">Agent 建议：%s</string>
+    <string name="vote_your_decision">你的决策：</string>
+    <string name="vote_disagree_reason_hint">你为何不同意？</string>
+    <string name="vote_confirm_override">确认覆盖</string>
+    <string name="vote_keep_agent">保留 Agent 决策</string>
+    <!-- Summary -->
+    <string name="summary_your_decision">你的决策：%s</string>
+    <string name="summary_hide_details">收起详情</string>
+    <string name="summary_show_details">展开详情</string>
+
+    <!-- Active Section -->
+    <string name="vote_agree_count">赞成 %d</string>
+    <string name="vote_disagree_count">反对 %d</string>
+    <!-- Agents Screen labels -->
+    <string name="agents_category_strategy">策略</string>
+    <string name="agents_category_mistake">教训</string>
+    <string name="agents_category_insight">洞察</string>
+    <string name="agents_category_prompt_fix">提示词修正</string>
+    <string name="agents_outcome_positive">正面</string>
+    <string name="agents_outcome_negative">负面</string>
+    <string name="agents_change_auto_evolve">自动进化</string>
+    <string name="agents_change_manual">手动修改</string>
+    <string name="agents_change_suggestion">建议已采纳</string>
+    <string name="agents_change_rollback">回滚</string>
+    <string name="agents_priority_high">高</string>
+    <string name="agents_priority_medium">中</string>
+    <string name="agents_priority_low">低</string>
+    <!-- Skill Management -->
+    <string name="skill_builtin_badge">内置</string>
+    <!-- FlowViz -->
+    <string name="flowviz_round">第 %d 轮</string>
+    <string name="flowviz_round_phase">第 %1$d 轮 (%2$s)</string>
+    <string name="flowviz_agent_runtime">Agent 运行时</string>
+
+    <!-- Summary sections -->
+    <string name="summary_key_points">要点摘要</string>
 </resources>

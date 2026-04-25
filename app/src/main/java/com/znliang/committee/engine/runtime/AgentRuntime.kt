@@ -3,6 +3,7 @@ package com.znliang.committee.engine.runtime
 import android.content.Context
 import android.util.Log
 import com.znliang.committee.data.db.MeetingSessionEntity
+import com.znliang.committee.data.repository.ActionRepository
 import com.znliang.committee.data.repository.EventRepository
 import com.znliang.committee.data.repository.EvolutionRepository
 import com.znliang.committee.domain.model.MeetingPreset
@@ -45,6 +46,7 @@ class AgentRuntime(
     toolRegistry: DynamicToolRegistry,
     private val appContext: Context,
     preset: MeetingPreset,
+    private val _actionRepo: ActionRepository,
 ) : RuntimeContext {
 
     companion object {
@@ -118,6 +120,7 @@ class AgentRuntime(
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var runJob: Job? = null
     private var _currentTraceId: String = ""
+    private var _meetingStartTime: Long = 0L
 
     // ── 协作者 ──────────────────────────────────────────────────
 
@@ -211,6 +214,7 @@ class AgentRuntime(
     override val skillLibrary: SkillLibrary get() = _skillLibrary
     override val evolutionRepo: EvolutionRepository get() = _evolutionRepo
     override val promptEvolver: PromptEvolver get() = _promptEvolver
+    override val actionRepo: ActionRepository get() = _actionRepo
 
     // ── 配置 ────────────────────────────────────────────────────
 
@@ -249,11 +253,21 @@ class AgentRuntime(
             repository.upsertSession(MeetingSessionEntity(
                 traceId = _currentTraceId,
                 subject = b.subject,
-                startTime = System.currentTimeMillis(),
+                startTime = _meetingStartTime,
                 currentState = b.phase.name,
                 currentRound = b.round,
                 rating = b.finalRating,
                 isCompleted = b.finished,
+                summary = b.summary,
+                consensus = b.consensus,
+                decisionConfidence = b.decisionConfidence,
+                confidenceBreakdown = b.confidenceBreakdown,
+                votesJson = serializeVotes(b.votes),
+                contributionsJson = serializeContributions(b.contributionScores),
+                userOverrideRating = b.userOverrideRating,
+                userOverrideReason = b.userOverrideReason,
+                errorMessage = b.errorMessage,
+                executionPlan = b.executionPlan,
             ))
             repository.saveSpeeches(_currentTraceId, _speeches.value)
         }
@@ -276,6 +290,7 @@ class AgentRuntime(
         // Cancel any lingering job (e.g. post-meeting reflection from previous session)
         runJob?.cancel()
         _currentTraceId = "mtg_${System.currentTimeMillis()}"
+        _meetingStartTime = System.currentTimeMillis()
         _board.value = Blackboard(subject = subject, materials = materials, initialPhase = BoardPhase.ANALYSIS)
         synchronized(stateLock) {
             _speechesBacking.clear()
@@ -304,6 +319,9 @@ class AgentRuntime(
                 // 情报官预搜索
                 orchestrator.preMeetingIntelSearch(subject)
 
+                // P0-4: 会前议程卡片 — 让用户了解会议结构
+                emitPreMeetingAgenda(subject)
+
                 // 核心循环
                 orchestrator.runLoop()
             } catch (_: CancellationException) {
@@ -323,10 +341,51 @@ class AgentRuntime(
                 // 会议被取消时不反思
             } catch (e: Exception) {
                 log("[Reflect] Failed: ${e.message}")
+            }
+
+            // 自动提取行动项
+            try {
+                if (_board.value.finished && _board.value.messages.isNotEmpty()) {
+                    reflector.extractActionItems()
+                }
+            } catch (_: CancellationException) {
+                // ignored
+            } catch (e: Exception) {
+                log("[ActionItems] Failed: ${e.message}")
             } finally {
                 _isRunning.value = false
             }
         }
+    }
+
+    /** P0-4: 会前议程 — 生成结构化会议说明 */
+    private fun emitPreMeetingAgenda(subject: String) {
+        val roles = agents.map { it.role }
+        val roleList = roles.joinToString("、")
+        val maxR = maxRounds
+        val vt = when (voteType) {
+            VoteType.BINARY -> "Binary (Agree/Disagree)"
+            VoteType.SCALE -> "Scale (1-10)"
+            VoteType.MULTI_STANCE -> "Multi-Stance"
+        }
+        val agendaText = buildString {
+            appendLine("📋 Meeting Agenda")
+            appendLine("Subject: $subject")
+            appendLine("Participants: $roleList (${roles.size} roles)")
+            appendLine("Max rounds: $maxR · Vote type: $vt")
+            if (preset.ratingScale.isNotEmpty()) {
+                appendLine("Rating scale: ${preset.ratingScale.joinToString(" / ")}")
+            }
+        }.trim()
+        addSpeech(SpeechRecord(
+            id = "agenda_${System.currentTimeMillis()}",
+            agent = "system",
+            content = agendaText,
+            summary = "",
+            round = 0,
+            isAgendaEvent = true,
+        ))
+        log("[Agenda] Emitted pre-meeting agenda")
     }
 
     fun cancelMeeting() {
@@ -397,6 +456,16 @@ class AgentRuntime(
             finished = session.isCompleted,
             finalRating = session.rating,
             phase = if (session.isCompleted) BoardPhase.DONE else BoardPhase.IDLE,
+            summary = session.summary,
+            consensus = session.consensus,
+            decisionConfidence = session.decisionConfidence,
+            confidenceBreakdown = session.confidenceBreakdown,
+            votes = deserializeVotes(session.votesJson),
+            contributionScores = deserializeContributions(session.contributionsJson),
+            userOverrideRating = session.userOverrideRating,
+            userOverrideReason = session.userOverrideReason,
+            errorMessage = session.errorMessage,
+            executionPlan = session.executionPlan,
         )
         log("[Recover] traceId=${session.traceId} speeches=${speeches.size}")
     }
@@ -420,6 +489,84 @@ class AgentRuntime(
     fun destroy() {
         runJob?.cancel()
         scope.cancel()
+    }
+
+    // ── JSON serialization for votes/contributions ──────────────────
+
+    private fun serializeVotes(votes: Map<String, BoardVote>): String {
+        if (votes.isEmpty()) return ""
+        return try {
+            org.json.JSONArray().apply {
+                votes.forEach { (_, v) ->
+                    put(org.json.JSONObject().apply {
+                        put("role", v.role)
+                        put("agree", v.agree)
+                        put("reason", v.reason)
+                        put("round", v.round)
+                        if (v.numericScore != null) put("numericScore", v.numericScore)
+                        if (v.stanceLabel != null) put("stanceLabel", v.stanceLabel)
+                    })
+                }
+            }.toString()
+        } catch (_: Exception) { "" }
+    }
+
+    private fun deserializeVotes(json: String): Map<String, BoardVote> {
+        if (json.isBlank()) return emptyMap()
+        return try {
+            val arr = org.json.JSONArray(json)
+            buildMap {
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val role = obj.getString("role")
+                    put(role, BoardVote(
+                        role = role,
+                        agree = obj.getBoolean("agree"),
+                        reason = obj.optString("reason", ""),
+                        round = obj.getInt("round"),
+                        numericScore = if (obj.has("numericScore")) obj.getInt("numericScore") else null,
+                        stanceLabel = if (obj.has("stanceLabel")) obj.getString("stanceLabel") else null,
+                    ))
+                }
+            }
+        } catch (_: Exception) { emptyMap() }
+    }
+
+    private fun serializeContributions(scores: Map<String, ContributionScore>): String {
+        if (scores.isEmpty()) return ""
+        return try {
+            org.json.JSONArray().apply {
+                scores.forEach { (_, s) ->
+                    put(org.json.JSONObject().apply {
+                        put("roleId", s.roleId)
+                        put("informationGain", s.informationGain)
+                        put("logicQuality", s.logicQuality)
+                        put("interactionQuality", s.interactionQuality)
+                        put("brief", s.brief)
+                    })
+                }
+            }.toString()
+        } catch (_: Exception) { "" }
+    }
+
+    private fun deserializeContributions(json: String): Map<String, ContributionScore> {
+        if (json.isBlank()) return emptyMap()
+        return try {
+            val arr = org.json.JSONArray(json)
+            buildMap {
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val roleId = obj.getString("roleId")
+                    put(roleId, ContributionScore(
+                        roleId = roleId,
+                        informationGain = obj.optInt("informationGain", 0),
+                        logicQuality = obj.optInt("logicQuality", 0),
+                        interactionQuality = obj.optInt("interactionQuality", 0),
+                        brief = obj.optString("brief", ""),
+                    ))
+                }
+            }
+        } catch (_: Exception) { emptyMap() }
     }
 
     // ── Reconfiguration ─────────────────────────────────────────

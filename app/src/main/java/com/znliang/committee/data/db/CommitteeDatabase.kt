@@ -23,7 +23,7 @@ import androidx.room.RoomDatabase
         // v9: 决策执行追踪
         DecisionActionEntity::class,
     ],
-    version = 9,
+    version = 11,
     exportSchema = false,
 )
 abstract class CommitteeDatabase : RoomDatabase() {

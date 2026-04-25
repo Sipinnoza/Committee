@@ -69,6 +69,23 @@ data class PresetRole(
             "pragmatist" to R.string.role_pragmatist_display,
             "user_voice" to R.string.role_user_voice_display,
             "synthesizer" to R.string.role_synthesizer_display,
+            // hiring roles
+            "hiring_manager" to R.string.role_hiring_manager_display,
+            "tech_interviewer" to R.string.role_tech_interviewer_display,
+            "culture_assessor" to R.string.role_culture_assessor_display,
+            "bar_raiser" to R.string.role_bar_raiser_display,
+            "hr_coordinator" to R.string.role_hr_coordinator_display,
+            // budget roles
+            "budget_owner" to R.string.role_budget_owner_display,
+            "finance_controller" to R.string.role_finance_controller_display,
+            "strategy_advisor" to R.string.role_strategy_advisor_display,
+            "cfo" to R.string.role_cfo_display,
+            // marketing roles
+            "creative_director" to R.string.role_creative_director_display,
+            "data_analyst" to R.string.role_data_analyst_display,
+            "brand_manager" to R.string.role_brand_manager_display,
+            "growth_hacker" to R.string.role_growth_hacker_display,
+            "cmo" to R.string.role_cmo_display,
         ) }
         private val STANCE_RES: Map<String, Int> by lazy { mapOf(
             "analyst" to R.string.role_analyst_stance,
@@ -122,6 +139,23 @@ data class PresetRole(
             "pragmatist" to R.string.role_pragmatist_stance,
             "user_voice" to R.string.role_user_voice_stance,
             "synthesizer" to R.string.role_synthesizer_stance,
+            // hiring roles
+            "hiring_manager" to R.string.role_hiring_manager_stance,
+            "tech_interviewer" to R.string.role_tech_interviewer_stance,
+            "culture_assessor" to R.string.role_culture_assessor_stance,
+            "bar_raiser" to R.string.role_bar_raiser_stance,
+            "hr_coordinator" to R.string.role_hr_coordinator_stance,
+            // budget roles
+            "budget_owner" to R.string.role_budget_owner_stance,
+            "finance_controller" to R.string.role_finance_controller_stance,
+            "strategy_advisor" to R.string.role_strategy_advisor_stance,
+            "cfo" to R.string.role_cfo_stance,
+            // marketing roles
+            "creative_director" to R.string.role_creative_director_stance,
+            "data_analyst" to R.string.role_data_analyst_stance,
+            "brand_manager" to R.string.role_brand_manager_stance,
+            "growth_hacker" to R.string.role_growth_hacker_stance,
+            "cmo" to R.string.role_cmo_stance,
         ) }
         private val RESPONSIBILITY_RES: Map<String, Int> by lazy { mapOf(
             "analyst" to R.string.role_analyst_resp,
@@ -175,7 +209,29 @@ data class PresetRole(
             "pragmatist" to R.string.role_pragmatist_resp,
             "user_voice" to R.string.role_user_voice_resp,
             "synthesizer" to R.string.role_synthesizer_resp,
+            // hiring roles
+            "hiring_manager" to R.string.role_hiring_manager_resp,
+            "tech_interviewer" to R.string.role_tech_interviewer_resp,
+            "culture_assessor" to R.string.role_culture_assessor_resp,
+            "bar_raiser" to R.string.role_bar_raiser_resp,
+            "hr_coordinator" to R.string.role_hr_coordinator_resp,
+            // budget roles
+            "budget_owner" to R.string.role_budget_owner_resp,
+            "finance_controller" to R.string.role_finance_controller_resp,
+            "strategy_advisor" to R.string.role_strategy_advisor_resp,
+            "cfo" to R.string.role_cfo_resp,
+            // marketing roles
+            "creative_director" to R.string.role_creative_director_resp,
+            "data_analyst" to R.string.role_data_analyst_resp,
+            "brand_manager" to R.string.role_brand_manager_resp,
+            "growth_hacker" to R.string.role_growth_hacker_resp,
+            "cmo" to R.string.role_cmo_resp,
         ) }
+
+        /** Resolve a role id to its display name string resource, or 0 if unknown */
+        @JvmStatic
+        @androidx.annotation.StringRes
+        fun displayNameResForId(roleId: String): Int = DISPLAY_NAME_RES[roleId] ?: 0
     }
 
     /** @return String resource ID for localized display name, or 0 for custom roles */

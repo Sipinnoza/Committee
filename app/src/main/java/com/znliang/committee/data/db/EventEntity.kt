@@ -34,6 +34,17 @@ data class MeetingSessionEntity(
     val currentRound: Int = 0,
     val rating: String? = null,
     val isCompleted: Boolean = false,
+    // v10: 完整决策数据
+    val summary: String = "",
+    val consensus: Boolean = false,
+    val decisionConfidence: Int = 0,
+    val confidenceBreakdown: String = "",
+    val votesJson: String = "",
+    val contributionsJson: String = "",
+    val userOverrideRating: String? = null,
+    val userOverrideReason: String = "",
+    val errorMessage: String? = null,
+    val executionPlan: String? = null,
 )
 
 @Entity(
@@ -53,6 +64,10 @@ data class SpeechEntity(
     val summary: String,
     val content: String,
     val ts: Long,
+    // v10: 推理过程
+    val reasoning: String = "",
+    // v11: 投票标签
+    val voteLabel: String = "",
 )
 
 @Entity(

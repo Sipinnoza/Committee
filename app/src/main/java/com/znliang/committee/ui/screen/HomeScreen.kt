@@ -53,6 +53,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.znliang.committee.R
 import com.znliang.committee.domain.model.MeetingPresetConfig
 import com.znliang.committee.domain.model.MeetingState
+import com.znliang.committee.ui.component.AgendaCard
 import com.znliang.committee.ui.component.ChatBubble
 import com.znliang.committee.ui.component.EventBubble
 import com.znliang.committee.ui.component.PulsingDot
@@ -71,6 +72,7 @@ import com.znliang.committee.ui.screen.home.MeetingSummaryCard
 import com.znliang.committee.ui.theme.BorderColor
 import com.znliang.committee.ui.theme.BuyColor
 import com.znliang.committee.ui.theme.CommitteeGold
+import com.znliang.committee.ui.theme.IntelColor
 import com.znliang.committee.ui.theme.SellColor
 import com.znliang.committee.ui.theme.StateErrorColor
 import com.znliang.committee.ui.theme.StateWarningColor
@@ -135,6 +137,13 @@ fun HomeScreen(
         configState.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearError()
+        }
+    }
+
+    // Evolution notification snackbar
+    LaunchedEffect(boardState.evolutionNotification) {
+        if (boardState.evolutionNotification.isNotBlank()) {
+            snackbarHostState.showSnackbar(boardState.evolutionNotification)
         }
     }
 
@@ -259,10 +268,20 @@ fun HomeScreen(
             items(streamState.speeches, key = { it.id }) { speech ->
                 // 系统事件（分歧标注等）渲染为 EventBubble
                 if (speech.agent == "system") {
-                    EventBubble(
-                        text = speech.content,
-                        color = StateWarningColor,
-                    )
+                    val eventColor = when {
+                        speech.isConsensusEvent -> BuyColor
+                        speech.isPhaseTransition -> CommitteeGold
+                        speech.isAgendaEvent -> IntelColor
+                        else -> StateWarningColor
+                    }
+                    if (speech.isAgendaEvent) {
+                        AgendaCard(text = speech.content)
+                    } else {
+                        EventBubble(
+                            text = speech.content,
+                            color = eventColor,
+                        )
+                    }
                 } else {
                     val presetRole = activePreset.findRole(speech.agent)
                     ChatBubble(

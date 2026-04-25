@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.HowToVote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Warning
@@ -252,16 +253,17 @@ fun MeetingStatusBar(
                     val phases = listOf(
                         stringResource(R.string.home_nav_analysis),
                         stringResource(R.string.home_nav_debate),
+                        stringResource(R.string.home_phase_vote),
                         stringResource(R.string.home_nav_rating),
                         stringResource(R.string.home_nav_execution),
                     )
                     val currentIdx = when {
-                        boardState.boardFinished -> 4
+                        boardState.boardFinished -> 5
                         boardState.boardPhase == UiPhase.ANALYSIS -> 0
                         boardState.boardPhase == UiPhase.DEBATE -> 1
-                        boardState.boardPhase == UiPhase.VOTE -> 1
-                        boardState.boardPhase == UiPhase.RATING -> 2
-                        boardState.boardPhase == UiPhase.EXECUTION -> 3
+                        boardState.boardPhase == UiPhase.VOTE -> 2
+                        boardState.boardPhase == UiPhase.RATING -> 3
+                        boardState.boardPhase == UiPhase.EXECUTION -> 4
                         else -> -1
                     }
                     phases.forEachIndexed { idx, label ->
@@ -323,6 +325,9 @@ fun MeetingStatusBar(
             // ── 展开区域 ──
             AnimatedVisibility(visible = expanded) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                    // ── 情报搜索通知 ──
+                    PreSearchNotification(boardState.preSearchStatus, boardState.preSearchResultCount)
+
                     // 当前阶段详情
                     val phaseLabel = when (boardState.boardPhase) {
                         UiPhase.ANALYSIS -> stringResource(R.string.home_phase_analysis)
@@ -546,7 +551,7 @@ internal fun StanceSpectrum(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                "Agree ${agreeVotes.size}",
+                stringResource(R.string.vote_agree_count, agreeVotes.size),
                 style = MaterialTheme.typography.labelSmall,
                 color = BuyColor,
                 fontWeight = FontWeight.Bold,
@@ -559,7 +564,7 @@ internal fun StanceSpectrum(
                 fontSize = 10.sp,
             )
             Text(
-                "Disagree ${disagreeVotes.size}",
+                stringResource(R.string.vote_disagree_count, disagreeVotes.size),
                 style = MaterialTheme.typography.labelSmall,
                 color = SellColor,
                 fontWeight = FontWeight.Bold,
@@ -617,6 +622,50 @@ internal fun StanceSpectrum(
                         color = color,
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 会前情报搜索状态通知
+ */
+@Composable
+private fun PreSearchNotification(status: String, resultCount: Int) {
+    if (status == "IDLE") return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .background(
+                when (status) {
+                    "SEARCHING" -> CommitteeGold.copy(alpha = 0.1f)
+                    "DONE" -> BuyColor.copy(alpha = 0.1f)
+                    "FAILED" -> SellColor.copy(alpha = 0.1f)
+                    else -> BorderColor
+                },
+                RoundedCornerShape(6.dp),
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        when (status) {
+            "SEARCHING" -> {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp,
+                    color = CommitteeGold,
+                )
+                Text(stringResource(R.string.pre_search_searching), style = MaterialTheme.typography.labelSmall, color = CommitteeGold)
+            }
+            "DONE" -> {
+                Icon(Icons.Default.CheckCircle, null, tint = BuyColor, modifier = Modifier.size(14.dp))
+                Text(stringResource(R.string.pre_search_done, resultCount), style = MaterialTheme.typography.labelSmall, color = BuyColor)
+            }
+            "FAILED" -> {
+                Icon(Icons.Default.Warning, null, tint = SellColor, modifier = Modifier.size(14.dp))
+                Text(stringResource(R.string.pre_search_failed), style = MaterialTheme.typography.labelSmall, color = SellColor)
             }
         }
     }

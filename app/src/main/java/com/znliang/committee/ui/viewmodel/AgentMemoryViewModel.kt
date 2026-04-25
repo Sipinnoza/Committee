@@ -15,6 +15,8 @@ data class AgentMemoryStats(
     val skillCount: Int = 0,
     val changelogCount: Int = 0,
     val latestOutcome: MeetingOutcomeEntity? = null,
+    val voteAccuracy: Float? = null,
+    val meetingCount: Int = 0,
 )
 
 data class AgentMemoryDetail(
@@ -44,16 +46,22 @@ class AgentMemoryViewModel @Inject constructor(
     fun loadAllStats() {
         viewModelScope.launch(Dispatchers.IO) {
             val roles = presetConfig.activeRoles()
+            val since = 0L // all time
             val map = roles.associate { role ->
                 val expCount = evolutionDao.getByRole(role.id, 100).size
                 val skills = skillDao.getByRole(role.id)
                 val changes = changelogDao.getByRole(role.id)
                 val outcomes = outcomeDao.getByRole(role.id, 1)
+                val totalVotes = outcomeDao.totalVotesSince(role.id, since)
+                val correctVotes = outcomeDao.correctVotesSince(role.id, since)
+                val accuracy = if (totalVotes >= 3) correctVotes.toFloat() / totalVotes else null
                 role.id to AgentMemoryStats(
                     experienceCount = expCount,
                     skillCount = skills.size,
                     changelogCount = changes.size,
                     latestOutcome = outcomes.firstOrNull(),
+                    voteAccuracy = accuracy,
+                    meetingCount = totalVotes,
                 )
             }
             _stats.value = map

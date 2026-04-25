@@ -20,6 +20,7 @@ object SseParser {
     /**
      * 解析 OpenAI-compatible SSE 流。
      * 共享逻辑：`data:` 前缀解析、`[DONE]` 终止、`choices[0].delta.content` 提取。
+     * 中途断流会向 channel 发送 Error 而非静默丢失。
      */
     fun parseOpenAiSse(
         reader: java.io.BufferedReader,
@@ -28,12 +29,27 @@ object SseParser {
     ): Int {
         var tokenCount = 0
         while (true) {
-            val line = try {
-                reader.readLine()
+            val line: String
+            try {
+                val read = reader.readLine()
+                if (read == null) {
+                    // 连接被服务端关闭（可能是限速断流）
+                    if (tokenCount == 0) {
+                        channel.trySend(StreamResult.Error(ErrorType.NETWORK, "SSE 连接被关闭，未收到任何数据"))
+                    } else if (tokenCount < 5) {
+                        // 收到极少 token 后断开 — 很可能是限速截断
+                        channel.trySend(StreamResult.Error(ErrorType.RATE_LIMIT, "SSE 连接被提前关闭（仅收到 $tokenCount token），可能被限速"))
+                    }
+                    break
+                }
+                line = read
             } catch (e: java.net.SocketTimeoutException) {
                 Log.w(TAG, "[SSE-OpenAI] 读超时，已收到 $tokenCount 个 token")
+                if (tokenCount == 0) {
+                    channel.trySend(StreamResult.Error(ErrorType.NETWORK, "SSE 读超时，未收到任何数据"))
+                }
                 break
-            } ?: break
+            }
 
             val trimmed = line.trim()
             if (!trimmed.startsWith("data:")) continue
@@ -44,6 +60,15 @@ object SseParser {
             try {
                 @Suppress("UNCHECKED_CAST")
                 val json = gson.fromJson(data, Map::class.java) as? Map<*, *> ?: continue
+                // 检查 SSE 内嵌错误 (部分 API 在 data 中返回 error 字段)
+                @Suppress("UNCHECKED_CAST")
+                val error = json["error"] as? Map<String, Any>
+                if (error != null) {
+                    val errMsg = error["message"] as? String ?: "SSE 内嵌错误"
+                    Log.w(TAG, "[SSE-OpenAI] SSE error event: $errMsg")
+                    channel.trySend(StreamResult.Error(ErrorType.NETWORK, errMsg))
+                    break
+                }
                 @Suppress("UNCHECKED_CAST")
                 val choices = json["choices"] as? List<Map<String, Any>> ?: continue
                 val delta = choices.firstOrNull()?.get("delta") as? Map<String, Any> ?: continue
@@ -68,12 +93,23 @@ object SseParser {
     ): Int {
         var tokenCount = 0
         while (true) {
-            val line = try {
-                reader.readLine()
+            val line: String
+            try {
+                val read = reader.readLine()
+                if (read == null) {
+                    if (tokenCount == 0) {
+                        channel.trySend(StreamResult.Error(ErrorType.NETWORK, "SSE 连接被关闭"))
+                    }
+                    break
+                }
+                line = read
             } catch (e: java.net.SocketTimeoutException) {
                 Log.w(TAG, "[SSE-Anthropic] 读超时，已收到 $tokenCount 个 token")
+                if (tokenCount == 0) {
+                    channel.trySend(StreamResult.Error(ErrorType.NETWORK, "SSE 读超时"))
+                }
                 break
-            } ?: break
+            }
 
             val trimmed = line.trim()
             if (!trimmed.startsWith("data:")) continue
@@ -99,6 +135,13 @@ object SseParser {
                         Log.d(TAG, "[SSE-Anthropic] message_stop，共 $tokenCount 个 token")
                         break
                     }
+                    "error" -> {
+                        @Suppress("UNCHECKED_CAST")
+                        val error = json["error"] as? Map<String, Any>
+                        val errMsg = error?.get("message") as? String ?: "Anthropic SSE 错误"
+                        channel.trySend(StreamResult.Error(ErrorType.NETWORK, errMsg))
+                        break
+                    }
                 }
             } catch (_: Exception) { }
         }
@@ -106,7 +149,9 @@ object SseParser {
     }
 
     /**
-     * 通用重试 + 退避 + 计费检测。
+     * 通用重试 + 退避 + 抖动 + 计费检测。
+     *
+     * 支持重试：429 (Rate Limit) + 5xx (Server Error) + 连接异常
      *
      * @param maxRetries 最大重试次数
      * @param isBillingError 判断 429 响应体是否为计费错误
@@ -127,16 +172,40 @@ object SseParser {
                 if (isBillingError(errBody)) {
                     throw BillingExhaustedException("【API余额不足】$errBody")
                 }
-                Log.w(TAG, "[$tag] 429 rate limit, attempt ${attempt + 1}/$maxRetries")
-                lastException = RuntimeException("HTTP 429 (rate limit): $errBody")
+                Log.w(TAG, "[$tag] 429 rate limit, attempt ${attempt + 1}/${maxRetries + 1}")
+                lastException = RateLimitExhaustedException("HTTP 429 重试耗尽: $errBody")
+                val backoff = minOf(1000L * (1L shl attempt), 8000L)
+                val jitter = (Math.random() * backoff * 0.3).toLong() // 30% 抖动
+                delay(backoff + jitter)
+            } catch (e: ServerErrorException) {
+                // 5xx 服务端错误 — 可重试
+                Log.w(TAG, "[$tag] ${e.statusCode} server error, attempt ${attempt + 1}/${maxRetries + 1}: ${e.message}")
+                lastException = e
+                val backoff = minOf(2000L * (1L shl attempt), 15000L) // 5xx 退避更长
+                val jitter = (Math.random() * backoff * 0.3).toLong()
+                delay(backoff + jitter)
+            } catch (e: java.net.SocketTimeoutException) {
+                Log.w(TAG, "[$tag] 连接超时, attempt ${attempt + 1}/${maxRetries + 1}")
+                lastException = e
+                delay(minOf(1000L * (1L shl attempt), 8000L))
+            } catch (e: java.io.IOException) {
+                // 连接被重置、ECONNRESET 等
+                Log.w(TAG, "[$tag] IO 异常: ${e.javaClass.simpleName}, attempt ${attempt + 1}/${maxRetries + 1}")
+                lastException = e
                 delay(minOf(1000L * (1L shl attempt), 8000L))
             }
         }
-        throw lastException ?: RuntimeException("$tag failed after $maxRetries retries")
+        throw lastException ?: RuntimeException("$tag failed after ${maxRetries + 1} attempts")
     }
 
     /** 429 速率限制异常 — 内部使用 */
     class RateLimitException(val responseBody: String) : RuntimeException("HTTP 429")
+
+    /** 429 重试耗尽 — 区分于普通 RuntimeException，用于上层映射到 RATE_LIMIT ErrorType */
+    class RateLimitExhaustedException(message: String) : RuntimeException(message)
+
+    /** 5xx 服务端错误 — 可重试 */
+    class ServerErrorException(val statusCode: Int, message: String) : RuntimeException(message)
 
     /** 计费不足异常 — 不可重试 */
     class BillingExhaustedException(message: String) : RuntimeException(message)

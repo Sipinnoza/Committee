@@ -68,7 +68,7 @@
       }
     ],
     "mandates": {
-      "debate_rounds": "3",
+      "debate_rounds": "5",
       "max_rounds": "15",
       "consensus_required": "false",
       "supervisor_final_call": "true",
@@ -120,7 +120,7 @@
       }
     ],
     "mandates": {
-      "debate_rounds": "3",
+      "debate_rounds": "5",
       "max_rounds": "10",
       "consensus_required": "true",
       "supervisor_final_call": "false",
@@ -649,5 +649,202 @@
       "prompt_style": "creative"
     },
     "ratingScale": ["Breakthrough Idea", "Promising Direction", "Needs Iteration", "Pivot"]
+  },
+  {
+    "id": "hiring",
+    "name": "Hiring Review",
+    "description": "Structured candidate evaluation — technical, cultural, and managerial perspectives",
+    "iconName": "people",
+    "committeeLabel": "Hiring Panel",
+    "roles": [
+      {
+        "id": "hiring_manager",
+        "displayName": "Hiring Manager",
+        "stance": "Advocate",
+        "responsibility": "Role fit + Team needs + Growth potential",
+        "systemPromptKey": "hiring_manager",
+        "colorHex": "#4CAF50",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "tech_interviewer",
+        "displayName": "Tech Interviewer",
+        "stance": "Evaluator",
+        "responsibility": "Technical skills + Problem-solving + Code quality",
+        "systemPromptKey": "tech_interviewer",
+        "colorHex": "#2196F3",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "culture_assessor",
+        "displayName": "Culture Assessor",
+        "stance": "Observer",
+        "responsibility": "Team dynamics + Values alignment + Communication",
+        "systemPromptKey": "culture_assessor",
+        "colorHex": "#9C27B0",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "bar_raiser",
+        "displayName": "Bar Raiser",
+        "stance": "Skeptic",
+        "responsibility": "Hiring bar + Cross-team fit + Long-term potential",
+        "systemPromptKey": "bar_raiser",
+        "colorHex": "#FF5722",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "hr_coordinator",
+        "displayName": "HR Coordinator",
+        "stance": "Neutral",
+        "responsibility": "Process compliance + Comp calibration + Final recommendation",
+        "systemPromptKey": "hr_coordinator",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      }
+    ],
+    "mandates": {
+      "max_rounds": "15",
+      "has_supervisor": "true",
+      "supervisor_final_call": "true",
+      "vote_type": "multi_stance",
+      "consensus_required": "false",
+      "activation_k": "3",
+      "prompt_style": "debate"
+    },
+    "ratingScale": ["Strong Hire", "Hire", "Lean Hire", "No Hire", "Strong No Hire"]
+  },
+  {
+    "id": "budget",
+    "name": "Budget Review",
+    "description": "Budget allocation review — balance business needs with fiscal responsibility",
+    "iconName": "account_balance",
+    "committeeLabel": "Budget Committee",
+    "roles": [
+      {
+        "id": "budget_owner",
+        "displayName": "Budget Owner",
+        "stance": "Advocate",
+        "responsibility": "Business justification + ROI projections + Resource needs",
+        "systemPromptKey": "budget_owner",
+        "colorHex": "#4CAF50",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "finance_controller",
+        "displayName": "Finance Controller",
+        "stance": "Conservative",
+        "responsibility": "Fiscal discipline + Cost analysis + Budget compliance",
+        "systemPromptKey": "finance_controller",
+        "colorHex": "#F44336",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "strategy_advisor",
+        "displayName": "Strategy Advisor",
+        "stance": "Analytical",
+        "responsibility": "Strategic alignment + Priority ranking + Opportunity cost",
+        "systemPromptKey": "strategy_advisor",
+        "colorHex": "#2196F3",
+        "canUseTools": true,
+        "isSupervisor": false
+      },
+      {
+        "id": "cfo",
+        "displayName": "CFO",
+        "stance": "Balanced",
+        "responsibility": "Final approval + Portfolio balance + Risk tolerance",
+        "systemPromptKey": "cfo",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      }
+    ],
+    "mandates": {
+      "max_rounds": "15",
+      "has_supervisor": "true",
+      "supervisor_final_call": "true",
+      "vote_type": "scale",
+      "consensus_required": "false",
+      "activation_k": "2",
+      "prompt_style": "debate"
+    },
+    "ratingScale": ["Approve Full Budget", "Approve with Cuts", "Defer to Next Quarter", "Reject"]
+  },
+  {
+    "id": "marketing",
+    "name": "Marketing Strategy",
+    "description": "Marketing campaign review — creative, data, and brand alignment evaluation",
+    "iconName": "campaign",
+    "committeeLabel": "Marketing War Room",
+    "roles": [
+      {
+        "id": "creative_director",
+        "displayName": "Creative Director",
+        "stance": "Visionary",
+        "responsibility": "Creative concept + Brand storytelling + Visual direction",
+        "systemPromptKey": "creative_director",
+        "colorHex": "#E91E63",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "data_analyst",
+        "displayName": "Data Analyst",
+        "stance": "Evidence-based",
+        "responsibility": "Market data + Audience insights + Performance metrics",
+        "systemPromptKey": "data_analyst",
+        "colorHex": "#2196F3",
+        "canUseTools": true,
+        "isSupervisor": false
+      },
+      {
+        "id": "brand_manager",
+        "displayName": "Brand Manager",
+        "stance": "Protector",
+        "responsibility": "Brand consistency + Positioning + Competitive differentiation",
+        "systemPromptKey": "brand_manager",
+        "colorHex": "#9C27B0",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "growth_hacker",
+        "displayName": "Growth Hacker",
+        "stance": "Aggressive",
+        "responsibility": "Growth channels + Viral mechanics + Conversion optimization",
+        "systemPromptKey": "growth_hacker",
+        "colorHex": "#FF9800",
+        "canUseTools": false,
+        "isSupervisor": false
+      },
+      {
+        "id": "cmo",
+        "displayName": "CMO",
+        "stance": "Strategic",
+        "responsibility": "Campaign approval + Budget allocation + Go-to-market strategy",
+        "systemPromptKey": "cmo",
+        "colorHex": "#607D8B",
+        "canUseTools": false,
+        "isSupervisor": true
+      }
+    ],
+    "mandates": {
+      "max_rounds": "15",
+      "has_supervisor": "true",
+      "supervisor_final_call": "true",
+      "vote_type": "multi_stance",
+      "consensus_required": "false",
+      "activation_k": "3",
+      "prompt_style": "creative"
+    },
+    "ratingScale": ["Launch", "Launch with Revisions", "Needs Major Rework", "Kill Campaign"]
   }
 ]

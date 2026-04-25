@@ -80,6 +80,12 @@ class AgentPool @Inject constructor(
                     LlmProvider.ANTHROPIC -> doAnthropicStream(channel, config, sys, user)
                     else                  -> doOpenAiStream(channel, config.baseUrl, config, sys, user, sysTools)
                 }
+            } catch (e: SseParser.BillingExhaustedException) {
+                Log.e(TAG, "[SYS-STREAM] 计费错误: ${e.message}")
+                channel.trySend(StreamResult.Error(ErrorType.BILLING, e.message ?: "API余额不足"))
+            } catch (e: SseParser.RateLimitExhaustedException) {
+                Log.w(TAG, "[SYS-STREAM] 限速重试耗尽: ${e.message}")
+                channel.trySend(StreamResult.Error(ErrorType.RATE_LIMIT, e.message ?: "API限速，请稍后重试"))
             } catch (e: Exception) {
                 Log.w(TAG, "[SYS-STREAM] 错误: ${e.javaClass.simpleName}: ${e.message}")
                 channel.trySend(StreamResult.Error(ErrorType.UNKNOWN, e.message ?: ""))
@@ -128,6 +134,9 @@ class AgentPool @Inject constructor(
                 } catch (e: SseParser.BillingExhaustedException) {
                     Log.e(TAG, "[STREAM] 计费错误: ${e.message}")
                     channel.trySend(StreamResult.Error(ErrorType.BILLING, e.message ?: "API余额不足，请充值后重试"))
+                } catch (e: SseParser.RateLimitExhaustedException) {
+                    Log.w(TAG, "[STREAM] 限速重试耗尽: ${e.message}")
+                    channel.trySend(StreamResult.Error(ErrorType.RATE_LIMIT, e.message ?: "API限速，请稍后重试"))
                 } catch (e: Exception) {
                     Log.w(TAG, "[STREAM] 错误: ${e.javaClass.simpleName}: ${e.message}")
                     channel.trySend(StreamResult.Error(ErrorType.NETWORK, "${e.javaClass.simpleName}: ${e.message ?: "未知错误"}"))
@@ -202,6 +211,9 @@ class AgentPool @Inject constructor(
             } catch (e: SseParser.BillingExhaustedException) {
                 Log.e(TAG, "[TOOL-LOOP] 计费错误: ${e.message}")
                 channel.trySend(StreamResult.Error(ErrorType.BILLING, e.message ?: "API余额不足，请充值后重试"))
+            } catch (e: SseParser.RateLimitExhaustedException) {
+                Log.w(TAG, "[TOOL-LOOP] 限速重试耗尽: ${e.message}")
+                channel.trySend(StreamResult.Error(ErrorType.RATE_LIMIT, e.message ?: "API限速，请稍后重试"))
             } catch (e: Exception) {
                 Log.w(TAG, "[TOOL-LOOP] 错误: ${e.javaClass.simpleName}: ${e.message}")
                 channel.trySend(StreamResult.Error(ErrorType.NETWORK, "${e.javaClass.simpleName}: ${e.message ?: "未知错误"}"))
@@ -244,6 +256,10 @@ class AgentPool @Inject constructor(
                 if (resp.code == 429) {
                     val errBody = resp.body?.string()?.take(300) ?: ""
                     throw SseParser.RateLimitException(errBody)
+                }
+                if (resp.code in 500..599) {
+                    val errBody = resp.body?.string()?.take(300) ?: ""
+                    throw SseParser.ServerErrorException(resp.code, "Tool check HTTP ${resp.code}: $errBody")
                 }
                 if (!resp.isSuccessful) {
                     val errBody = resp.body?.string()?.take(300) ?: ""
@@ -306,6 +322,9 @@ class AgentPool @Inject constructor(
             if (!response.isSuccessful) {
                 response.use { resp ->
                     val errBody = resp.body?.string()?.take(300) ?: ""
+                    if (resp.code in 500..599) {
+                        throw SseParser.ServerErrorException(resp.code, "Stream HTTP ${resp.code}: $errBody")
+                    }
                     throw RuntimeException("Stream HTTP ${resp.code}: $errBody")
                 }
             }
@@ -366,6 +385,9 @@ class AgentPool @Inject constructor(
                 response.use { resp ->
                     val errBody = resp.body?.string()?.take(300) ?: ""
                     Log.w(TAG, "[SSE-Anthropic] 错误响应: $errBody")
+                    if (resp.code in 500..599) {
+                        throw SseParser.ServerErrorException(resp.code, "HTTP ${resp.code}: $errBody")
+                    }
                     throw RuntimeException("HTTP ${resp.code}: $errBody")
                 }
             }
@@ -430,6 +452,9 @@ class AgentPool @Inject constructor(
             if (!response.isSuccessful) {
                 response.use { resp ->
                     val errBody = resp.body?.string()?.take(300) ?: ""
+                    if (resp.code in 500..599) {
+                        throw SseParser.ServerErrorException(resp.code, "HTTP ${resp.code}: $errBody")
+                    }
                     throw RuntimeException("HTTP ${resp.code}: $errBody")
                 }
             }

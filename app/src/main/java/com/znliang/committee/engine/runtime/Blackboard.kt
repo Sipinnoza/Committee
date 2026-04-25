@@ -10,6 +10,8 @@ package com.znliang.committee.engine.runtime
  *    每次更新都创建新 List → StateFlow 能正确检测变化 → UI 更新
  */
 
+enum class PreSearchStatus { IDLE, SEARCHING, DONE, FAILED }
+
 data class Blackboard(
     val subject: String = "",
     val round: Int = 1,
@@ -43,6 +45,10 @@ data class Blackboard(
     val errorMessage: String? = null,
     /** 初始阶段（用于 startMeeting 时立即推进 UI，不等 inferPhase） */
     val initialPhase: BoardPhase? = null,
+    /** 会前情报搜索状态 */
+    val preSearchStatus: PreSearchStatus = PreSearchStatus.IDLE,
+    /** 进化通知（非空时 UI 显示 Snackbar） */
+    val evolutionNotification: String = "",
 ) {
     fun agreeRatio(): Float {
         if (votes.isEmpty()) return 0f

@@ -1,5 +1,6 @@
 package com.znliang.committee.engine.runtime
 
+import com.znliang.committee.data.repository.ActionRepository
 import com.znliang.committee.data.repository.EvolutionRepository
 import com.znliang.committee.domain.model.MeetingPreset
 import com.znliang.committee.domain.model.SpeechRecord
@@ -29,6 +30,7 @@ interface RuntimeContext {
     val skillLibrary: SkillLibrary
     val evolverRegistry: Map<String, AgentSelfEvolver>
     val toolAgentRoleId: String?
+    val actionRepo: ActionRepository
 
     // ── 会议配置（mandate 驱动）─────────────────────────────────
 

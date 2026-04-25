@@ -162,6 +162,10 @@ fun MeetingSummaryCard(
                         Text("$confidence%", style = MaterialTheme.typography.labelSmall,
                             color = confColor, fontWeight = FontWeight.Bold)
                     }
+                    // ── 置信度分解（3 轴展开/折叠） ──
+                    if (confidenceBreakdown.isNotBlank()) {
+                        ConfidenceBreakdownSection(confidenceBreakdown)
+                    }
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -249,7 +253,7 @@ fun MeetingSummaryCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.CheckCircle, null, tint = CommitteeGold, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Your Decision: $userOverride", style = MaterialTheme.typography.labelMedium,
+                            Text(stringResource(R.string.summary_your_decision, userOverride), style = MaterialTheme.typography.labelMedium,
                                 color = CommitteeGold, fontWeight = FontWeight.Bold)
                         }
                         if (userOverrideReason.isNotBlank()) {
@@ -271,7 +275,7 @@ fun MeetingSummaryCard(
                 ) {
                     Icon(Icons.Default.HowToVote, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Override Decision", fontSize = 12.sp)
+                    Text(stringResource(R.string.vote_override_title), fontSize = 12.sp)
                 }
                 if (showOverrideDialog) {
                     OverrideDecisionDialog(
@@ -468,7 +472,7 @@ private fun buildSection(title: String, points: List<String>): KeySection {
         else -> "point"
     }
     return KeySection(
-        title = title.ifBlank { "Key Points" },
+        title = title,  // blank title → localized fallback handled in Composable
         icon = icon,
         points = points,
     )
@@ -490,7 +494,7 @@ private fun KeyPointSection(section: KeySection) {
             Icon(iconVector, null, tint = iconColor, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(6.dp))
             Text(
-                section.title,
+                section.title.ifBlank { stringResource(R.string.summary_key_points) },
                 style = MaterialTheme.typography.labelMedium,
                 color = TextPrimary,
                 fontWeight = FontWeight.Bold,
@@ -511,5 +515,92 @@ private fun KeyPointSection(section: KeySection) {
                 )
             }
         }
+    }
+}
+
+// ── 置信度分解解析 ──
+
+private data class ConfidenceAxis(val label: String, val score: Int, val maxScore: Int)
+
+private fun parseConfidenceBreakdown(raw: String): List<ConfidenceAxis> {
+    val axes = mutableListOf<ConfidenceAxis>()
+    for (line in raw.lines()) {
+        val t = line.trim()
+        val match = Regex("""(\w+):\s*(\d+)/(\d+)""").find(t) ?: continue
+        axes.add(ConfidenceAxis(
+            label = match.groupValues[1],
+            score = match.groupValues[2].toIntOrNull() ?: 0,
+            maxScore = match.groupValues[3].toIntOrNull() ?: 1,
+        ))
+    }
+    return axes
+}
+
+@Composable
+private fun ConfidenceBreakdownSection(breakdown: String) {
+    val axes = remember(breakdown) { parseConfidenceBreakdown(breakdown) }
+    if (axes.isEmpty()) return
+
+    var expanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded }
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            if (expanded) stringResource(R.string.summary_hide_details) else stringResource(R.string.summary_show_details),
+            style = MaterialTheme.typography.labelSmall,
+            color = TextMuted,
+        )
+        Icon(
+            if (expanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = TextMuted,
+            modifier = Modifier.size(14.dp),
+        )
+    }
+    AnimatedVisibility(visible = expanded) {
+        Column(modifier = Modifier.padding(start = 4.dp, top = 2.dp)) {
+            axes.forEach { axis ->
+                ConfidenceSubBar(axis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConfidenceSubBar(axis: ConfidenceAxis) {
+    val fraction = if (axis.maxScore > 0) axis.score.toFloat() / axis.maxScore else 0f
+    val barColor = when {
+        fraction >= 0.75f -> BuyColor
+        fraction >= 0.5f -> CommitteeGold
+        else -> SellColor
+    }
+    val animFraction by animateFloatAsState(
+        targetValue = fraction,
+        animationSpec = tween(600, easing = FastOutSlowInEasing),
+        label = "subbar-${axis.label}",
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(axis.label, style = MaterialTheme.typography.labelSmall, color = TextMuted,
+            modifier = Modifier.width(80.dp))
+        Box(
+            Modifier.weight(1f).height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(BorderColor)
+        ) {
+            Box(
+                Modifier.fillMaxWidth(animFraction).fillMaxHeight()
+                    .background(barColor, RoundedCornerShape(2.dp))
+            )
+        }
+        Text("${axis.score}/${axis.maxScore}", style = MaterialTheme.typography.labelSmall,
+            color = barColor, fontWeight = FontWeight.Bold)
     }
 }

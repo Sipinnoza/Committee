@@ -21,6 +21,7 @@ import com.znliang.committee.data.db.MeetingSessionDao
 import com.znliang.committee.data.db.PromptChangelogDao
 import com.znliang.committee.data.db.SkillDefinitionDao
 import com.znliang.committee.data.db.SpeechDao
+import com.znliang.committee.data.repository.ActionRepository
 import com.znliang.committee.data.repository.EventRepository
 import com.znliang.committee.data.repository.EvolutionRepository
 import com.znliang.committee.domain.model.MeetingPresetConfig
@@ -194,6 +195,33 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
+// ── Room 迁移：v9 → v10（完整决策数据持久化）─────────────────
+
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // MeetingSessionEntity: 10 new columns
+        db.execSQL("ALTER TABLE meeting_sessions ADD COLUMN summary TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE meeting_sessions ADD COLUMN consensus INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE meeting_sessions ADD COLUMN decisionConfidence INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE meeting_sessions ADD COLUMN confidenceBreakdown TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE meeting_sessions ADD COLUMN votesJson TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE meeting_sessions ADD COLUMN contributionsJson TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE meeting_sessions ADD COLUMN userOverrideRating TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE meeting_sessions ADD COLUMN userOverrideReason TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE meeting_sessions ADD COLUMN errorMessage TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE meeting_sessions ADD COLUMN executionPlan TEXT DEFAULT NULL")
+        // SpeechEntity: 1 new column
+        db.execSQL("ALTER TABLE speeches ADD COLUMN reasoning TEXT NOT NULL DEFAULT ''")
+    }
+}
+
+// ── Room 迁移：v10 → v11（发言投票标签）─────────────────────────
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE speeches ADD COLUMN voteLabel TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
@@ -202,7 +230,7 @@ object AppModule {
     fun provideDatabase(@ApplicationContext ctx: Context): CommitteeDatabase =
         Room.databaseBuilder(ctx, CommitteeDatabase::class.java, "committee.db")
             .fallbackToDestructiveMigrationFrom(1, 2, 3)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
             .build()
 
     @Provides fun provideEventDao(db: CommitteeDatabase): EventDao = db.eventDao()
@@ -271,6 +299,7 @@ object AppModule {
         evolutionRepo: EvolutionRepository,
         toolRegistry: DynamicToolRegistry,
         presetConfig: MeetingPresetConfig,
+        actionRepo: ActionRepository,
         @ApplicationContext appContext: Context,
     ): AgentRuntime {
         val preset = presetConfig.getActivePreset()
@@ -314,6 +343,7 @@ object AppModule {
             toolRegistry = toolRegistry,
             appContext = appContext,
             preset = preset,
+            _actionRepo = actionRepo,
         )
     }
 

@@ -814,7 +814,11 @@ private fun PromptSuggestionCard(
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    priority,
+                    when (priority) {
+                        "HIGH" -> stringResource(R.string.agents_priority_high)
+                        "LOW" -> stringResource(R.string.agents_priority_low)
+                        else -> stringResource(R.string.agents_priority_medium)
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = priorityColor,
                     modifier = Modifier
@@ -910,10 +914,22 @@ private fun ExperienceTab(
                     "PROMPT_FIX" -> "🔧"
                     else -> "📝"
                 }
+                val categoryLabel = when (exp.category) {
+                    "STRATEGY" -> stringResource(R.string.agents_category_strategy)
+                    "MISTAKE" -> stringResource(R.string.agents_category_mistake)
+                    "INSIGHT" -> stringResource(R.string.agents_category_insight)
+                    "PROMPT_FIX" -> stringResource(R.string.agents_category_prompt_fix)
+                    else -> exp.category
+                }
                 val outcomeColor = when (exp.outcome) {
                     "POSITIVE" -> CommitteeGold
                     "NEGATIVE" -> StateErrorColor
                     else -> TextMuted
+                }
+                val outcomeLabel = when (exp.outcome) {
+                    "POSITIVE" -> stringResource(R.string.agents_outcome_positive)
+                    "NEGATIVE" -> stringResource(R.string.agents_outcome_negative)
+                    else -> exp.outcome
                 }
                 Card(
                     shape = RoundedCornerShape(12.dp),
@@ -923,9 +939,9 @@ private fun ExperienceTab(
                 ) {
                     Column(Modifier.padding(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("$categoryIcon ${exp.category}", color = agentColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("$categoryIcon $categoryLabel", color = agentColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             Spacer(Modifier.weight(1f))
-                            Text(exp.outcome, color = outcomeColor, fontSize = 11.sp,
+                            Text(outcomeLabel, color = outcomeColor, fontSize = 11.sp,
                                 modifier = Modifier.background(outcomeColor.copy(alpha = 0.1f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                         }
                         Spacer(Modifier.height(6.dp))
@@ -1028,6 +1044,13 @@ private fun EvolutionTab(
                         "ROLLBACK" -> "⏪"
                         else -> "📝"
                     }
+                    val typeLabel = when (cl.changeType) {
+                        "AUTO_EVOLVE" -> stringResource(R.string.agents_change_auto_evolve)
+                        "MANUAL" -> stringResource(R.string.agents_change_manual)
+                        "SUGGESTION_APPLIED" -> stringResource(R.string.agents_change_suggestion)
+                        "ROLLBACK" -> stringResource(R.string.agents_change_rollback)
+                        else -> cl.changeType
+                    }
                     Card(
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = SurfaceCard),
@@ -1036,7 +1059,7 @@ private fun EvolutionTab(
                     ) {
                         Column(Modifier.padding(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("$typeIcon ${cl.changeType}", color = agentColor, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("$typeIcon $typeLabel", color = agentColor, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 if (cl.isRolledBack) {
                                     Spacer(Modifier.width(6.dp))
                                     Text(stringResource(R.string.agents_rolled_back), color = StateErrorColor, fontSize = 10.sp,

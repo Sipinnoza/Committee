@@ -132,6 +132,29 @@ fun ChatBubble(
                     color = TextMuted,
                     fontSize = 10.sp,
                 )
+                // P0-1: Inline vote tag chip
+                if (speech.voteLabel.isNotBlank()) {
+                    val isPositive = speech.voteLabel.contains("Agree", ignoreCase = true)
+                        || speech.voteLabel.let { lbl ->
+                            lbl.startsWith("Score=") && (lbl.removePrefix("Score=").toIntOrNull() ?: 0) >= 6
+                        }
+                    val voteChipColor = if (isPositive) BuyColor else SellColor
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(voteChipColor.copy(alpha = 0.15f))
+                            .border(0.5.dp, voteChipColor.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                    ) {
+                        Text(
+                            text = speech.voteLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = voteChipColor,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
                 // Follow-up question button
                 if (onFollowUp != null && !speech.isStreaming && !isHuman) {
                     var showFollowUp by remember { mutableStateOf(false) }
@@ -144,7 +167,7 @@ fun ChatBubble(
                     ) {
                         Icon(
                             imageVector = Icons.Default.QuestionAnswer,
-                            contentDescription = "Ask follow-up",
+                            contentDescription = stringResource(R.string.speech_ask_followup),
                             tint = agentColor.copy(alpha = 0.4f),
                             modifier = Modifier.size(14.dp),
                         )
@@ -293,7 +316,7 @@ fun ChatBubble(
                             modifier = Modifier.size(14.dp),
                         )
                         Text(
-                            text = if (showReasoning) "Hide reasoning" else "Show reasoning",
+                            text = if (showReasoning) stringResource(R.string.speech_hide_reasoning) else stringResource(R.string.speech_show_reasoning),
                             style = MaterialTheme.typography.labelSmall,
                             color = agentColor.copy(alpha = 0.5f),
                             fontSize = 10.sp,
@@ -384,6 +407,39 @@ fun EventBubble(
 }
 
 /**
+ * 会前议程卡片 — 展示会议结构化信息
+ */
+@Composable
+fun AgendaCard(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+        border = BorderStroke(1.dp, IntelColor.copy(alpha = 0.3f)),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            text.lines().forEach { line ->
+                val trimmed = line.trim()
+                if (trimmed.isNotBlank()) {
+                    Text(
+                        text = trimmed,
+                        style = if (trimmed.startsWith("📋")) MaterialTheme.typography.titleSmall
+                        else MaterialTheme.typography.bodySmall,
+                        color = if (trimmed.startsWith("📋")) IntelColor else TextSecondary,
+                        fontWeight = if (trimmed.startsWith("📋")) FontWeight.Bold else FontWeight.Normal,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
  * 追问对话框 — 用户针对特定 Agent 的发言追问
  */
 @Composable
@@ -397,13 +453,13 @@ private fun FollowUpDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("Ask $agentName", color = agentColor, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(stringResource(R.string.speech_ask_agent, agentName), color = agentColor, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         },
         text = {
             OutlinedTextField(
                 value = questionText,
                 onValueChange = { questionText = it },
-                placeholder = { Text("Your question...", color = TextMuted) },
+                placeholder = { Text(stringResource(R.string.speech_question_hint), color = TextMuted) },
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 3,
             )
@@ -413,12 +469,12 @@ private fun FollowUpDialog(
                 onClick = { if (questionText.isNotBlank()) onSubmit(questionText) },
                 enabled = questionText.isNotBlank(),
             ) {
-                Text("Ask", color = if (questionText.isNotBlank()) agentColor else TextMuted)
+                Text(stringResource(R.string.speech_ask_btn), color = if (questionText.isNotBlank()) agentColor else TextMuted)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = TextMuted)
+                Text(stringResource(R.string.cancel), color = TextMuted)
             }
         },
     )

@@ -122,6 +122,7 @@ class MeetingOrchestratorTest {
         override val skillLibrary get() = throw UnsupportedOperationException("Not used in pure-logic tests")
         override val evolverRegistry: Map<String, AgentSelfEvolver> = emptyMap()
         override val toolAgentRoleId: String? = null
+        override val actionRepo get() = throw UnsupportedOperationException("Not used in pure-logic tests")
 
         // Supervisor stub — only role/displayName needed for tests
         override val supervisor: SupervisorCapability = object : SupervisorCapability {

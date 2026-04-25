@@ -1,5 +1,7 @@
 package com.znliang.committee.engine.report
 
+import android.content.Context
+import com.znliang.committee.R
 import com.znliang.committee.data.db.MeetingSessionEntity
 import com.znliang.committee.domain.model.SpeechRecord
 import com.znliang.committee.engine.runtime.Blackboard
@@ -29,6 +31,7 @@ object DecisionReportGenerator {
      * 生成完整的 Markdown 决策报告
      */
     fun generateMarkdown(
+        context: Context,
         subject: String,
         presetName: String,
         committeeLabel: String,
@@ -46,29 +49,30 @@ object DecisionReportGenerator {
         val startFormatted = dateFormatter.format(startInstant)
 
         // ── 标题 ──
-        appendLine("# Decision Report")
+        appendLine("# ${context.getString(R.string.report_title)}")
         appendLine()
 
         // ── 元信息 ──
-        appendLine("## Meeting Info")
+        appendLine("## ${context.getString(R.string.report_meeting_info)}")
         appendLine()
-        appendLine("| Item | Detail |")
+        appendLine("| ${context.getString(R.string.report_item)} | ${context.getString(R.string.report_detail)} |")
         appendLine("|------|--------|")
-        appendLine("| Subject | **$subject** |")
-        appendLine("| Committee | $committeeLabel |")
-        appendLine("| Mode | $presetName |")
-        appendLine("| Start | $startFormatted |")
-        appendLine("| End | $endTime |")
-        appendLine("| Rounds | $totalRounds |")
-        appendLine("| Participants | ${roles.joinToString(", ")} |")
+        appendLine("| ${context.getString(R.string.report_subject)} | **$subject** |")
+        appendLine("| ${context.getString(R.string.report_committee)} | $committeeLabel |")
+        appendLine("| ${context.getString(R.string.report_mode)} | $presetName |")
+        appendLine("| ${context.getString(R.string.report_start)} | $startFormatted |")
+        appendLine("| ${context.getString(R.string.report_end)} | $endTime |")
+        appendLine("| ${context.getString(R.string.report_rounds)} | $totalRounds |")
+        appendLine("| ${context.getString(R.string.report_participants)} | ${roles.joinToString(", ")} |")
         if (consensus) {
-            appendLine("| Consensus | Reached |")
+            val consensusLabel = context.getString(R.string.report_consensus_reached)
+            appendLine("| ${context.getString(R.string.home_consensus)} | $consensusLabel |")
         }
         appendLine()
 
         // ── 最终决策 ──
         if (rating != null) {
-            appendLine("## Final Decision")
+            appendLine("## ${context.getString(R.string.report_final_decision)}")
             appendLine()
             appendLine("> **$rating**")
             appendLine()
@@ -76,16 +80,16 @@ object DecisionReportGenerator {
 
         // ── 投票结果 ──
         if (votes.isNotEmpty()) {
-            appendLine("## Voting Results")
+            appendLine("## ${context.getString(R.string.report_voting_results)}")
             appendLine()
             val agreeCount = votes.values.count { it.agree }
             val disagreeCount = votes.size - agreeCount
-            appendLine("- Agree: **$agreeCount** / Disagree: **$disagreeCount** (Total: ${votes.size})")
+            appendLine("- ${context.getString(R.string.report_agree_disagree, agreeCount, disagreeCount, votes.size)}")
             appendLine()
-            appendLine("| Role | Vote | Reason |")
+            appendLine("| ${context.getString(R.string.report_role_col)} | ${context.getString(R.string.report_vote_col)} | ${context.getString(R.string.report_reason_col)} |")
             appendLine("|------|------|--------|")
             for ((_, vote) in votes) {
-                val voteLabel = if (vote.agree) "Agree" else "Disagree"
+                val voteLabel = if (vote.agree) context.getString(R.string.report_vote_agree) else context.getString(R.string.report_vote_disagree)
                 val reason = vote.reason.take(100).ifBlank { "-" }
                 appendLine("| ${vote.role} | $voteLabel | $reason |")
             }
@@ -94,7 +98,7 @@ object DecisionReportGenerator {
 
         // ── 讨论摘要 ──
         if (summary.isNotBlank()) {
-            appendLine("## Discussion Summary")
+            appendLine("## ${context.getString(R.string.report_discussion_summary)}")
             appendLine()
             appendLine(summary)
             appendLine()
@@ -102,7 +106,7 @@ object DecisionReportGenerator {
 
         // ── 各方观点 ──
         if (speeches.isNotEmpty()) {
-            appendLine("## Key Arguments by Role")
+            appendLine("## ${context.getString(R.string.report_key_arguments)}")
             appendLine()
 
             val byAgent = speeches.groupBy { it.agent }
@@ -129,7 +133,7 @@ object DecisionReportGenerator {
             // 人类发言单独展示
             val humanSpeeches = speeches.filter { it.agent == "human" }
             if (humanSpeeches.isNotEmpty()) {
-                appendLine("### Human Input")
+                appendLine("### ${context.getString(R.string.report_human_input)}")
                 appendLine()
                 for (speech in humanSpeeches) {
                     appendLine("- **R${speech.round}**: ${speech.content.take(300)}")
@@ -140,7 +144,7 @@ object DecisionReportGenerator {
 
         // ── 完整讨论记录 ──
         if (speeches.isNotEmpty()) {
-            appendLine("## Full Discussion Log")
+            appendLine("## ${context.getString(R.string.report_full_log)}")
             appendLine()
             for (speech in speeches) {
                 appendLine("**[R${speech.round}] ${speech.agent}**")
@@ -154,13 +158,14 @@ object DecisionReportGenerator {
 
         // ── 页脚 ──
         appendLine("---")
-        appendLine("*Generated by Agentra — Multi-Agent Decision System*")
+        appendLine("*${context.getString(R.string.report_generated_by)}*")
     }
 
     /**
      * 生成纯文本分享摘要（用于快速分享，不含完整记录）
      */
     fun generateShareText(
+        context: Context,
         subject: String,
         committeeLabel: String,
         rating: String?,
@@ -168,25 +173,25 @@ object DecisionReportGenerator {
         votes: Map<String, BoardVote>,
         consensus: Boolean,
     ): String = buildString {
-        appendLine("[$committeeLabel] Decision Report")
+        appendLine(context.getString(R.string.report_share_title, committeeLabel))
         appendLine()
-        appendLine("Subject: $subject")
+        appendLine(context.getString(R.string.report_share_subject, subject))
         if (rating != null) {
-            appendLine("Decision: $rating")
+            appendLine(context.getString(R.string.report_share_decision, rating))
         }
         if (votes.isNotEmpty()) {
             val agreeCount = votes.values.count { it.agree }
-            appendLine("Vote: $agreeCount/${votes.size} Agree")
+            appendLine(context.getString(R.string.report_share_vote, agreeCount, votes.size))
         }
         if (consensus) {
-            appendLine("Status: Consensus Reached")
+            appendLine(context.getString(R.string.report_share_consensus))
         }
         if (summary.isNotBlank()) {
             appendLine()
-            appendLine("Summary:")
+            appendLine(context.getString(R.string.report_share_summary))
             appendLine(summary.take(500))
         }
         appendLine()
-        appendLine("— Agentra")
+        appendLine(context.getString(R.string.report_share_footer))
     }
 }

@@ -2,6 +2,7 @@ package com.znliang.committee.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.znliang.committee.R
 import com.znliang.committee.engine.runtime.AgentRuntime
 import com.znliang.committee.engine.runtime.BoardPhase
 import com.znliang.committee.ui.model.UiPhase
@@ -19,6 +20,8 @@ data class FlowVizState(
     val currentState: String = "",
     val currentPhase: UiPhase = UiPhase.IDLE,
     val transitionHistory: List<TransitionRecord> = emptyList(),
+    /** All agent role IDs from the current preset (dynamic, not hardcoded) */
+    val agentRoleIds: List<String> = emptyList(),
 )
 
 data class VizState(
@@ -59,8 +62,8 @@ class FlowVizViewModel @Inject constructor(
                     lastRound = board.round
                     val phaseLabel = board.phase.name
                     _state.value.transitionHistory + TransitionRecord(
-                        from = "Round ${board.round - 1}",
-                        to = "Round ${board.round} ($phaseLabel)",
+                        from = app.getString(R.string.flowviz_round, board.round - 1),
+                        to = app.getString(R.string.flowviz_round_phase, board.round, phaseLabel),
                         event = "",
                         timestamp = System.currentTimeMillis(),
                     )
@@ -85,7 +88,7 @@ class FlowVizViewModel @Inject constructor(
                 )
 
                 _state.value = FlowVizState(
-                    flowName = "Agent Runtime",
+                    flowName = app.getString(R.string.flowviz_agent_runtime),
                     states = phaseOrder.map { phase ->
                         val idx = phaseOrder.indexOf(phase)
                         VizState(
@@ -101,6 +104,7 @@ class FlowVizViewModel @Inject constructor(
                     currentState = board.phase.name,
                     currentPhase = board.phase.toUiPhase(),
                     transitionHistory = history,
+                    agentRoleIds = runtime.agents.map { it.role },
                 )
             }
         }

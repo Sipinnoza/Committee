@@ -106,7 +106,7 @@ data class UnifiedResponse(
     companion object {
         fun parse(raw: String, canVote: Boolean, voteType: VoteType = VoteType.BINARY): UnifiedResponse {
             val lines = raw.trim().lines()
-            var speak = false
+            var speak: Boolean? = null  // null = 未显式声明，由兜底逻辑决定
             var voteBull: Boolean? = null
             var numericScore: Int? = null
             var stanceLabel: String? = null
@@ -114,58 +114,85 @@ data class UnifiedResponse(
             val contentLines = mutableListOf<String>()
             val reasoningLines = mutableListOf<String>()
             var currentSection = "" // tracks which section we're in
+            var hasAnySection = false // 是否匹配到任何结构化标记
 
             for (line in lines) {
                 val trimmed = line.trim()
                 when {
-                    trimmed.startsWith("SPEAK:", ignoreCase = true) -> {
+                    trimmed.startsWith("SPEAK:", ignoreCase = true) ||
+                    trimmed.startsWith("SPEAK：", ignoreCase = true) -> {
                         currentSection = "speak"
-                        val value = trimmed.substringAfter(":").trim().uppercase()
+                        hasAnySection = true
+                        val value = trimmed.substringAfter(":").substringAfter("：").trim().uppercase()
                         speak = value.startsWith("YES") || value.startsWith("Y")
+                                || value.startsWith("是") || value.startsWith("发言")
                     }
-                    trimmed.startsWith("REASONING:", ignoreCase = true) -> {
+                    trimmed.startsWith("REASONING:", ignoreCase = true) ||
+                    trimmed.startsWith("REASONING：", ignoreCase = true) -> {
                         currentSection = "reasoning"
-                        val firstLine = trimmed.substringAfter(":").trim()
+                        hasAnySection = true
+                        val firstLine = trimmed.substringAfter(":").substringAfter("：").trim()
                         if (firstLine.isNotBlank()) reasoningLines.add(firstLine)
                     }
-                    trimmed.startsWith("CONTENT:", ignoreCase = true) -> {
+                    trimmed.startsWith("CONTENT:", ignoreCase = true) ||
+                    trimmed.startsWith("CONTENT：", ignoreCase = true) -> {
                         currentSection = "content"
-                        val firstLine = trimmed.substringAfter(":").trim()
+                        hasAnySection = true
+                        val firstLine = trimmed.substringAfter(":").substringAfter("：").trim()
                         if (firstLine.isNotBlank()) contentLines.add(firstLine)
                     }
-                    trimmed.startsWith("VOTE:", ignoreCase = true) -> {
+                    trimmed.startsWith("VOTE:", ignoreCase = true) ||
+                    trimmed.startsWith("VOTE：", ignoreCase = true) -> {
                         currentSection = "vote"
+                        hasAnySection = true
                         if (canVote) {
-                            val value = trimmed.substringAfter(":").trim()
+                            val value = trimmed.substringAfter(":").substringAfter("：").trim()
                             val upper = value.uppercase()
                             when (voteType) {
                                 VoteType.BINARY -> {
                                     voteBull = upper.contains("BULL") || upper.startsWith("A")
                                             || upper.contains("看多") || upper.contains("AGREE")
+                                            || upper.contains("同意") || upper.contains("赞成")
+                                            || upper.contains("支持") || upper.contains("YES")
+                                    // 明确反对
+                                    if (!voteBull!!) {
+                                        val isExplicitDisagree = upper.contains("BEAR") || upper.contains("DISAGREE")
+                                                || upper.contains("反对") || upper.contains("看空")
+                                                || upper.contains("NO") || upper.contains("REJECT")
+                                                || upper.startsWith("D") || upper.startsWith("N")
+                                        if (isExplicitDisagree) voteBull = false
+                                        else voteBull = null // 无法判断，不投票
+                                    }
                                 }
                                 VoteType.SCALE -> {
-                                    // Parse "VOTE: 7" or "VOTE: 7/10"
-                                    val score = upper.replace("/10", "").trim()
-                                        .filter { it.isDigit() }.toIntOrNull()
+                                    // Parse "VOTE: 7", "VOTE: 7/10", "VOTE:7分", "VOTE: 7 分"
+                                    val score = value.replace(Regex("[/／]10"), "").trim()
+                                        .replace("分", "").trim()
+                                        .filter { it.isDigit() }.take(2).toIntOrNull()
                                     numericScore = score?.coerceIn(1, 10)
                                     voteBull = (numericScore ?: 5) >= 6
                                 }
                                 VoteType.MULTI_STANCE -> {
-                                    stanceLabel = value.trim()
-                                    // Map to agree for first option / positive stances
-                                    voteBull = upper.startsWith("A") || upper.contains("AGREE")
-                                            || upper.contains("WIN") || upper.contains("INVEST")
-                                            || upper.contains("COMPLY") || upper.contains("COMPLIANT")
-                                            || upper.contains("IDENTIFIED") || upper.contains("BREAKTHROUGH")
-                                            || upper.contains("PROPONENT")
+                                    // 去掉引号和多余空格
+                                    stanceLabel = value.trim().removeSurrounding("\"").removeSurrounding("'").trim()
+                                    val upper2 = stanceLabel!!.uppercase()
+                                    voteBull = upper2.startsWith("A") || upper2.contains("AGREE")
+                                            || upper2.contains("WIN") || upper2.contains("INVEST")
+                                            || upper2.contains("COMPLY") || upper2.contains("COMPLIANT")
+                                            || upper2.contains("IDENTIFIED") || upper2.contains("BREAKTHROUGH")
+                                            || upper2.contains("PROPONENT")
+                                            || upper2.contains("通过") || upper2.contains("赞成")
+                                            || upper2.contains("同意") || upper2.contains("支持")
                                 }
                             }
                         }
                     }
-                    trimmed.startsWith("TAGS:", ignoreCase = true) -> {
+                    trimmed.startsWith("TAGS:", ignoreCase = true) ||
+                    trimmed.startsWith("TAGS：", ignoreCase = true) -> {
                         currentSection = "tags"
-                        val value = trimmed.substringAfter(":").trim()
-                        rawTags.addAll(value.split(",", " ", "|")
+                        hasAnySection = true
+                        val value = trimmed.substringAfter(":").substringAfter("：").trim()
+                        rawTags.addAll(value.split(",", "，", " ", "|", "、")
                             .map { it.trim() }.filter { it.isNotBlank() })
                     }
                     trimmed.isNotBlank() -> {
@@ -177,8 +204,30 @@ data class UnifiedResponse(
                 }
             }
 
-            val content = contentLines.joinToString("\n")
+            var content = contentLines.joinToString("\n")
             val reasoning = reasoningLines.joinToString("\n")
+
+            // ── 兜底：如果没有匹配到任何结构化标记，整段 raw 当 CONTENT ──
+            if (!hasAnySection && raw.isNotBlank()) {
+                content = raw.trim()
+            }
+            // ── 兜底2：匹配了 SPEAK 等但 CONTENT 为空，从 raw 中提取可用内容 ──
+            if (hasAnySection && content.isBlank() && raw.length > 20) {
+                // 去掉已识别的 section 标记行，剩下的当 content
+                val fallbackLines = lines.filter { line ->
+                    val t = line.trim().uppercase()
+                    !t.startsWith("SPEAK") && !t.startsWith("VOTE") &&
+                    !t.startsWith("TAGS") && !t.startsWith("REASONING") &&
+                    !t.startsWith("CONTENT") && t.isNotBlank()
+                }
+                if (fallbackLines.isNotEmpty()) {
+                    content = fallbackLines.joinToString("\n")
+                }
+            }
+
+            // ── SPEAK 兜底：未声明时，有内容就视为想发言 ──
+            val wantsToSpeak = speak ?: content.isNotBlank()
+
             val normalized = if (rawTags.isNotEmpty()) {
                 MsgTag.normalizeAll(rawTags)
             } else if (content.isNotBlank()) {
@@ -188,7 +237,7 @@ data class UnifiedResponse(
             }
 
             return UnifiedResponse(
-                wantsToSpeak = speak,
+                wantsToSpeak = wantsToSpeak,
                 content = content,
                 voteBull = voteBull,
                 rawTags = rawTags,

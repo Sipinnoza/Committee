@@ -36,7 +36,7 @@ class UnifiedResponseParseTest {
         val resp = UnifiedResponse.parse(raw, canVote = true)
         assertFalse(resp.wantsToSpeak)
         assertEquals("", resp.content)
-        assertFalse(resp.voteBull!!)
+        assertNull(resp.voteBull) // 空 VOTE: 不应产生投票
     }
 
     @Test
@@ -121,5 +121,71 @@ class UnifiedResponseParseTest {
         val resp = UnifiedResponse.parse(raw, canVote = true)
         assertTrue(resp.wantsToSpeak)
         assertFalse(resp.voteBull!!)
+    }
+
+    // ── 兜底逻辑测试 ──────────────────────────────────────────
+
+    @Test
+    fun `parse unstructured text as content fallback`() {
+        // LLM 完全没遵循格式，返回自然语言
+        val raw = "I believe this stock is a strong buy based on the Q3 earnings report. The revenue growth of 25% YoY is impressive."
+
+        val resp = UnifiedResponse.parse(raw, canVote = true)
+        assertTrue(resp.wantsToSpeak) // 有内容就视为想发言
+        assertTrue(resp.content.contains("strong buy"))
+        assertNull(resp.voteBull) // 无法从非结构化文本中提取投票
+    }
+
+    @Test
+    fun `parse Chinese colon variants`() {
+        val raw = """
+            SPEAK：YES
+            CONTENT：这是中文冒号测试。
+            VOTE：AGREE
+            TAGS：PRO，GROWTH
+        """.trimIndent()
+
+        val resp = UnifiedResponse.parse(raw, canVote = true)
+        assertTrue(resp.wantsToSpeak)
+        assertTrue(resp.content.contains("中文冒号"))
+        assertTrue(resp.voteBull!!)
+    }
+
+    @Test
+    fun `parse Chinese vote keywords`() {
+        val raw = """
+            SPEAK: YES
+            CONTENT: 我认为估值合理。
+            VOTE: 同意
+        """.trimIndent()
+
+        val resp = UnifiedResponse.parse(raw, canVote = true)
+        assertTrue(resp.voteBull!!)
+    }
+
+    @Test
+    fun `parse SPEAK absent defaults to true when content present`() {
+        // 没有 SPEAK 行，但有 CONTENT
+        val raw = """
+            CONTENT: Analysis shows positive momentum.
+            VOTE: AGREE
+        """.trimIndent()
+
+        val resp = UnifiedResponse.parse(raw, canVote = true)
+        assertTrue(resp.wantsToSpeak) // 有内容默认发言
+        assertTrue(resp.content.contains("positive momentum"))
+    }
+
+    @Test
+    fun `parse SCALE vote with Chinese 分`() {
+        val raw = """
+            SPEAK: YES
+            CONTENT: Evaluation complete.
+            VOTE: 8分
+        """.trimIndent()
+
+        val resp = UnifiedResponse.parse(raw, canVote = true, voteType = VoteType.SCALE)
+        assertEquals(8, resp.numericScore)
+        assertTrue(resp.voteBull!!)
     }
 }
