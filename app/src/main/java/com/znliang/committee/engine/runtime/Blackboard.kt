@@ -13,18 +13,18 @@ package com.znliang.committee.engine.runtime
 enum class PreSearchStatus { IDLE, SEARCHING, DONE, FAILED }
 
 data class Blackboard(
-    val subject: String = "",
-    val round: Int = 1,
-    val maxRounds: Int = 20,
+    val subject: String = "",                                  // 会议主题
+    val round: Int = 1,                                        // 当前轮次
+    val maxRounds: Int = 20,                                   // 最大轮次
     val messages: List<BoardMessage> = emptyList(),        // 不可变
     val votes: Map<String, BoardVote> = emptyMap(),        // role → latest vote（去重）
-    val phase: BoardPhase = BoardPhase.IDLE,
-    val consensus: Boolean = false,
-    val finished: Boolean = false,
-    val finalRating: String? = null,
-    val executionPlan: String? = null,
-    val summary: String = "",
-    val lastSummaryRound: Int = 0,
+    val phase: BoardPhase = BoardPhase.IDLE,                   // 当前阶段
+    val consensus: Boolean = false,                            // 是否达成共识
+    val finished: Boolean = false,                             // 会议是否结束
+    val finalRating: String? = null,                           // 最终评级
+    val executionPlan: String? = null,                         // 执行计划
+    val summary: String = "",                                  // 讨论摘要
+    val lastSummaryRound: Int = 0,                             // 最后一次摘要更新的轮次
     /** 情报官预搜索结果（会议开始前基于历史缺口自动搜索） */
     val preGatheredInfo: String = "",
     /** 多模态附件材料（图片/文件） */

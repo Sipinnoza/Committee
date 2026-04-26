@@ -15,14 +15,14 @@ import com.znliang.committee.R
  * @param ratingScale     评级量表
  */
 data class MeetingPreset(
-    val id: String,
-    val name: String,
-    val description: String,
-    val iconName: String,
-    val committeeLabel: String,
-    val roles: List<PresetRole>,
-    val mandates: Map<String, String>,
-    val ratingScale: List<String>,
+    val id: String,                        // 预设唯一标识
+    val name: String,                      // 预设名称
+    val description: String,               // 预设描述
+    val iconName: String,                  // Material图标名称
+    val committeeLabel: String,            // 委员会名称（如"投委会"）
+    val roles: List<PresetRole>,           // 角色列表
+    val mandates: Map<String, String>,     // 会议规则/指令（key-value对）
+    val ratingScale: List<String>,         // 评级量表（如Buy/Hold/Sell）
 ) {
     /** Runtime-only flag — excluded from equals/hashCode to avoid false inequality */
     @Transient var isActive: Boolean = false

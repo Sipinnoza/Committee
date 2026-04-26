@@ -17,5 +17,5 @@ enum class AppLanguage(val code: String, val displayNameRes: Int) {
 }
 
 data class AppConfig(
-    val selectedLanguage: AppLanguage = AppLanguage.SYSTEM
+    val selectedLanguage: AppLanguage = AppLanguage.SYSTEM, // 用户选择的语言
 )

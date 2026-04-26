@@ -38,47 +38,47 @@ import javax.inject.Inject
 
 /** Updated every ~80ms during streaming — speeches, running/paused flags, logs */
 data class StreamingState(
-    val speeches: List<SpeechRecord> = emptyList(),
-    val isRunning: Boolean = false,
-    val isPaused: Boolean = false,
-    val looperLogs: List<String> = emptyList(),
-    val currentState: MeetingState = MeetingState.IDLE,
+    val speeches: List<SpeechRecord> = emptyList(), // 发言记录列表
+    val isRunning: Boolean = false,                 // 会议是否运行中
+    val isPaused: Boolean = false,                  // 会议是否暂停
+    val looperLogs: List<String> = emptyList(),     // 运行时日志
+    val currentState: MeetingState = MeetingState.IDLE, // 当前会议状态
 )
 
 /** Updated per round/vote — board-level data (uses UI-layer types) */
 data class BoardState(
-    val subject: String = "",
-    val boardPhase: UiPhase = UiPhase.IDLE,
-    val boardRound: Int = 1,
-    val boardConsensus: Boolean = false,
-    val boardFinished: Boolean = false,
-    val boardRating: String? = null,
-    val boardSummary: String = "",
-    val boardVotes: Map<String, VoteInfo> = emptyMap(),
-    val boardContribScores: Map<String, ContributionInfo> = emptyMap(),
-    val boardUserWeights: Map<String, Float> = emptyMap(),
-    val boardConfidence: Int = 0,
-    val boardConfidenceBreakdown: String = "",
-    val boardUserOverride: String? = null,
-    val boardUserOverrideReason: String = "",
-    val boardError: String? = null,
-    val preSearchStatus: String = "IDLE",
-    val preSearchResultCount: Int = 0,
-    val evolutionNotification: String = "",
+    val subject: String = "",                                    // 会议主题
+    val boardPhase: UiPhase = UiPhase.IDLE,                      // 当前黑板阶段
+    val boardRound: Int = 1,                                     // 当前轮次
+    val boardConsensus: Boolean = false,                         // 是否达成共识
+    val boardFinished: Boolean = false,                          // 会议是否结束
+    val boardRating: String? = null,                             // 最终评级
+    val boardSummary: String = "",                               // 会议摘要
+    val boardVotes: Map<String, VoteInfo> = emptyMap(),          // 投票结果（角色ID→投票信息）
+    val boardContribScores: Map<String, ContributionInfo> = emptyMap(), // 贡献度评分
+    val boardUserWeights: Map<String, Float> = emptyMap(),       // 用户设置的Agent权重
+    val boardConfidence: Int = 0,                                // 决策置信度(0-100)
+    val boardConfidenceBreakdown: String = "",                   // 置信度明细
+    val boardUserOverride: String? = null,                       // 用户覆写的评级
+    val boardUserOverrideReason: String = "",                    // 用户覆写理由
+    val boardError: String? = null,                              // 错误信息
+    val preSearchStatus: String = "IDLE",                        // 会前情报搜索状态
+    val preSearchResultCount: Int = 0,                           // 会前搜索结果数
+    val evolutionNotification: String = "",                      // 进化通知内容
 )
 
 /** Rarely updated — API key, LLM config, error */
 data class ConfigState(
-    val hasApiKey: Boolean = false,
-    val llmConfig: LlmConfig = LlmConfig(),
-    val error: String? = null,
+    val hasApiKey: Boolean = false,                   // 是否已配置API密钥
+    val llmConfig: LlmConfig = LlmConfig(),           // 当前LLM配置
+    val error: String? = null,                        // 错误信息
 )
 
 /** Updated on session/action changes */
 data class ActionState(
-    val sessions: List<MeetingSessionEntity> = emptyList(),
-    val pendingActions: List<DecisionActionEntity> = emptyList(),
-    val appConfig: AppConfig = AppConfig(),
+    val sessions: List<MeetingSessionEntity> = emptyList(), // 历史会议列表
+    val pendingActions: List<DecisionActionEntity> = emptyList(), // 待执行的Action Items
+    val appConfig: AppConfig = AppConfig(),                  // 应用配置
 )
 
 @HiltViewModel

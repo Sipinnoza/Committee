@@ -31,8 +31,8 @@ data class DecisionActionEntity(
     val description: String = "",  // 详细描述
     val assignee: String = "",     // 负责人/负责角色
     val status: String = "pending", // pending | in_progress | done | overdue
-    val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis(),
+    val createdAt: Long = System.currentTimeMillis(), // 创建时间
+    val updatedAt: Long = System.currentTimeMillis(), // 更新时间
     val dueDate: Long? = null,     // 截止日期（可选）
 )
 

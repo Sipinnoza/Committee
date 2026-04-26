@@ -14,34 +14,34 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class FlowVizState(
-    val flowName: String = "",
-    val states: List<VizState> = emptyList(),
-    val edges: List<VizEdge> = emptyList(),
-    val currentState: String = "",
-    val currentPhase: UiPhase = UiPhase.IDLE,
-    val transitionHistory: List<TransitionRecord> = emptyList(),
+    val flowName: String = "",                          // 流程名称
+    val states: List<VizState> = emptyList(),           // 可视化状态节点列表
+    val edges: List<VizEdge> = emptyList(),             // 状态转换边列表
+    val currentState: String = "",                      // 当前状态名
+    val currentPhase: UiPhase = UiPhase.IDLE,           // 当前会议阶段
+    val transitionHistory: List<TransitionRecord> = emptyList(), // 状态转换历史
     /** All agent role IDs from the current preset (dynamic, not hardcoded) */
-    val agentRoleIds: List<String> = emptyList(),
+    val agentRoleIds: List<String> = emptyList(),       // 当前预设的Agent角色ID列表
 )
 
 data class VizState(
-    val name: String,
-    val displayName: String,
-    val isActive: Boolean,
-    val isCompleted: Boolean,
+    val name: String,               // 状态内部名称
+    val displayName: String,        // 状态显示名称（国际化）
+    val isActive: Boolean,          // 是否为当前活跃状态
+    val isCompleted: Boolean,       // 是否已完成
 )
 
 data class VizEdge(
-    val from: String?,
-    val to: String,
-    val event: String,
+    val from: String?,              // 起始状态（null表示初始边）
+    val to: String,                 // 目标状态
+    val event: String,              // 触发事件名称
 )
 
 data class TransitionRecord(
-    val from: String,
-    val to: String,
-    val event: String,
-    val timestamp: Long,
+    val from: String,               // 转换前状态
+    val to: String,                 // 转换后状态
+    val event: String,              // 触发事件
+    val timestamp: Long,            // 转换时间戳
 )
 
 @HiltViewModel

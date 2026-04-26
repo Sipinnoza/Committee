@@ -325,7 +325,7 @@ object AppModule {
             .map { role ->
                 GenericAgent(
                     presetRole = role,
-                    systemPrompt = "", // Will be built dynamically by buildUnifiedPrompt
+                    // Will be built dynamically by buildUnifiedPrompt
                     canUseTools = role.canUseTools,
                     promptStyle = promptStyle,
                     voteType = voteType,

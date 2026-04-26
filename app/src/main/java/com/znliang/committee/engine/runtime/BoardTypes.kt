@@ -43,39 +43,39 @@ enum class MsgTag(val keys: List<String>) {
 // ── 附件引用 ────────────────────────────────────────────────
 
 data class MaterialRef(
-    val id: Long,
-    val fileName: String,
-    val mimeType: String,
-    val description: String = "",
+    val id: Long,                    // 材料ID
+    val fileName: String,            // 文件名
+    val mimeType: String,            // MIME类型（如image/png）
+    val description: String = "",    // 材料描述
     val base64: String = "",    // 压缩后 base64，运行时填充
 )
 
 // ── Board 数据类型 ──────────────────────────────────────────
 
 data class BoardMessage(
-    val role: String,
-    val content: String,
-    val round: Int,
-    val timestamp: Long = System.currentTimeMillis(),
-    val rawTags: List<String> = emptyList(),
-    val normalizedTags: List<MsgTag> = MsgTag.normalizeAll(rawTags),
+    val role: String,                                                // 发言者角色ID
+    val content: String,                                             // 发言内容
+    val round: Int,                                                  // 所属轮次
+    val timestamp: Long = System.currentTimeMillis(),                // 发言时间戳
+    val rawTags: List<String> = emptyList(),                         // 原始标签列表
+    val normalizedTags: List<MsgTag> = MsgTag.normalizeAll(rawTags), // 标准化后的标签
 )
 
 /** 投票类型 */
 enum class VoteType { BINARY, SCALE, MULTI_STANCE }
 
 data class BoardVote(
-    val role: String,
-    val agree: Boolean,
-    val reason: String = "",
-    val round: Int,
+    val role: String,                                     // 投票者角色ID
+    val agree: Boolean,                                   // 是否赞成
+    val reason: String = "",                              // 投票理由
+    val round: Int,                                       // 投票轮次
     val numericScore: Int? = null,    // SCALE 模式 (1-10)
     val stanceLabel: String? = null,  // MULTI_STANCE 模式
 )
 
 /** Agent 发言贡献度评分 */
 data class ContributionScore(
-    val roleId: String,
+    val roleId: String,               // 角色ID
     val informationGain: Int = 0,  // 信息增量 1-5
     val logicQuality: Int = 0,     // 论证逻辑 1-5
     val interactionQuality: Int = 0, // 互动质量 1-5
@@ -91,11 +91,11 @@ enum class BoardPhase {
 // ── UnifiedResponse ────────────────────────────────────────
 
 data class UnifiedResponse(
-    val wantsToSpeak: Boolean,
-    val content: String,
-    val voteBull: Boolean?,
-    val rawTags: List<String>,
-    val normalizedTags: List<MsgTag>,
+    val wantsToSpeak: Boolean,            // Agent是否想发言
+    val content: String,                  // 发言正文
+    val voteBull: Boolean?,               // 投票方向（true=赞成/null=未投票）
+    val rawTags: List<String>,            // 原始标签列表
+    val normalizedTags: List<MsgTag>,     // 标准化后的标签列表
     /** Agent 的推理过程（思考链路） */
     val reasoning: String = "",
     /** SCALE 模式的数字评分 (1-10) */

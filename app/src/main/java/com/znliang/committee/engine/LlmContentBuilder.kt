@@ -4,9 +4,9 @@ package com.znliang.committee.engine
  * 多模态内容数据，在 AgentPool 调用时传入。
  */
 data class MaterialData(
-    val mimeType: String,   // image/jpeg, image/png
-    val base64: String,     // base64 编码的图片数据
-    val fileName: String = "",
+    val mimeType: String,   // 文件MIME类型，如image/jpeg、image/png
+    val base64: String,     // base64编码的图片数据
+    val fileName: String = "", // 文件名
 )
 
 /**

@@ -389,9 +389,9 @@ TAGS: PRO,GROWTH"""
     @Test
     fun `calculateConfidence gives higher score with unanimous votes`() {
         val agents = listOf(
-            GenericAgent(makePresetRole(id = "a1"), ""),
-            GenericAgent(makePresetRole(id = "a2"), ""),
-            GenericAgent(makePresetRole(id = "a3"), ""),
+            GenericAgent(makePresetRole(id = "a1")),
+            GenericAgent(makePresetRole(id = "a2")),
+            GenericAgent(makePresetRole(id = "a3")),
         )
         ctx = FakeRuntimeContext(preset = preset, agents = agents)
         orchestrator = MeetingOrchestrator(ctx)
@@ -462,8 +462,8 @@ TAGS: PRO,GROWTH"""
     @Test
     fun `calculateConfidence gives resolution bonus for answered questions`() {
         val agents = listOf(
-            GenericAgent(makePresetRole(id = "a1"), ""),
-            GenericAgent(makePresetRole(id = "a2"), ""),
+            GenericAgent(makePresetRole(id = "a1")),
+            GenericAgent(makePresetRole(id = "a2")),
         )
         ctx = FakeRuntimeContext(preset = preset, agents = agents)
         orchestrator = MeetingOrchestrator(ctx)
@@ -497,9 +497,9 @@ TAGS: PRO,GROWTH"""
     @Test
     fun `calculateConfidence capped at 100`() {
         val agents = listOf(
-            GenericAgent(makePresetRole(id = "a1"), ""),
-            GenericAgent(makePresetRole(id = "a2"), ""),
-            GenericAgent(makePresetRole(id = "a3"), ""),
+            GenericAgent(makePresetRole(id = "a1")),
+            GenericAgent(makePresetRole(id = "a2")),
+            GenericAgent(makePresetRole(id = "a3")),
         )
         ctx = FakeRuntimeContext(preset = preset, agents = agents)
         orchestrator = MeetingOrchestrator(ctx)

@@ -18,8 +18,8 @@ import com.znliang.committee.domain.model.AppLanguage
 
 @Entity(tableName = "app_config")
 data class AppConfigEntity(
-    @PrimaryKey val id: Int = 1,
-    val selectedLanguage: String = AppLanguage.SYSTEM.code,
+    @PrimaryKey val id: Int = 1,                                        // 主键（固定为1，单例）
+    val selectedLanguage: String = AppLanguage.SYSTEM.code,             // 用户选择的语言代码
 )
 
 @Dao

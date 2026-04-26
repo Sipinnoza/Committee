@@ -639,7 +639,6 @@ class AgentRuntime(
             .map { role ->
                 GenericAgent(
                     presetRole = role,
-                    systemPrompt = "",
                     canUseTools = role.canUseTools,
                     promptStyle = newPromptStyle,
                     voteType = newVoteType,

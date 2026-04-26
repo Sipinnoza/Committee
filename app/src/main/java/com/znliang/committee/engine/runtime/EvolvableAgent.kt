@@ -30,14 +30,14 @@ enum class EvolutionPriority { HIGH, MEDIUM, LOW }
 // ── 数据类 ──────────────────────────────────────────────────────
 
 data class AgentExperience(
-    val id: Long = 0,
-    val agentRole: String,
-    val meetingTraceId: String,
-    val category: ExperienceCategory,
-    val content: String,
-    val outcome: EvolutionOutcome,
-    val priority: EvolutionPriority,
-    val appliedToPrompt: Boolean = false,
+    val id: Long = 0,                             // 经验ID
+    val agentRole: String,                        // Agent角色ID
+    val meetingTraceId: String,                   // 关联的会议追踪ID
+    val category: ExperienceCategory,             // 经验类别（策略/错误/洞察/Prompt修复）
+    val content: String,                          // 经验内容
+    val outcome: EvolutionOutcome,                // 进化结果（正面/负面/中性）
+    val priority: EvolutionPriority,              // 优先级（高/中/低）
+    val appliedToPrompt: Boolean = false,         // 是否已应用到系统Prompt
 ) {
     fun toEntity() = AgentEvolutionEntity(
         id = id,
@@ -65,23 +65,23 @@ data class AgentExperience(
 }
 
 data class MeetingOutcome(
-    val subject: String,
-    val finalRating: String?,
+    val subject: String,                          // 会议主题
+    val finalRating: String?,                     // 最终评级
     val agentVote: String?,       // BULL or BEAR
     val voteCorrect: Boolean?,    // 投票是否与最终评级方向一致
-    val rounds: Int,
-    val totalMessages: Int,
-    val myMessages: Int,
-    val consensus: Boolean,
+    val rounds: Int,                              // 总轮次
+    val totalMessages: Int,                       // 总发言数
+    val myMessages: Int,                          // 该Agent的发言数
+    val consensus: Boolean,                       // 是否达成共识
 )
 
 data class SelfEvaluation(
     val score: Float,             // 0.0 - 1.0
-    val strengths: String,
-    val weaknesses: String,
-    val lessonsLearned: String,
-    val category: ExperienceCategory,
-    val priority: EvolutionPriority,
+    val strengths: String,                        // 优势总结
+    val weaknesses: String,                       // 不足之处
+    val lessonsLearned: String,                   // 经验教训
+    val category: ExperienceCategory,             // 归属的经验类别
+    val priority: EvolutionPriority,              // 建议优先级
 )
 
 // ── 可进化 Agent 接口 ────────────────────────────────────────────

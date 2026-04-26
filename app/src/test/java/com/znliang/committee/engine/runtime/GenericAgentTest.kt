@@ -1,6 +1,5 @@
 package com.znliang.committee.engine.runtime
 
-import com.znliang.committee.domain.model.MeetingPreset
 import com.znliang.committee.domain.model.PresetRole
 import org.junit.Assert.*
 import org.junit.Test
@@ -40,7 +39,6 @@ class GenericAgentTest {
         voteOptions: List<String> = emptyList(),
     ) = GenericAgent(
         presetRole = presetRole,
-        systemPrompt = "You are a test agent.",
         canUseTools = canUseTools,
         scoringBonus = scoringBonus,
         promptStyle = promptStyle,

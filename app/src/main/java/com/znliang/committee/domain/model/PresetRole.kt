@@ -6,14 +6,14 @@ import com.znliang.committee.R
  * 会议预设角色模板
  */
 data class PresetRole(
-    val id: String,
-    val displayName: String,
-    val stance: String,
-    val responsibility: String,
-    val systemPromptKey: String,
-    val colorHex: String,
-    val canUseTools: Boolean = false,
-    val isSupervisor: Boolean = false,
+    val id: String,                    // 角色唯一标识
+    val displayName: String,           // 角色显示名称
+    val stance: String,                // 角色立场（如Bull/Bear/Neutral）
+    val responsibility: String,        // 角色职责描述
+    val systemPromptKey: String,       // 系统Prompt模板的资源key
+    val colorHex: String,              // 角色主题色（十六进制）
+    val canUseTools: Boolean = false,  // 是否可使用工具（如搜索）
+    val isSupervisor: Boolean = false, // 是否为主持人/裁判角色
 ) {
     companion object {
         /** Map role id → string resource IDs for i18n */

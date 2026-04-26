@@ -79,10 +79,10 @@ enum class LlmProvider(
  * 当前 LLM 配置快照
  */
 data class LlmConfig(
-    val provider: LlmProvider = LlmProvider.DEEPSEEK,
-    val apiKey: String = "",
-    val model: String = provider.defaultModel,
-    val baseUrl: String = provider.defaultBaseUrl,
+    val provider: LlmProvider = LlmProvider.DEEPSEEK, // LLM提供商
+    val apiKey: String = "",                          // API密钥
+    val model: String = provider.defaultModel,        // 使用的模型名称
+    val baseUrl: String = provider.defaultBaseUrl,    // API基础URL
 ) {
     val isReady: Boolean get() = apiKey.isNotBlank()
 

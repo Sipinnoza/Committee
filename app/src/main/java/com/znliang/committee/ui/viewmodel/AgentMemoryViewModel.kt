@@ -11,19 +11,19 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class AgentMemoryStats(
-    val experienceCount: Int = 0,
-    val skillCount: Int = 0,
-    val changelogCount: Int = 0,
-    val latestOutcome: MeetingOutcomeEntity? = null,
-    val voteAccuracy: Float? = null,
-    val meetingCount: Int = 0,
+    val experienceCount: Int = 0,               // 经验记忆条数
+    val skillCount: Int = 0,                    // 已验证技能数
+    val changelogCount: Int = 0,                // Prompt变更次数
+    val latestOutcome: MeetingOutcomeEntity? = null, // 最近一次会议结果
+    val voteAccuracy: Float? = null,            // 投票准确率（>=3次投票后计算）
+    val meetingCount: Int = 0,                  // 参与会议总数
 )
 
 data class AgentMemoryDetail(
-    val experiences: List<AgentEvolutionEntity> = emptyList(),
-    val skills: List<AgentSkillEntity> = emptyList(),
-    val changelogs: List<PromptChangelogEntity> = emptyList(),
-    val outcomes: List<MeetingOutcomeEntity> = emptyList(),
+    val experiences: List<AgentEvolutionEntity> = emptyList(),   // 经验记忆列表
+    val skills: List<AgentSkillEntity> = emptyList(),            // 技能库列表
+    val changelogs: List<PromptChangelogEntity> = emptyList(),   // Prompt变更历史
+    val outcomes: List<MeetingOutcomeEntity> = emptyList(),      // 会议结果列表
 )
 
 @HiltViewModel

@@ -11,14 +11,14 @@ import kotlinx.coroutines.flow.Flow
     indices = [Index("meetingTraceId")],
 )
 data class MeetingMaterialEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val meetingTraceId: String,
-    val fileName: String,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,          // 自增主键
+    val meetingTraceId: String,                                  // 关联的会议追踪ID
+    val fileName: String,                                        // 文件名
     val mimeType: String,          // image/jpeg, image/png, application/pdf
     val localPath: String,         // 本地文件路径
     val base64Cache: String = "",  // 压缩后的base64（首次使用时lazy生成）
     val description: String = "",  // 用户描述 / OCR文字
-    val addedAt: Long = System.currentTimeMillis(),
+    val addedAt: Long = System.currentTimeMillis(),             // 添加时间戳
 )
 
 @Dao

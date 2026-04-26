@@ -34,15 +34,15 @@ import kotlinx.coroutines.flow.Flow
 )
 data class SkillDefinitionEntity(
     @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+    val id: Long = 0,                  // 自增主键
     val name: String,                  // tool name: "web_search"
     val description: String,           // LLM 看到的描述
     val parameters: String,            // JSON Schema 格式
     val executionType: String,         // "http" | "llm"
     val executionConfig: String,       // JSON: 执行配置（URL模板/header/body模板/prompt模板等）
-    val enabled: Boolean = true,
-    val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis(),
+    val enabled: Boolean = true,       // 是否启用
+    val createdAt: Long = System.currentTimeMillis(), // 创建时间
+    val updatedAt: Long = System.currentTimeMillis(), // 更新时间
 )
 
 @Dao

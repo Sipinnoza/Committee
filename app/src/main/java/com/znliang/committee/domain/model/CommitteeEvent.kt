@@ -7,36 +7,36 @@ import java.util.UUID
  * 会议事件
  */
 data class CommitteeEvent(
-    val eventId: String = "evt_${UUID.randomUUID().toString().replace("-", "").take(12)}",
-    val ts: Instant = Instant.now(),
-    val event: String,
-    val agent: String,
-    val traceId: String,
-    val causedBy: String? = null,
-    val payload: Map<String, Any> = emptyMap(),
+    val eventId: String = "evt_${UUID.randomUUID().toString().replace("-", "").take(12)}", // 事件唯一ID
+    val ts: Instant = Instant.now(),           // 事件时间戳
+    val event: String,                         // 事件类型名称
+    val agent: String,                         // 触发事件的Agent角色ID
+    val traceId: String,                       // 关联的会议追踪ID
+    val causedBy: String? = null,              // 触发原因描述
+    val payload: Map<String, Any> = emptyMap(), // 事件附加数据
 )
 
 /**
  * 话筒上下文，传给 Agent 的完整上下文
  */
 data class MicContext(
-    val traceId: String,
-    val causedBy: String,
-    val round: Int,
-    val phase: MeetingState,
-    val subject: String,
-    val agentRoleId: String,
-    val task: String = "",
+    val traceId: String,              // 会议追踪ID
+    val causedBy: String,             // 触发原因
+    val round: Int,                   // 当前讨论轮次
+    val phase: MeetingState,          // 当前会议阶段
+    val subject: String,              // 会议主题
+    val agentRoleId: String,          // 被分配话筒的Agent角色ID
+    val task: String = "",            // 分配给Agent的具体任务
 )
 
 data class SpeechRecord(
-    val agent: String,
-    val round: Int,
-    val summary: String,
-    val content: String,
-    val timestamp: Instant = Instant.now(),
-    val isStreaming: Boolean = false,
-    val id: String = "sp_${UUID.randomUUID().toString().replace("-", "").take(10)}",
+    val agent: String,                 // 发言Agent角色ID
+    val round: Int,                    // 所属轮次
+    val summary: String,               // 发言摘要
+    val content: String,               // 完整发言内容
+    val timestamp: Instant = Instant.now(), // 发言时间戳
+    val isStreaming: Boolean = false,   // 是否正在流式输出
+    val id: String = "sp_${UUID.randomUUID().toString().replace("-", "").take(10)}", // 发言唯一ID
     /** Agent 的推理过程（思考链路），用户可展开查看 */
     val reasoning: String = "",
     /** 内联投票标签 — 如 "Agree", "Score=8", "Stance=看涨" */

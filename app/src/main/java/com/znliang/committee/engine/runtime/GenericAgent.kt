@@ -20,7 +20,6 @@ import com.znliang.committee.domain.model.PresetRole
  */
 class GenericAgent(
     private val presetRole: PresetRole,
-    private val systemPrompt: String,
     val canUseTools: Boolean = false,
     private val scoringBonus: Double = 0.0,
     private val promptStyle: String = "debate",

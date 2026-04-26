@@ -23,25 +23,25 @@ import java.io.File
 import javax.inject.Inject
 
 data class AgentChatMessage(
-    val id: Long = 0,
+    val id: Long = 0,                    // 消息ID
     val role: String,       // "user" or "assistant"
-    val content: String,
-    val isStreaming: Boolean = false,
+    val content: String,                 // 消息内容
+    val isStreaming: Boolean = false,     // 是否正在流式输出
 )
 
 data class AgentChatUiState(
-    val agentRoleId: String = "",
-    val agentDisplayName: String = "",
-    val agentSystemPromptKey: String = "",
-    val systemPrompt: String = "",
-    val messages: List<AgentChatMessage> = emptyList(),
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val agentConfig: LlmConfig = LlmConfig(),
-    val isUsingCustomConfig: Boolean = false,
-    val isEditingPrompt: Boolean = false,
-    val promptSource: String = "",
-    val promptSuggestion: String = "",
+    val agentRoleId: String = "",                     // 当前对话的Agent角色ID
+    val agentDisplayName: String = "",                // Agent显示名称
+    val agentSystemPromptKey: String = "",            // 系统Prompt资源key
+    val systemPrompt: String = "",                    // 当前系统Prompt内容
+    val messages: List<AgentChatMessage> = emptyList(), // 对话消息列表
+    val isLoading: Boolean = false,                   // 是否正在加载
+    val error: String? = null,                        // 错误信息
+    val agentConfig: LlmConfig = LlmConfig(),         // Agent使用的LLM配置
+    val isUsingCustomConfig: Boolean = false,         // 是否使用自定义LLM配置
+    val isEditingPrompt: Boolean = false,             // 是否正在编辑Prompt
+    val promptSource: String = "",                    // Prompt来源（assets/local_file）
+    val promptSuggestion: String = "",                // LLM生成的Prompt优化建议
 )
 
 @HiltViewModel
